@@ -1,0 +1,31 @@
+import java.awt.image.BufferedImage;
+import java.io.IOException;
+import javax.imageio.ImageIO;
+
+public class TemplateEnemy extends Enemy {
+    private static final double SPEED = 50.0;
+    private static final double ANIMATION_SPEED = 4.0;
+    private static final int FRAME_WIDTH = 128;
+    private static final int FRAME_HEIGHT = 128;
+    private static final int RENDER_SIZE = 56;
+    private static final double COLLISION_RADIUS = RENDER_SIZE / 2.0;
+    private static final double DAMAGE = 20.0;
+    private static final double MAX_HEALTH = 3.0;
+    private static final BufferedImage SPRITE_SHEET = loadSpriteSheet();
+
+
+    public TemplateEnemy(double worldX, double worldY) {
+        super(worldX, worldY, SPRITE_SHEET, SPEED, ANIMATION_SPEED,
+            FRAME_WIDTH, FRAME_HEIGHT, RENDER_SIZE, COLLISION_RADIUS, DAMAGE, MAX_HEALTH);
+    }
+
+    private static BufferedImage loadSpriteSheet() {
+        try {
+            return ImageIO.read(
+                    TemplateEnemy.class.getResource("/assets/enemy/tempmonster_sheet.png"));
+        } catch (IOException | IllegalArgumentException exception) {
+            throw new IllegalStateException(
+                    "Could not load assets/enemy/tempmonster_sheet.png", exception);
+        }
+    }
+}

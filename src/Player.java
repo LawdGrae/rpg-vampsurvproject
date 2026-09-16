@@ -1,0 +1,161 @@
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
+import java.io.IOException;
+import java.util.HashSet;
+import java.util.Set;
+import javax.imageio.ImageIO;
+
+public abstract class Player {
+    private static final int HEALTH_BAR_HEIGHT = 5;
+    private static final int HEALTH_BAR_GAP = 4;
+
+    // Subclasses provide these values so different characters can have different settings.
+    protected final double speed;
+    protected final double animationSpeed;
+    protected final int spriteScale;
+    protected final int spriteWidth;
+    protected final int spriteHeight;
+    protected final BufferedImage spriteSheet;
+
+    private final Set<String> pressedKeys = new HashSet<>();
+    private double worldOffsetX;
+    private double worldOffsetY;
+    private double animationTime;
+    private int spriteRow = 2;
+    private final double maxHealth;
+    private double health;
+
+    protected Player(String spritePath, double speed, double animationSpeed,
+            int spriteScale, int spriteWidth, int spriteHeight, double maxHealth) {
+        this.speed = speed;
+        this.animationSpeed = animationSpeed;
+        this.spriteScale = spriteScale;
+        this.spriteWidth = spriteWidth;
+        this.spriteHeight = spriteHeight;
+        this.maxHealth = maxHealth;
+        this.health = maxHealth;
+        this.spriteSheet = loadSpriteSheet(spritePath);
+    }
+
+    private BufferedImage loadSpriteSheet(String spritePath) {
+        try {
+            return ImageIO.read(Player.class.getResource(spritePath));
+        } catch (IOException | IllegalArgumentException exception) {
+            throw new IllegalStateException("Could not load " + spritePath, exception);
+        }
+    }
+
+    public void setKeyPressed(String direction, boolean pressed) {
+        // Keep keys in a set so movement continues while a key is held down.
+        if (pressed) {
+            pressedKeys.add(direction);
+        } else {
+            pressedKeys.remove(direction);
+        }
+    }
+
+    public void update(double deltaTime) {
+        int horizontal = horizontalInput();
+        int vertical = verticalInput();
+
+        // Sprite rows: 0 = up, 1 = right, 2 = down, 3 = left.
+        if (vertical < 0) {
+            spriteRow = 0;
+        } else if (horizontal > 0) {
+            spriteRow = 1;
+        } else if (vertical > 0) {
+            spriteRow = 2;
+        } else if (horizontal < 0) {
+            spriteRow = 3;
+        }
+
+        double length = Math.sqrt(horizontal * horizontal + vertical * vertical);
+        if (length > 0) {
+            // Normalize diagonal input so diagonal movement is not faster.
+            // The world moves opposite to input because the player stays centered.
+            worldOffsetX -= horizontal / length * speed * deltaTime;
+            worldOffsetY -= vertical / length * speed * deltaTime;
+            // Animation advances only while the player is moving.
+            animationTime += deltaTime;
+        }
+    }
+
+    public double getWorldOffsetX() {
+        return worldOffsetX;
+    }
+
+    public double getWorldOffsetY() {
+        return worldOffsetY;
+    }
+
+    public double getWorldX() {
+        // Player position is the opposite of the camera/world offset.
+        return -worldOffsetX;
+    }
+
+    public double getWorldY() {
+        return -worldOffsetY;
+    }
+
+    public double getCollisionRadius() {
+        return spriteWidth * spriteScale / 2.0;
+    }
+
+    public int getFacingX() {
+        return spriteRow == 1 ? 1 : spriteRow == 3 ? -1 : 0;
+    }
+
+    public int getFacingY() {
+        return spriteRow == 0 ? -1 : spriteRow == 2 ? 1 : 0;
+    }
+
+    public void takeDamage(double damage) {
+        health = Math.max(0, health - damage);
+    }
+
+    public void draw(Graphics2D graphics, int centerX, int centerY) {
+        boolean moving = horizontalInput() != 0 || verticalInput() != 0;
+        // The walk cycle is columns 0, 1, 2, 1; column 1 is the idle frame.
+        int animationFrame = (int) (animationTime * animationSpeed) % 4;
+        int spriteColumn = moving ? (animationFrame == 3 ? 1 : animationFrame) : 1;
+        int sourceX = spriteColumn * spriteWidth;
+        int sourceY = spriteRow * spriteHeight;
+        int renderedWidth = spriteWidth * spriteScale;
+        int renderedHeight = spriteHeight * spriteScale;
+        int playerX = centerX - renderedWidth / 2;
+        int playerY = centerY - renderedHeight / 2;
+
+        // Draw only one frame from the larger sprite sheet.
+        graphics.drawImage(spriteSheet,
+                playerX, playerY, playerX + renderedWidth, playerY + renderedHeight,
+                sourceX, sourceY, sourceX + spriteWidth, sourceY + spriteHeight, null);
+
+        // Draw a black background, then cover part of it with the remaining red health.
+        int healthBarY = playerY + renderedHeight + HEALTH_BAR_GAP;
+        int healthBarWidth = renderedWidth;
+        int currentHealthWidth = (int) (healthBarWidth * health / maxHealth);
+        graphics.setColor(Color.BLACK);
+        graphics.fillRect(playerX, healthBarY, healthBarWidth, HEALTH_BAR_HEIGHT);
+        graphics.setColor(Color.RED);
+        graphics.fillRect(playerX, healthBarY, currentHealthWidth, HEALTH_BAR_HEIGHT);
+    }
+
+    public void drawCollisionArea(Graphics2D graphics, int centerX, int centerY) {
+        int diameter = (int) (getCollisionRadius() * 2.0);
+        int circleX = centerX - diameter / 2;
+        int circleY = centerY - diameter / 2;
+        graphics.setColor(new Color(0, 0, 255, 100));
+        graphics.fillOval(circleX, circleY, diameter, diameter);
+    }
+
+    private int horizontalInput() {
+        return (pressedKeys.contains("right") ? 1 : 0)
+                - (pressedKeys.contains("left") ? 1 : 0);
+    }
+
+    private int verticalInput() {
+        return (pressedKeys.contains("down") ? 1 : 0)
+                - (pressedKeys.contains("up") ? 1 : 0);
+    }
+}
