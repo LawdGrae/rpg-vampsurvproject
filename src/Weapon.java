@@ -19,15 +19,27 @@ public abstract class Weapon {
 
     public Projectile update(double deltaTime, double originX, double originY,
             Enemy target) {
+        if (target == null) {
+            return null;
+        }
+        return update(deltaTime, originX, originY,
+                target.getWorldX(), target.getWorldY());
+    }
+
+    public Projectile update(double deltaTime, double originX, double originY,
+            double targetX, double targetY) {
         cooldown -= deltaTime;
-        if (target == null || cooldown > 0) {
+        if (cooldown > 0) {
             return null;
         }
 
         cooldown += fireInterval;
-        return createProjectile(originX, originY, target);
+        return createProjectile(originX, originY, targetX, targetY);
     }
 
     protected abstract Projectile createProjectile(double originX, double originY,
             Enemy target);
+
+    protected abstract Projectile createProjectile(double originX, double originY,
+            double targetX, double targetY);
 }

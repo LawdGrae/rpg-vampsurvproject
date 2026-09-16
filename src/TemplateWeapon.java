@@ -16,7 +16,13 @@ public class TemplateWeapon extends Weapon {
 
     @Override
     protected Projectile createProjectile(double originX, double originY, Enemy target) {
-        return new Projectile(originX, originY, target.getWorldX(), target.getWorldY(),
+        return createProjectile(originX, originY, target.getWorldX(), target.getWorldY());
+    }
+
+    @Override
+    protected Projectile createProjectile(double originX, double originY,
+            double targetX, double targetY) {
+        return new Projectile(originX, originY, targetX, targetY,
                 projectileSpeed, projectileDamage, projectileRadius, projectileSprite);
     }
 

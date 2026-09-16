@@ -81,8 +81,18 @@ public class GameLogic {
         }
 
         Enemy target = findNearestLivingEnemy();
-        Projectile projectile = weapon.update(deltaTime, player.getWorldX(),
-                player.getWorldY(), target);
+        Projectile projectile;
+        if (target != null) {
+            projectile = weapon.update(deltaTime, player.getWorldX(),
+                    player.getWorldY(), target);
+        } else {
+            double angle = random.nextDouble() * Math.PI * 2.0;
+            double distance = 250.0 + random.nextDouble() * 700.0;
+            double targetX = player.getWorldX() + Math.cos(angle) * distance;
+            double targetY = player.getWorldY() + Math.sin(angle) * distance;
+            projectile = weapon.update(deltaTime, player.getWorldX(),
+                    player.getWorldY(), targetX, targetY);
+        }
         if (projectile != null) {
             projectiles.add(projectile);
         }
