@@ -1,4 +1,3 @@
-import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Composite;
 import java.awt.Graphics2D;
@@ -14,22 +13,25 @@ public abstract class Enemy {
     protected final double damage;
     protected final double maxHealth;
     protected final BufferedImage spriteSheet;
+    protected final BufferedImage deathSheet;
 
     private double worldX;
     private double worldY;
     private double animationTime;
     private boolean facingLeft;
     private double health;
-    private double fadeTime;
+    private double deathTime;
 
-    private static final double FADE_DURATION = 0.5;
+    private static final double DEATH_DURATION = 0.5;
 
     protected Enemy(double worldX, double worldY, BufferedImage spriteSheet,
-            double speed, double animationSpeed, int frameWidth, int frameHeight,
-            int renderSize, double collisionRadius, double damage, double maxHealth) {
+            BufferedImage deathSheet, double speed, double animationSpeed,
+            int frameWidth, int frameHeight, int renderSize,
+            double collisionRadius, double damage, double maxHealth) {
         this.worldX = worldX;
         this.worldY = worldY;
         this.spriteSheet = spriteSheet;
+        this.deathSheet = deathSheet;
         this.speed = speed;
         this.animationSpeed = animationSpeed;
         this.frameWidth = frameWidth;
@@ -44,7 +46,7 @@ public abstract class Enemy {
     public void update(double deltaTime, double targetWorldX, double targetWorldY,
             double targetCollisionRadius) {
         if (isDead()) {
-            fadeTime += deltaTime;
+            deathTime += deltaTime;
             return;
         }
 
@@ -87,7 +89,7 @@ public abstract class Enemy {
     }
 
     public boolean isFinishedFading() {
-        return isDead() && fadeTime >= FADE_DURATION;
+        return isDead() && deathTime >= DEATH_DURATION;
     }
 
     public double distanceSquaredTo(double targetX, double targetY) {
@@ -149,10 +151,11 @@ public abstract class Enemy {
         // Convert world coordinates into screen coordinates using the camera offset.
         int screenX = (int) (centerX + worldX + cameraX - renderSize / 2.0);
         int screenY = (int) (centerY + worldY + cameraY - renderSize / 2.0);
-        int animationFrame = (int) (animationTime * animationSpeed) % 4;
+        double drawTime = isDead() ? deathTime : animationTime;
+        int animationFrame = (int) (drawTime * animationSpeed) % 5;
         int sourceX = animationFrame * frameWidth;
 
-        // The four enemy frames are arranged horizontally in one row.
+        // The enemy frames are arranged horizontally in one row.
         int rightEdge = screenX + renderSize;
         int leftEdge = screenX;
         if (facingLeft) {
@@ -161,13 +164,9 @@ public abstract class Enemy {
             rightEdge = temporaryEdge;
         }
 
+        BufferedImage imageToDraw = isDead() ? deathSheet : spriteSheet;
         Composite oldComposite = graphics.getComposite();
-        if (isDead()) {
-            float alpha = (float) Math.max(0, 1.0 - fadeTime / FADE_DURATION);
-            graphics.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
-        }
-
-        graphics.drawImage(spriteSheet,
+        graphics.drawImage(imageToDraw,
             leftEdge, screenY, rightEdge, screenY + renderSize,
             sourceX, 0, sourceX + frameWidth, frameHeight, null);
         graphics.setComposite(oldComposite);

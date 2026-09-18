@@ -72,11 +72,11 @@ public abstract class Player {
 
         double length = Math.sqrt(horizontal * horizontal + vertical * vertical);
         if (length > 0) {
-            // Normalize diagonal input so diagonal movement is not faster.
-            // The world moves opposite to input because the player stays centered.
-            worldOffsetX -= horizontal / length * speed * deltaTime;
-            worldOffsetY -= vertical / length * speed * deltaTime;
-            // Animation advances only while the player is moving.
+            double moveX = horizontal / length * speed * deltaTime;
+            double moveY = vertical / length * speed * deltaTime;
+
+            worldOffsetX -= moveX;
+            worldOffsetY -= moveY;
             animationTime += deltaTime;
         }
     }
@@ -139,14 +139,6 @@ public abstract class Player {
         graphics.fillRect(playerX, healthBarY, healthBarWidth, HEALTH_BAR_HEIGHT);
         graphics.setColor(Color.RED);
         graphics.fillRect(playerX, healthBarY, currentHealthWidth, HEALTH_BAR_HEIGHT);
-    }
-
-    public void drawCollisionArea(Graphics2D graphics, int centerX, int centerY) {
-        int diameter = (int) (getCollisionRadius() * 2.0);
-        int circleX = centerX - diameter / 2;
-        int circleY = centerY - diameter / 2;
-        graphics.setColor(new Color(0, 0, 255, 100));
-        graphics.fillOval(circleX, circleY, diameter, diameter);
     }
 
     private int horizontalInput() {

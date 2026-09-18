@@ -260,12 +260,6 @@ public class GameLogic {
     }
 
     public void drawCollisionAreas(Graphics2D graphics, int centerX, int centerY) {
-        double cameraX = getWorldOffsetX();
-        double cameraY = getWorldOffsetY();
-
-        for (Enemy enemy : enemies) {
-            enemy.drawCollisionArea(graphics, centerX, centerY, cameraX, cameraY);
-        }
-        player.drawCollisionArea(graphics, centerX, centerY);
+        // Collision debug overlays are disabled; no solid map collisions remain.
     }
 }
