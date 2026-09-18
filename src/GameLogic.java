@@ -44,7 +44,6 @@ public class GameLogic {
             whenToSpawn += SPAWN_INTERVAL;
             spawnFixed(20);
         }
-        
         if(!spawnQueue.isEmpty()) {
             spawnQueue.sort(Double::compareTo);
             while(gameTimer >= spawnQueue.getFirst()) {
