@@ -1,5 +1,6 @@
 import java.awt.Graphics2D;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
@@ -15,18 +16,31 @@ public class GameLogic {
     private static final int MAX_ENEMIES = 100;
     private static final double TOO_FAR_DISTANCE = PANEL_WIDTH * 2.0;
     private static final double SHOOT_RANGE = 300.0;
-    private static final int MIN_ENEMIES_PER_SPAWN = 1;
-    private static final int MAX_ENEMIES_PER_SPAWN = 5;
+    private static final double GEM_PULL_RADIUS = 170.0;
+    private static final double GEM_COLLECTION_RADIUS = 18.0;
+    private static final double GEM_ACCELERATION = 340.0;
+    private static final double GEM_MAX_SPEED = 260.0;
+    private static final int LEVEL_UP_EXP_BONUS = 8;
 
     private final Player player;
     private final List<Enemy> enemies = new ArrayList<>();
+    private final List<Gem> gems = new ArrayList<>();
     private final Weapon weapon = new TemplateWeapon();
     private final List<Projectile> projectiles = new ArrayList<>();
     private final Random random = new Random();
     private final List<Double> spawnQueue = new ArrayList<>();
+    private final List<String> upgradeChoices = Arrays.asList(
+            "Rapid Fire",
+            "Heavy Blows",
+            "Arcane Magnet"
+    );
     private double whenToSpawn = INITIAL_SPAWN_DELAY;
     private double gameTimer;
     private double repositionTimer;
+    private int level = 1;
+    private int exp = 0;
+    private int expToNextLevel = 10;
+    private boolean upgradeMenuOpen;
 
     public GameLogic() {
         player = new TemplateCharacter();
@@ -38,6 +52,10 @@ public class GameLogic {
     }
 
     public void update(double deltaTime) {
+        if (upgradeMenuOpen) {
+            return;
+        }
+
         // Update all game objects once per timer tick.
         player.update(deltaTime);
 
@@ -49,9 +67,9 @@ public class GameLogic {
             spawnFixed(enemiesToSpawn);
             whenToSpawn += getSpawnInterval();
         }
-        if(!spawnQueue.isEmpty()) {
+        if (!spawnQueue.isEmpty()) {
             spawnQueue.sort(Double::compareTo);
-            while(gameTimer >= spawnQueue.getFirst()) {
+            while (gameTimer >= spawnQueue.getFirst()) {
                 spawnQueue.removeFirst();
                 spawnOne();
             }
@@ -94,6 +112,7 @@ public class GameLogic {
         }
 
         updateProjectiles(deltaTime);
+        updateGems(deltaTime);
         enemies.removeIf(Enemy::isFinishedFading);
     }
 
@@ -124,6 +143,9 @@ public class GameLogic {
             for (Enemy enemy : enemies) {
                 if (!enemy.isDead() && projectile.hits(enemy)) {
                     enemy.takeDamage(projectile.getDamage());
+                    if (enemy.isDead()) {
+                        dropGem(enemy);
+                    }
                     hitEnemy = true;
                     break;
                 }
@@ -133,6 +155,73 @@ public class GameLogic {
                 projectileIterator.remove();
             }
         }
+    }
+
+    private void dropGem(Enemy enemy) {
+        if (enemy.hasLootDropped()) {
+            return;
+        }
+        enemy.markLootDropped();
+        gems.add(new Gem(enemy.getWorldX(), enemy.getWorldY()));
+    }
+
+    private void updateGems(double deltaTime) {
+        Iterator<Gem> gemIterator = gems.iterator();
+        while (gemIterator.hasNext()) {
+            Gem gem = gemIterator.next();
+            gem.update(deltaTime, player.getWorldX(), player.getWorldY());
+            if (gem.isCollected()) {
+                gemIterator.remove();
+                addExperience(gem.getValue());
+            }
+        }
+    }
+
+    private void addExperience(int amount) {
+        exp += amount;
+        if (exp >= expToNextLevel) {
+            exp = 0;
+            level++;
+            expToNextLevel += LEVEL_UP_EXP_BONUS + level * 2;
+            upgradeMenuOpen = true;
+        }
+    }
+
+    public boolean isUpgradeMenuOpen() {
+        return upgradeMenuOpen;
+    }
+
+    public void chooseUpgrade(int index) {
+        if (!upgradeMenuOpen) {
+            return;
+        }
+        if (index < 0 || index >= upgradeChoices.size()) {
+            return;
+        }
+        upgradeMenuOpen = false;
+    }
+
+    public List<String> getUpgradeChoices() {
+        return upgradeChoices;
+    }
+
+    public double getExpProgress() {
+        if (expToNextLevel <= 0) {
+            return 0.0;
+        }
+        return Math.min(1.0, exp / (double) expToNextLevel);
+    }
+
+    public int getLevel() {
+        return level;
+    }
+
+    public int getCurrentExp() {
+        return exp;
+    }
+
+    public int getExpToNextLevel() {
+        return expToNextLevel;
     }
 
     private int availableSlots() {
@@ -179,11 +268,11 @@ public class GameLogic {
     }
 
     private void spawnContinuous(int enemyCount) {
-        for(int index = 0; index < enemyCount; index++) {
+        for (int index = 0; index < enemyCount; index++) {
             spawnQueue.add(whenToSpawn + 0.5 * index);
         }
     }
-    
+
     private void spawnFixed(int enemyCount) {
         int enemiesToSpawn = Math.min(enemyCount, availableSlots());
 
@@ -199,8 +288,6 @@ public class GameLogic {
             enemies.add(new TemplateEnemy(enemyX, enemyY));
         }
     }
-
-
 
     private void spawnOne() {
         if (availableSlots() <= 0) {
@@ -266,9 +353,15 @@ public class GameLogic {
     }
 
     public void drawEntities(Graphics2D graphics, int centerX, int centerY) {
-        // Draw enemies first so the player appears above them if they overlap visually.
+        // Draw living enemies first, then other objects, and finally dead enemies on top.
         for (Enemy enemy : enemies) {
-            enemy.draw(graphics, centerX, centerY,
+            if (!enemy.isDead()) {
+                enemy.draw(graphics, centerX, centerY,
+                        getWorldOffsetX(), getWorldOffsetY());
+            }
+        }
+        for (Gem gem : gems) {
+            gem.draw(graphics, centerX, centerY,
                     getWorldOffsetX(), getWorldOffsetY());
         }
         graphics.setColor(java.awt.Color.WHITE);
@@ -277,6 +370,13 @@ public class GameLogic {
                 getWorldOffsetX(), getWorldOffsetY());
         }
         player.draw(graphics, centerX, centerY);
+
+        for (Enemy enemy : enemies) {
+            if (enemy.isDead()) {
+                enemy.draw(graphics, centerX, centerY,
+                        getWorldOffsetX(), getWorldOffsetY());
+            }
+        }
     }
 
     public void drawCollisionAreas(Graphics2D graphics, int centerX, int centerY) {

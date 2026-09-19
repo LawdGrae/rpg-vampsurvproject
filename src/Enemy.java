@@ -21,6 +21,7 @@ public abstract class Enemy {
     private boolean facingLeft;
     private double health;
     private double deathTime;
+    private boolean lootDropped;
 
     private static final double DEATH_DURATION = 0.5;
 
@@ -70,6 +71,10 @@ public abstract class Enemy {
 
     public boolean isCollidingWith(double targetX, double targetY,
             double targetCollisionRadius) {
+        if (isDead()) {
+            return false;
+        }
+
         double differenceX = worldX - targetX;
         double differenceY = worldY - targetY;
         double distanceSquared = differenceX * differenceX + differenceY * differenceY;
@@ -90,6 +95,14 @@ public abstract class Enemy {
 
     public boolean isFinishedFading() {
         return isDead() && deathTime >= DEATH_DURATION;
+    }
+
+    public boolean hasLootDropped() {
+        return lootDropped;
+    }
+
+    public void markLootDropped() {
+        lootDropped = true;
     }
 
     public double distanceSquaredTo(double targetX, double targetY) {
