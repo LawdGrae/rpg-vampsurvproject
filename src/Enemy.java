@@ -156,19 +156,23 @@ public abstract class Enemy {
         int sourceX = animationFrame * frameWidth;
 
         // The enemy frames are arranged horizontally in one row.
-        int rightEdge = screenX + renderSize;
-        int leftEdge = screenX;
-        if (facingLeft) {
-            int temporaryEdge = leftEdge;
-            leftEdge = rightEdge;
-            rightEdge = temporaryEdge;
-        }
-
         BufferedImage imageToDraw = isDead() ? deathSheet : spriteSheet;
         Composite oldComposite = graphics.getComposite();
-        graphics.drawImage(imageToDraw,
-            leftEdge, screenY, rightEdge, screenY + renderSize,
-            sourceX, 0, sourceX + frameWidth, frameHeight, null);
+
+        if (facingLeft) {
+            Graphics2D flippedGraphics = (Graphics2D) graphics.create();
+            flippedGraphics.translate(screenX + renderSize, screenY);
+            flippedGraphics.scale(-1, 1);
+            flippedGraphics.drawImage(imageToDraw,
+                0, 0, renderSize, renderSize,
+                sourceX, 0, sourceX + frameWidth, frameHeight, null);
+            flippedGraphics.dispose();
+        } else {
+            graphics.drawImage(imageToDraw,
+                screenX, screenY, screenX + renderSize, screenY + renderSize,
+                sourceX, 0, sourceX + frameWidth, frameHeight, null);
+        }
+
         graphics.setComposite(oldComposite);
     }
 
