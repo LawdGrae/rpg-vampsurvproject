@@ -16,7 +16,7 @@ import javax.swing.Timer;
 public class GamePanel extends JPanel {
     private static final int PANEL_WIDTH = 800;
     private static final int PANEL_HEIGHT = 600;
-    private static final boolean DEBUG_ENABLED = true;
+    private static final boolean DEBUG_ENABLED = false;
 
     private final BufferedImage grassTile;
     private final GameLogic gameLogic;

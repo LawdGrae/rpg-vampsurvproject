@@ -7,13 +7,16 @@ import java.util.Random;
 public class GameLogic {
     // The panel width is used to keep new enemies outside the visible area.
     private static final int PANEL_WIDTH = 800;
-    private static final double SPAWN_INTERVAL = 4.5;
+    private static final double INITIAL_SPAWN_DELAY = 1.2;
     private static final double REPOSITION_INTERVAL = 10.0;
     private static final double SPAWN_CIRCLE_DIAMETER = PANEL_WIDTH + 200.0;
     private static final double SPAWN_RADIUS = SPAWN_CIRCLE_DIAMETER / 2.0;
     private static final double ENEMY_CLUMP_RADIUS = 40.0;
     private static final int MAX_ENEMIES = 100;
     private static final double TOO_FAR_DISTANCE = PANEL_WIDTH * 2.0;
+    private static final double SHOOT_RANGE = 300.0;
+    private static final int MIN_ENEMIES_PER_SPAWN = 1;
+    private static final int MAX_ENEMIES_PER_SPAWN = 5;
 
     private final Player player;
     private final List<Enemy> enemies = new ArrayList<>();
@@ -21,7 +24,7 @@ public class GameLogic {
     private final List<Projectile> projectiles = new ArrayList<>();
     private final Random random = new Random();
     private final List<Double> spawnQueue = new ArrayList<>();
-    private double whenToSpawn = 0.0;
+    private double whenToSpawn = INITIAL_SPAWN_DELAY;
     private double gameTimer;
     private double repositionTimer;
 
@@ -38,11 +41,13 @@ public class GameLogic {
         // Update all game objects once per timer tick.
         player.update(deltaTime);
 
-        // Spawn one enemy at each short scheduled time.
+        // Start small and ramp up the wave size over time instead of instantly
+        // surrounding the player with a full ring at startup.
         gameTimer += deltaTime;
         while (gameTimer >= whenToSpawn) {
-            whenToSpawn += SPAWN_INTERVAL;
-            spawnFixed(20);
+            int enemiesToSpawn = getSpawnBatchSize();
+            spawnFixed(enemiesToSpawn);
+            whenToSpawn += getSpawnInterval();
         }
         if(!spawnQueue.isEmpty()) {
             spawnQueue.sort(Double::compareTo);
@@ -51,7 +56,6 @@ public class GameLogic {
                 spawnOne();
             }
         }
-        
 
         repositionTimer += deltaTime;
         while (repositionTimer >= REPOSITION_INTERVAL) {
@@ -79,18 +83,11 @@ public class GameLogic {
             }
         }
 
-        Enemy target = findNearestLivingEnemy();
-        Projectile projectile;
+        Enemy target = findNearestLivingEnemyInRange(SHOOT_RANGE);
+        Projectile projectile = null;
         if (target != null) {
             projectile = weapon.update(deltaTime, player.getWorldX(),
                     player.getWorldY(), target);
-        } else {
-            double angle = random.nextDouble() * Math.PI * 2.0;
-            double distance = 250.0 + random.nextDouble() * 700.0;
-            double targetX = player.getWorldX() + Math.cos(angle) * distance;
-            double targetY = player.getWorldY() + Math.sin(angle) * distance;
-            projectile = weapon.update(deltaTime, player.getWorldX(),
-                    player.getWorldY(), targetX, targetY);
         }
         if (projectile != null) {
             projectiles.add(projectile);
@@ -100,15 +97,16 @@ public class GameLogic {
         enemies.removeIf(Enemy::isFinishedFading);
     }
 
-    private Enemy findNearestLivingEnemy() {
+    private Enemy findNearestLivingEnemyInRange(double maxDistance) {
         Enemy nearestEnemy = null;
         double nearestDistance = Double.POSITIVE_INFINITY;
+        double maxDistanceSquared = maxDistance * maxDistance;
 
         for (Enemy enemy : enemies) {
             if (!enemy.isDead()) {
-                double distance = enemy.distanceSquaredTo(player.getWorldX(), player.getWorldY());
-                if (distance < nearestDistance) {
-                    nearestDistance = distance;
+                double distanceSquared = enemy.distanceSquaredTo(player.getWorldX(), player.getWorldY());
+                if (distanceSquared <= maxDistanceSquared && distanceSquared < nearestDistance) {
+                    nearestDistance = distanceSquared;
                     nearestEnemy = enemy;
                 }
             }
@@ -139,6 +137,29 @@ public class GameLogic {
 
     private int availableSlots() {
         return MAX_ENEMIES - enemies.size();
+    }
+
+    private int getSpawnBatchSize() {
+        if (gameTimer < 6.0) {
+            return 1;
+        }
+        if (gameTimer < 14.0) {
+            return 2;
+        }
+        if (gameTimer < 24.0) {
+            return 3;
+        }
+        return 4;
+    }
+
+    private double getSpawnInterval() {
+        if (gameTimer < 8.0) {
+            return 3.0;
+        }
+        if (gameTimer < 18.0) {
+            return 2.2;
+        }
+        return 1.8;
     }
 
     private void spawnClump(int enemyCount) {
@@ -259,12 +280,6 @@ public class GameLogic {
     }
 
     public void drawCollisionAreas(Graphics2D graphics, int centerX, int centerY) {
-        double cameraX = getWorldOffsetX();
-        double cameraY = getWorldOffsetY();
-
-        for (Enemy enemy : enemies) {
-            enemy.drawCollisionArea(graphics, centerX, centerY, cameraX, cameraY);
-        }
-        player.drawCollisionArea(graphics, centerX, centerY);
+        // Collision debug overlays are disabled; no solid map collisions remain.
     }
 }
