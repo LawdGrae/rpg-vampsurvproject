@@ -9,8 +9,8 @@ public class TemplateEnemyMinion extends Enemy {
     private static final int FRAME_HEIGHT = 128;
     private static final int RENDER_SIZE = 64;
     private static final double COLLISION_RADIUS = RENDER_SIZE / 2.0;
-    private static final double DAMAGE = 18.0;
-    private static final double MAX_HEALTH = 1.5;
+    private static final double DAMAGE = 10.0;
+    private static final double MAX_HEALTH = 3.0;
     public static final double SLOW_DURATION = 2.2;
     public static final double SLOW_MULTIPLIER = 0.6;
     private static final BufferedImage SPRITE_SHEET = loadSpriteSheet();

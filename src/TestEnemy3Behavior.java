@@ -4,8 +4,8 @@ public class TestEnemy3Behavior {
         if (boss.getMaxHealth() <= 0) {
             throw new AssertionError("Boss should have health");
         }
-        if (boss.getReflectEveryHits() != 5) {
-            throw new AssertionError("Boss reflection interval should be five hits");
+        if (boss.getReflectEveryHits() != 4) {
+            throw new AssertionError("Boss reflection interval should be four hits");
         }
         System.out.println("Enemy3 behavior checks passed");
     }

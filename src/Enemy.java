@@ -165,12 +165,16 @@ public abstract class Enemy {
         int screenX = (int) (centerX + worldX + cameraX - renderSize / 2.0);
         int screenY = (int) (centerY + worldY + cameraY - renderSize / 2.0);
         double drawTime = isDead() ? deathTime : animationTime;
-        int animationFrame = (int) (drawTime * animationSpeed) % 5;
+        int animationFrame = isDead() ? (int) (drawTime * animationSpeed) % 5 : 0;
         int sourceX = animationFrame * frameWidth;
 
         // The enemy frames are arranged horizontally in one row.
         BufferedImage imageToDraw = isDead() ? deathSheet : spriteSheet;
         Composite oldComposite = graphics.getComposite();
+
+        if (!isDead() && animationSpeed == 0.0) {
+            sourceX = 0;
+        }
 
         if (facingLeft) {
             Graphics2D flippedGraphics = (Graphics2D) graphics.create();

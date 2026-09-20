@@ -6,15 +6,15 @@ import java.util.Random;
 import javax.imageio.ImageIO;
 
 public class TemplateEnemy3 extends Enemy {
-    private static final double SPEED = 35.0;
-    private static final double ANIMATION_SPEED = 2.0;
+    private static final double SPEED = 48.0;
+    private static final double ANIMATION_SPEED = 0.0;
     private static final int FRAME_WIDTH = 128;
     private static final int FRAME_HEIGHT = 128;
     private static final int RENDER_SIZE = 64;
     private static final double COLLISION_RADIUS = RENDER_SIZE / 2.0;
     private static final double DAMAGE = 30.0;
-    private static final double MAX_HEALTH = 18.0;
-    private static final int REFLECT_EVERY_HITS = 5;
+    private static final double MAX_HEALTH = 12.0;
+    private static final int REFLECT_EVERY_HITS = 4;
     private static final double REFLECTED_PROJECTILE_SPEED = 420.0;
     private static final double REFLECTED_PROJECTILE_DAMAGE = 1.0;
     private static final double REFLECTED_PROJECTILE_RADIUS = 7.0;
@@ -42,8 +42,14 @@ public class TemplateEnemy3 extends Enemy {
         playerProjectileHits++;
     }
 
-    public boolean shouldReflectPlayerProjectile() {
-        return playerProjectileHits > 0 && playerProjectileHits % REFLECT_EVERY_HITS == 0;
+    public boolean shouldReflectPlayerProjectile(double playerX, double playerY) {
+        double differenceX = playerX - getWorldX();
+        double differenceY = playerY - getWorldY();
+        double distanceSquared = differenceX * differenceX + differenceY * differenceY;
+        double reflectRange = 220.0;
+        return playerProjectileHits > 0
+                && playerProjectileHits % REFLECT_EVERY_HITS == 0
+                && distanceSquared <= reflectRange * reflectRange;
     }
 
     public boolean hasSummonedMinions() {
@@ -56,9 +62,10 @@ public class TemplateEnemy3 extends Enemy {
         }
 
         summonedMinions = true;
+        final int summonCount = 3;
         List<Enemy> minions = new ArrayList<>();
-        for (int index = 0; index < 2; index++) {
-            double angle = (Math.PI * 2.0 * index / 2.0) + random.nextDouble() * 1.2;
+        for (int index = 0; index < summonCount; index++) {
+            double angle = (Math.PI * 2.0 * index / summonCount) + random.nextDouble() * 1.2;
             double offset = 42.0 + random.nextDouble() * 18.0;
             double summonX = worldX + Math.cos(angle) * offset;
             double summonY = worldY + Math.sin(angle) * offset;

@@ -114,8 +114,9 @@ public class GameLogic {
                 if (enemy instanceof TemplateEnemyMinion) {
                     player.applySlow(TemplateEnemyMinion.SLOW_DURATION,
                             TemplateEnemyMinion.SLOW_MULTIPLIER);
+                } else {
+                    player.takeDamage(enemy.getDamage() * deltaTime);
                 }
-                player.takeDamage(enemy.getDamage() * deltaTime);
             }
         }
 
@@ -125,17 +126,6 @@ public class GameLogic {
                     secondIndex < enemies.size(); secondIndex++) {
                 enemies.get(firstIndex).separateFrom(enemies.get(secondIndex));
             }
-        }
-
-        List<Enemy> spawnedMinions = new ArrayList<>();
-        for (Enemy enemy : enemies) {
-            if (enemy instanceof TemplateEnemy3 bossEnemy && enemy.isDead() && !bossEnemy.hasSummonedMinions()) {
-                spawnedMinions.addAll(bossEnemy.createSummons(
-                        enemy.getWorldX(), enemy.getWorldY(), random));
-            }
-        }
-        if (!spawnedMinions.isEmpty()) {
-            enemies.addAll(spawnedMinions);
         }
 
         Enemy target = findNearestLivingEnemyInRange(SHOOT_RANGE);
@@ -183,7 +173,8 @@ public class GameLogic {
                 if (!enemy.isDead() && projectile.hits(enemy)) {
                     if (enemy instanceof TemplateEnemy3 bossEnemy) {
                         bossEnemy.registerPlayerProjectileHit();
-                        if (bossEnemy.shouldReflectPlayerProjectile()) {
+                        if (bossEnemy.shouldReflectPlayerProjectile(
+                                player.getWorldX(), player.getWorldY())) {
                             Projectile reflected = bossEnemy.createReflectedProjectile(
                                     player.getWorldX(), player.getWorldY());
                             if (reflected != null) {
@@ -194,6 +185,11 @@ public class GameLogic {
 
                     enemy.takeDamage(projectile.getDamage());
                     if (enemy.isDead()) {
+                        if (enemy instanceof TemplateEnemy3 bossEnemy
+                                && !bossEnemy.hasSummonedMinions()) {
+                            enemies.addAll(bossEnemy.createSummons(
+                                    enemy.getWorldX(), enemy.getWorldY(), random));
+                        }
                         dropGem(enemy);
                     }
                     hitEnemy = true;
@@ -236,9 +232,41 @@ public class GameLogic {
             Projectile projectile = projectileIterator.next();
             projectile.update(deltaTime);
 
-            boolean hitPlayer = projectile.hitsPlayer(
-                    player.getWorldX(), player.getWorldY(), player.getCollisionRadius());
-            if (hitPlayer || projectile.isExpired()) {
+            boolean hitEnemy = false;
+            boolean hitPlayer = false;
+
+            if (projectile.getOwner() instanceof TemplateEnemy3) {
+                Enemy nearestEnemy = null;
+                double nearestDistanceSquared = Double.POSITIVE_INFINITY;
+
+                for (Enemy enemy : enemies) {
+                    if (enemy == projectile.getOwner() || enemy.isDead()) {
+                        continue;
+                    }
+
+                    double distanceSquared = enemy.distanceSquaredTo(
+                            projectile.getWorldX(), projectile.getWorldY());
+                    if (distanceSquared < nearestDistanceSquared) {
+                        nearestDistanceSquared = distanceSquared;
+                        nearestEnemy = enemy;
+                    }
+                }
+
+                if (nearestEnemy != null && projectile.hits(nearestEnemy)) {
+                    nearestEnemy.takeDamage(projectile.getDamage());
+                    if (nearestEnemy.isDead()) {
+                        dropGem(nearestEnemy);
+                    }
+                    hitEnemy = true;
+                }
+            }
+
+            if (!hitEnemy) {
+                hitPlayer = projectile.hitsPlayer(
+                        player.getWorldX(), player.getWorldY(), player.getCollisionRadius());
+            }
+
+            if (hitEnemy || hitPlayer || projectile.isExpired()) {
                 if (projectile.getOwner() instanceof TemplateEnemy2) {
                     ((TemplateEnemy2) projectile.getOwner()).onProjectileDestroyed();
                 }
@@ -442,11 +470,14 @@ public class GameLogic {
 
     private Enemy createEnemy(double worldX, double worldY) {
         double level3Chance = 0.0;
-        if (level >= 5) {
-            level3Chance = 0.08;
+        if (level >= 3) {
+            level3Chance = 0.12;
         }
-        if (gameTimer >= 45.0) {
-            level3Chance = Math.min(0.18, level3Chance + 0.04);
+        if (level >= 5) {
+            level3Chance = 0.18;
+        }
+        if (gameTimer >= 30.0) {
+            level3Chance = Math.min(0.28, level3Chance + 0.08);
         }
         if (random.nextDouble() < level3Chance) {
             return new TemplateEnemy3(worldX, worldY);
