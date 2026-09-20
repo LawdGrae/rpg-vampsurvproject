@@ -11,7 +11,7 @@ public abstract class Player {
     private static final int HEALTH_BAR_GAP = 4;
 
     // Subclasses provide these values so different characters can have different settings.
-    protected final double speed;
+    protected double speed;
     protected final double animationSpeed;
     protected final int spriteScale;
     protected final int spriteWidth;
@@ -23,8 +23,9 @@ public abstract class Player {
     private double worldOffsetY;
     private double animationTime;
     private int spriteRow = 2;
-    private final double maxHealth;
+    private double maxHealth;
     private double health;
+    private double pickupRadius;
     private static final double INVULNERABILITY_DURATION = 0.75;
     private double invulnerabilityTime;
 
@@ -37,6 +38,7 @@ public abstract class Player {
         this.spriteHeight = spriteHeight;
         this.maxHealth = maxHealth;
         this.health = maxHealth;
+        this.pickupRadius = 50.0;
         this.spriteSheet = loadSpriteSheet(spritePath);
     }
 
@@ -104,6 +106,31 @@ public abstract class Player {
 
     public double getCollisionRadius() {
         return spriteWidth * spriteScale / 2.0;
+    }
+
+    public void increaseMaxHealth(double amount) {
+        maxHealth += amount;
+        health += amount;
+    }
+
+    public void increaseSpeed(double amount) {
+        speed += amount;
+    }
+
+    public void increasePickupRadius(double amount) {
+        pickupRadius += amount;
+    }
+
+    public double getMaxHealth() {
+        return maxHealth;
+    }
+
+    public double getHealth() {
+        return health;
+    }
+
+    public double getPickupRadius() {
+        return pickupRadius;
     }
 
     public int getFacingX() {

@@ -195,6 +195,11 @@ public class GamePanel extends JPanel {
         gameLogic.drawEntities(graphics2D, PANEL_WIDTH / 2, PANEL_HEIGHT / 2);
         drawExperienceBar(graphics2D);
         drawGameTimer(graphics2D);
+        if (gameLogic.isGameOver()) {
+            gameLogic.drawGameOverEffect(graphics2D, PANEL_WIDTH / 2, PANEL_HEIGHT / 2);
+            drawGameOverScreen(graphics2D);
+            return;
+        }
         drawUpgradeMenu(graphics2D);
         drawPauseMenu(graphics2D);
         drawDebugInfo(graphics2D);
@@ -256,15 +261,22 @@ public class GamePanel extends JPanel {
             graphics.setColor(Color.WHITE);
             graphics.setFont(new Font("Times New Roman", Font.BOLD, 15));
             String name = names.get(index);
-            graphics.drawString(name, x + 10, y + 140);
-            graphics.setFont(new Font("Times New Roman", Font.PLAIN, 12));
-            graphics.drawString(weapons.get(index), x + 10, y + 164);
-
-            if (!selectable) {
+            if (selectable) {
+                graphics.drawString(name, x + 10, y + 140);
+            } else {
                 graphics.setColor(new Color(255, 220, 120));
                 graphics.setFont(new Font("Times New Roman", Font.ITALIC, 12));
-                graphics.drawString("coming soon...", x + 18, y + 188);
+                graphics.drawString("coming soon...", x + 18, y + 140);
             }
+
+            graphics.setFont(new Font("Times New Roman", Font.PLAIN, 12));
+            if (selectable) {
+                graphics.setColor(Color.WHITE);
+                graphics.drawString(weapons.get(index), x + 10, y + 164);
+            } else {
+                graphics.drawString(" ", x + 10, y + 164);
+            }
+            graphics.drawString(" ", x + 10, y + 188);
 
             if (selectable) {
                 graphics.setColor(new Color(140, 235, 160));
@@ -326,15 +338,33 @@ public class GamePanel extends JPanel {
         for (int index = 0; index < 3; index++) {
             int x = left + index * (cardWidth + gap);
             int y = top;
+            String upgradeName = gameLogic.getUpgradeChoices().get(index);
+            String description = gameLogic.getUpgradeDescription(upgradeName);
             graphics.setColor(new Color(60, 60, 60));
             graphics.fillRoundRect(x, y, cardWidth, cardHeight, 12, 12);
             graphics.setColor(Color.WHITE);
-            graphics.setFont(new Font("Times New Roman", Font.BOLD, 16));
-            graphics.drawString(gameLogic.getUpgradeChoices().get(index), x + 12, y + 28);
-            graphics.setFont(new Font("Times New Roman", Font.PLAIN, 12));
-            graphics.drawString("(placeholder)", x + 12, y + 48);
-            graphics.drawString("+ small bonus", x + 12, y + 70);
+            graphics.setFont(new Font("Times New Roman", Font.BOLD, 15));
+            graphics.drawString(upgradeName, x + 12, y + 28);
+            graphics.setFont(new Font("Times New Roman", Font.PLAIN, 11));
+            graphics.drawString(description, x + 12, y + 48);
+            graphics.drawString("+ minor boost", x + 12, y + 66);
         }
+    }
+
+    private void drawGameOverScreen(Graphics2D graphics) {
+        graphics.setColor(new Color(0, 0, 0, 180));
+        graphics.fillRect(0, 0, PANEL_WIDTH, PANEL_HEIGHT);
+
+        graphics.setColor(new Color(255, 90, 90));
+        graphics.setFont(new Font("Times New Roman", Font.BOLD, 64));
+        String title = "GAME OVER";
+        int titleWidth = graphics.getFontMetrics().stringWidth(title);
+        graphics.drawString(title, (PANEL_WIDTH - titleWidth) / 2, 200);
+
+        graphics.setColor(new Color(255, 220, 140));
+        graphics.setFont(new Font("Times New Roman", Font.PLAIN, 22));
+        graphics.drawString("The hero was overwhelmed.", 245, 250);
+        graphics.drawString("The battlefield will remember this moment.", 150, 285);
     }
 
     private void drawPauseMenu(Graphics2D graphics) {

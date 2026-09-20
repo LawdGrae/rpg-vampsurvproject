@@ -25,15 +25,18 @@ public class Gem {
     }
 
     public void update(double deltaTime, double playerX, double playerY) {
+        update(deltaTime, playerX, playerY, PULL_RADIUS);
+    }
+
+    public void update(double deltaTime, double playerX, double playerY, double pickupRadius) {
         bobTime += deltaTime;
         double differenceX = playerX - worldX;
         double differenceY = playerY - worldY;
         double distanceSquared = differenceX * differenceX + differenceY * differenceY;
-        double pullRadiusSquared = PULL_RADIUS * PULL_RADIUS;
 
         if (distanceSquared > 0.0001) {
             double distance = Math.sqrt(distanceSquared);
-            if (distance <= PULL_RADIUS) {
+            if (distance <= pickupRadius) {
                 double directionX = differenceX / distance;
                 double directionY = differenceY / distance;
                 double speed = Math.sqrt(velocityX * velocityX + velocityY * velocityY);

@@ -1,3 +1,4 @@
+import java.awt.Color;
 import java.awt.Graphics2D;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -30,11 +31,15 @@ public class GameLogic {
     private final List<Projectile> enemyProjectiles = new ArrayList<>();
     private final Random random = new Random();
     private final List<Double> spawnQueue = new ArrayList<>();
-    private final List<String> upgradeChoices = Arrays.asList(
+    private static final List<String> GENERIC_UPGRADE_NAMES = Arrays.asList(
+            "Vitality",
+            "Swiftness",
+            "Magnetism",
+            "Critical Hit",
             "Rapid Fire",
-            "Heavy Blows",
-            "Arcane Magnet"
+            "Heavy Blows"
     );
+    private final List<String> upgradeChoices = new ArrayList<>();
     private final List<String> characterNames = Arrays.asList(
             "placeholder girl",
             "coming soon...",
@@ -63,9 +68,13 @@ public class GameLogic {
     private boolean settingsOpen;
     private boolean soundEnabled = true;
     private boolean debugInfoVisible;
+    private boolean gameOver;
+    private double gameOverTimer;
+    private final List<ExplosionParticle> explosionParticles = new ArrayList<>();
 
     public GameLogic() {
         player = new TemplateCharacter();
+        refreshUpgradeChoices();
     }
 
     public void setKeyPressed(String direction, boolean pressed) {
@@ -74,6 +83,11 @@ public class GameLogic {
     }
 
     public void update(double deltaTime) {
+        if (gameOver) {
+            updateGameOver(deltaTime);
+            return;
+        }
+
         if (upgradeMenuOpen) {
             return;
         }
@@ -138,6 +152,92 @@ public class GameLogic {
         updateEnemyProjectiles(deltaTime);
         updateGems(deltaTime);
         enemies.removeIf(Enemy::isFinishedFading);
+
+        if (player.getHealth() <= 0.0) {
+            triggerGameOver();
+        }
+    }
+
+    public boolean isGameOver() {
+        return gameOver;
+    }
+
+    private void triggerGameOver() {
+        if (gameOver) {
+            return;
+        }
+
+        gameOver = true;
+        gameOverTimer = 0.0;
+        for (int index = 0; index < 60; index++) {
+            double angle = random.nextDouble() * Math.PI * 2.0;
+            double speed = 30.0 + random.nextDouble() * 220.0;
+            explosionParticles.add(new ExplosionParticle(
+                    player.getWorldX(),
+                    player.getWorldY(),
+                    Math.cos(angle) * speed,
+                    Math.sin(angle) * speed,
+                    10.0 + random.nextDouble() * 20.0,
+                    0.8 + random.nextDouble() * 0.8));
+        }
+    }
+
+    private void updateGameOver(double deltaTime) {
+        gameOverTimer += deltaTime;
+        Iterator<ExplosionParticle> particleIterator = explosionParticles.iterator();
+        while (particleIterator.hasNext()) {
+            ExplosionParticle particle = particleIterator.next();
+            particle.update(deltaTime);
+            if (particle.isExpired()) {
+                particleIterator.remove();
+            }
+        }
+    }
+
+    public void drawGameOverEffect(Graphics2D graphics, int centerX, int centerY) {
+        if (!gameOver) {
+            return;
+        }
+
+        for (ExplosionParticle particle : explosionParticles) {
+            double screenX = centerX + particle.x + getWorldOffsetX();
+            double screenY = centerY + particle.y + getWorldOffsetY();
+            double alpha = Math.max(0.0, particle.life / particle.maxLife);
+            int radius = (int) Math.round(particle.radius);
+            graphics.setColor(new Color(255, 140, 40, (int) (alpha * 220.0)));
+            graphics.fillOval((int) screenX - radius, (int) screenY - radius, radius * 2, radius * 2);
+        }
+    }
+
+    private static class ExplosionParticle {
+        private double x;
+        private double y;
+        private final double velocityX;
+        private final double velocityY;
+        private final double radius;
+        private final double maxLife;
+        private double life;
+
+        private ExplosionParticle(double x, double y, double velocityX, double velocityY,
+                double radius, double maxLife) {
+            this.x = x;
+            this.y = y;
+            this.velocityX = velocityX;
+            this.velocityY = velocityY;
+            this.radius = radius;
+            this.maxLife = maxLife;
+            this.life = maxLife;
+        }
+
+        private void update(double deltaTime) {
+            life -= deltaTime;
+            x += velocityX * deltaTime;
+            y += velocityY * deltaTime;
+        }
+
+        private boolean isExpired() {
+            return life <= 0.0;
+        }
     }
 
     private Enemy findNearestLivingEnemyInRange(double maxDistance) {
@@ -236,11 +336,57 @@ public class GameLogic {
         Iterator<Gem> gemIterator = gems.iterator();
         while (gemIterator.hasNext()) {
             Gem gem = gemIterator.next();
-            gem.update(deltaTime, player.getWorldX(), player.getWorldY());
+            gem.update(deltaTime, player.getWorldX(), player.getWorldY(), player.getPickupRadius());
             if (gem.isCollected()) {
                 gemIterator.remove();
                 addExperience(gem.getValue());
             }
+        }
+    }
+
+    private void refreshUpgradeChoices() {
+        upgradeChoices.clear();
+        List<String> remainingUpgrades = new ArrayList<>(GENERIC_UPGRADE_NAMES);
+        while (upgradeChoices.size() < 3 && !remainingUpgrades.isEmpty()) {
+            int index = random.nextInt(remainingUpgrades.size());
+            upgradeChoices.add(remainingUpgrades.remove(index));
+        }
+    }
+
+    public String getUpgradeDescription(String upgradeName) {
+        return switch (upgradeName) {
+            case "Vitality" -> "+10 max health";
+            case "Swiftness" -> "+12 move speed";
+            case "Magnetism" -> "+18 pickup radius";
+            case "Critical Hit" -> "+8% crit chance";
+            case "Rapid Fire" -> "-15% fire interval";
+            case "Heavy Blows" -> "+1.5 damage";
+            default -> "+small bonus";
+        };
+    }
+
+    private void applyUpgrade(String upgradeName) {
+        switch (upgradeName) {
+            case "Vitality":
+                player.increaseMaxHealth(10.0);
+                break;
+            case "Swiftness":
+                player.increaseSpeed(12.0);
+                break;
+            case "Magnetism":
+                player.increasePickupRadius(18.0);
+                break;
+            case "Critical Hit":
+                weapon.addCritChance(0.08);
+                break;
+            case "Rapid Fire":
+                weapon.addFireSpeed(0.15);
+                break;
+            case "Heavy Blows":
+                weapon.addDamage(1.5);
+                break;
+            default:
+                break;
         }
     }
 
@@ -250,6 +396,7 @@ public class GameLogic {
             exp = 0;
             level++;
             expToNextLevel += LEVEL_UP_EXP_BONUS + level * 2;
+            refreshUpgradeChoices();
             upgradeMenuOpen = true;
         }
     }
@@ -341,6 +488,8 @@ public class GameLogic {
         if (index < 0 || index >= upgradeChoices.size()) {
             return;
         }
+        applyUpgrade(upgradeChoices.get(index));
+        upgradeChoices.clear();
         upgradeMenuOpen = false;
     }
 
