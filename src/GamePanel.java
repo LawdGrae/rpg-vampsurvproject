@@ -97,8 +97,23 @@ public class GamePanel extends JPanel {
         bindKey(inputMap, actionMap, "released D", "right", false);
         bindKey(inputMap, actionMap, "pressed RIGHT", "right", true);
         bindKey(inputMap, actionMap, "released RIGHT", "right", false);
-        bindKey(inputMap, actionMap, "pressed SPACE", "jump", true); // Haze add
-        bindKey(inputMap, actionMap, "released SPACE", "jump", false);
+        inputMap.put(KeyStroke.getKeyStroke("pressed SPACE"), "spacePressed");
+        actionMap.put("spacePressed", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent event) {
+                gameLogic.setKeyPressed("jump", true);
+                if (gameLogic.isGameStarted() && !gameLogic.isUpgradeMenuOpen() && !gameLogic.isPaused()) {
+                    gameLogic.triggerAbility();
+                }
+            }
+        });
+        inputMap.put(KeyStroke.getKeyStroke("released SPACE"), "spaceReleased");
+        actionMap.put("spaceReleased", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent event) {
+                gameLogic.setKeyPressed("jump", false);
+            }
+        });
         bindKey(inputMap, actionMap, "pressed R", "run", true);
         bindKey(inputMap, actionMap, "released R", "run", false);
         bindKey(inputMap, actionMap, "pressed J", "attack", true);
@@ -165,8 +180,21 @@ public class GamePanel extends JPanel {
                     return;
                 }
 
+                if (gameLogic.isGameOver()) {
+                    handleGameOverClick(event);
+                    return;
+                }
+
                 if (gameLogic.isPaused()) {
                     handlePauseMenuClick(event);
+                    return;
+                }
+
+                if (gameLogic.isGameStarted() && !gameLogic.isUpgradeMenuOpen()) {
+                    Rectangle abilityButton = new Rectangle(18 + 190 - 38, PANEL_HEIGHT - 52 + 7, 28, 18);
+                    if (contains(event, abilityButton)) {
+                        gameLogic.triggerAbility();
+                    }
                 }
             }
         });
@@ -199,8 +227,10 @@ public class GamePanel extends JPanel {
         }
 
         gameLogic.drawEntities(graphics2D, PANEL_WIDTH / 2, PANEL_HEIGHT / 2);
+        gameLogic.drawAbilityBursts(graphics2D, PANEL_WIDTH / 2, PANEL_HEIGHT / 2);
         drawExperienceBar(graphics2D);
         drawGameTimer(graphics2D);
+        drawAbilityHud(graphics2D);
         if (gameLogic.isGameOver()) {
             gameLogic.drawGameOverEffect(graphics2D, PANEL_WIDTH / 2, PANEL_HEIGHT / 2);
             drawGameOverScreen(graphics2D);
@@ -227,6 +257,10 @@ public class GamePanel extends JPanel {
         drawMenuButton(graphics, new Rectangle(290, 270, 220, 52), "Play");
         drawMenuButton(graphics, new Rectangle(290, 340, 220, 52), "Settings");
         drawMenuButton(graphics, new Rectangle(290, 410, 220, 52), "Quit");
+
+        graphics.setColor(new Color(255, 255, 255, 180));
+        graphics.setFont(new Font("Times New Roman", Font.PLAIN, 16));
+        graphics.drawString("V0.0.1", PANEL_WIDTH - 80, PANEL_HEIGHT - 22);
     }
 
     private void drawCharacterSelection(Graphics2D graphics) {
@@ -320,6 +354,38 @@ public class GamePanel extends JPanel {
         graphics.drawString(timerText, (PANEL_WIDTH - textWidth) / 2, 24);
     }
 
+    private void drawAbilityHud(Graphics2D graphics) {
+        Ability ability = gameLogic.getAbility();
+        int boxX = 18;
+        int boxY = PANEL_HEIGHT - 52;
+        int boxWidth = 190;
+        int boxHeight = 34;
+        double cooldownRatio = Math.max(0.0, Math.min(1.0, ability.getCooldownRemaining() / 60.0));
+
+        graphics.setColor(new Color(20, 20, 20, 210));
+        graphics.fillRoundRect(boxX, boxY, boxWidth, boxHeight, 10, 10);
+
+        graphics.setColor(new Color(90, 90, 90));
+        graphics.fillRoundRect(boxX + 8, boxY + 21, boxWidth - 52, 7, 5, 5);
+        graphics.setColor(ability.isReady() ? new Color(120, 220, 140) : new Color(220, 140, 80));
+        graphics.fillRoundRect(boxX + 8, boxY + 21, (int) Math.round((boxWidth - 52) * (1.0 - cooldownRatio)), 7, 5, 5);
+
+        graphics.setColor(Color.WHITE);
+        graphics.setFont(new Font("Times New Roman", Font.BOLD, 12));
+        graphics.drawString("placeholder ability", boxX + 10, boxY + 14);
+
+        String cooldownText = ability.isReady() ? "Ready" : String.format("%ds", (int) Math.ceil(ability.getCooldownRemaining()));
+        graphics.setFont(new Font("Times New Roman", Font.PLAIN, 11));
+        graphics.drawString(cooldownText, boxX + 10, boxY + 30);
+
+        Rectangle buttonBounds = new Rectangle(boxX + boxWidth - 38, boxY + 7, 28, 18);
+        graphics.setColor(ability.isReady() ? new Color(90, 180, 90) : new Color(100, 100, 100));
+        graphics.fillRoundRect(buttonBounds.x, buttonBounds.y, buttonBounds.width, buttonBounds.height, 6, 6);
+        graphics.setColor(Color.WHITE);
+        graphics.setFont(new Font("Times New Roman", Font.BOLD, 11));
+        graphics.drawString("USE", buttonBounds.x + 5, buttonBounds.y + 13);
+    }
+
     private void drawUpgradeMenu(Graphics2D graphics) {
         if (!gameLogic.isUpgradeMenuOpen()) {
             return;
@@ -371,6 +437,8 @@ public class GamePanel extends JPanel {
         graphics.setFont(new Font("Times New Roman", Font.PLAIN, 22));
         graphics.drawString("The hero was overwhelmed.", 245, 250);
         graphics.drawString("The battlefield will remember this moment.", 150, 285);
+
+        drawMenuButton(graphics, new Rectangle(290, 330, 220, 52), "Main Menu");
     }
 
     private void drawPauseMenu(Graphics2D graphics) {
@@ -435,6 +503,13 @@ public class GamePanel extends JPanel {
         graphics.fillRoundRect(x, y, width, height, 12, 12);
         graphics.setColor(Color.WHITE);
         graphics.fillOval(enabled ? x + width - 14 : x + 2, y + 2, 10, 10);
+    }
+
+    private void handleGameOverClick(MouseEvent event) {
+        Rectangle mainMenuButton = new Rectangle(290, 330, 220, 52);
+        if (contains(event, mainMenuButton)) {
+            gameLogic.showMainMenu();
+        }
     }
 
     private void handlePauseMenuClick(MouseEvent event) {

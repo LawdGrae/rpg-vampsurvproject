@@ -21,12 +21,13 @@ public class GameLogic {
     private static final double GEM_COLLECTION_RADIUS = 18.0;
     private static final double GEM_ACCELERATION = 340.0;
     private static final double GEM_MAX_SPEED = 260.0;
-    private static final int LEVEL_UP_EXP_BONUS = 8;
+    private static final int LEVEL_UP_EXP_BONUS = 6;
 
     private final Player player;
     private final List<Enemy> enemies = new ArrayList<>();
     private final List<Gem> gems = new ArrayList<>();
     private final Weapon weapon = new TemplateWeapon();
+    private final Ability ability = new TemplateAbility();
     private final List<Projectile> projectiles = new ArrayList<>();
     private final List<Projectile> enemyProjectiles = new ArrayList<>();
     private final Random random = new Random();
@@ -71,6 +72,7 @@ public class GameLogic {
     private boolean gameOver;
     private double gameOverTimer;
     private final List<ExplosionParticle> explosionParticles = new ArrayList<>();
+    private final List<AbilityBurst> abilityBursts = new ArrayList<>();
 
     public GameLogic() {
         player = new TemplateCharacter();
@@ -94,6 +96,8 @@ public class GameLogic {
 
         // Update all game objects once per timer tick.
         player.update(deltaTime);
+        ability.update(deltaTime);
+        updateAbilityBursts(deltaTime);
 
         // Start small and ramp up the wave size over time instead of instantly
         // surrounding the player with a full ring at startup.
@@ -199,6 +203,28 @@ public class GameLogic {
         }
     }
 
+    private void updateAbilityBursts(double deltaTime) {
+        Iterator<AbilityBurst> burstIterator = abilityBursts.iterator();
+        while (burstIterator.hasNext()) {
+            AbilityBurst burst = burstIterator.next();
+            burst.update(deltaTime);
+            if (burst.isExpired()) {
+                burstIterator.remove();
+            }
+        }
+    }
+
+    public void drawAbilityBursts(Graphics2D graphics, int centerX, int centerY) {
+        for (AbilityBurst burst : abilityBursts) {
+            double alpha = Math.max(0.0, burst.life / burst.maxLife);
+            int radius = (int) Math.round(burst.radius * (1.0 + (1.0 - alpha) * 1.8));
+            int screenX = (int) Math.round(centerX + burst.x + getWorldOffsetX());
+            int screenY = (int) Math.round(centerY + burst.y + getWorldOffsetY());
+            graphics.setColor(new Color(255, 200, 80, (int) (alpha * 180.0)));
+            graphics.fillOval(screenX - radius, screenY - radius, radius * 2, radius * 2);
+        }
+    }
+
     public void drawGameOverEffect(Graphics2D graphics, int centerX, int centerY) {
         if (!gameOver) {
             return;
@@ -211,6 +237,30 @@ public class GameLogic {
             int radius = (int) Math.round(particle.radius);
             graphics.setColor(new Color(255, 140, 40, (int) (alpha * 220.0)));
             graphics.fillOval((int) screenX - radius, (int) screenY - radius, radius * 2, radius * 2);
+        }
+    }
+
+    private static class AbilityBurst {
+        private double x;
+        private double y;
+        private final double radius;
+        private final double maxLife;
+        private double life;
+
+        private AbilityBurst(double x, double y, double radius, double maxLife) {
+            this.x = x;
+            this.y = y;
+            this.radius = radius;
+            this.maxLife = maxLife;
+            this.life = maxLife;
+        }
+
+        private void update(double deltaTime) {
+            life -= deltaTime;
+        }
+
+        private boolean isExpired() {
+            return life <= 0.0;
         }
     }
 
@@ -415,32 +465,20 @@ public class GameLogic {
             case "Critical Hit" -> "+8% crit chance";
             case "Rapid Fire" -> "-15% fire interval";
             case "Heavy Blows" -> "+1.5 damage";
-            default -> "+small bonus";
+            default -> "";
         };
     }
 
     private void applyUpgrade(String upgradeName) {
         switch (upgradeName) {
-            case "Vitality":
-                player.increaseMaxHealth(10.0);
-                break;
-            case "Swiftness":
-                player.increaseSpeed(12.0);
-                break;
-            case "Magnetism":
-                player.increasePickupRadius(18.0);
-                break;
-            case "Critical Hit":
-                weapon.addCritChance(0.08);
-                break;
-            case "Rapid Fire":
-                weapon.addFireSpeed(0.15);
-                break;
-            case "Heavy Blows":
-                weapon.addDamage(1.5);
-                break;
-            default:
-                break;
+            case "Vitality" -> player.increaseMaxHealth(10.0);
+            case "Swiftness" -> player.increaseSpeed(12.0);
+            case "Magnetism" -> player.increasePickupRadius(18.0);
+            case "Critical Hit" -> weapon.addCritChance(0.08);
+            case "Rapid Fire" -> weapon.addFireSpeed(0.15);
+            case "Heavy Blows" -> weapon.addDamage(1.5);
+            default -> {
+            }
         }
     }
 
@@ -487,7 +525,36 @@ public class GameLogic {
         return debugInfoVisible;
     }
 
+    public Ability getAbility() {
+        return ability;
+    }
+
+    public void triggerAbility() {
+        if (!ability.isReady()) {
+            return;
+        }
+
+        ability.trigger(player.getWorldX(), player.getWorldY(), enemies);
+        createAbilityBurst(player.getWorldX(), player.getWorldY());
+    }
+
+    private void createAbilityBurst(double originX, double originY) {
+        abilityBursts.add(new AbilityBurst(0.0, 0.0, 140.0, 0.5));
+        for (int index = 0; index < 18; index++) {
+            double angle = random.nextDouble() * Math.PI * 2.0;
+            double speed = 30.0 + random.nextDouble() * 80.0;
+            explosionParticles.add(new ExplosionParticle(
+                    originX,
+                    originY,
+                    Math.cos(angle) * speed,
+                    Math.sin(angle) * speed,
+                    5.0 + random.nextDouble() * 12.0,
+                    0.3 + random.nextDouble() * 0.5));
+        }
+    }
+
     public void showMainMenu() {
+        resetRunState();
         mainMenuOpen = true;
         characterSelectOpen = false;
         gameStarted = false;
@@ -504,11 +571,32 @@ public class GameLogic {
     }
 
     public void startGame() {
+        resetRunState();
         mainMenuOpen = false;
         characterSelectOpen = false;
         gameStarted = true;
         paused = false;
         settingsOpen = false;
+    }
+
+    private void resetRunState() {
+        gameOver = false;
+        gameOverTimer = 0.0;
+        explosionParticles.clear();
+        abilityBursts.clear();
+        enemies.clear();
+        gems.clear();
+        projectiles.clear();
+        enemyProjectiles.clear();
+        spawnQueue.clear();
+        whenToSpawn = INITIAL_SPAWN_DELAY;
+        gameTimer = 0.0;
+        repositionTimer = 0.0;
+        level = 1;
+        exp = 0;
+        expToNextLevel = 10;
+        upgradeMenuOpen = false;
+        ability.reset();
     }
 
     public void togglePause() {
@@ -595,23 +683,23 @@ public class GameLogic {
     }
 
     private int getSpawnBatchSize() {
-        if (gameTimer < 6.0) {
+        if (gameTimer < 60.0) {
             return 1;
         }
-        if (gameTimer < 14.0) {
+        if (gameTimer < 120.0) {
             return 2;
         }
-        if (gameTimer < 24.0) {
+        if (gameTimer < 180.0) {
             return 3;
         }
         return 4;
     }
 
     private double getSpawnInterval() {
-        if (gameTimer < 8.0) {
+        if (gameTimer < 90.0) {
             return 3.0;
         }
-        if (gameTimer < 18.0) {
+        if (gameTimer < 150.0) {
             return 2.2;
         }
         return 1.8;
@@ -625,7 +713,7 @@ public class GameLogic {
         if (level >= 5) {
             level3Chance = 0.18;
         }
-        if (gameTimer >= 30.0) {
+        if (gameTimer >= 60.0) {
             level3Chance = Math.min(0.28, level3Chance + 0.08);
         }
         if (random.nextDouble() < level3Chance) {
@@ -636,7 +724,7 @@ public class GameLogic {
         if (level >= 2) {
             level2Chance = 0.25;
         }
-        if (gameTimer >= 25.0) {
+        if (gameTimer >= 90.0) {
             level2Chance = Math.min(0.55, level2Chance + 0.2);
         }
         if (random.nextDouble() < level2Chance) {
