@@ -27,6 +27,7 @@ public class GameLogic {
     private final List<Gem> gems = new ArrayList<>();
     private final Weapon weapon = new TemplateWeapon();
     private final List<Projectile> projectiles = new ArrayList<>();
+    private final List<Projectile> enemyProjectiles = new ArrayList<>();
     private final Random random = new Random();
     private final List<Double> spawnQueue = new ArrayList<>();
     private final List<String> upgradeChoices = Arrays.asList(
@@ -111,7 +112,9 @@ public class GameLogic {
             projectiles.add(projectile);
         }
 
+        spawnEnemyProjectiles(deltaTime);
         updateProjectiles(deltaTime);
+        updateEnemyProjectiles(deltaTime);
         updateGems(deltaTime);
         enemies.removeIf(Enemy::isFinishedFading);
     }
@@ -152,6 +155,48 @@ public class GameLogic {
             }
 
             if (hitEnemy || projectile.isExpired()) {
+                projectileIterator.remove();
+            }
+        }
+    }
+
+    private void spawnEnemyProjectiles(double deltaTime) {
+        for (Enemy enemy : enemies) {
+            if (!(enemy instanceof TemplateEnemy2)) {
+                continue;
+            }
+            TemplateEnemy2 enemy2 = (TemplateEnemy2) enemy;
+            enemy2.updateFireCooldown(deltaTime);
+            if (!enemy2.canFire()) {
+                continue;
+            }
+            double distanceSquared = enemy2.distanceSquaredTo(
+                    player.getWorldX(), player.getWorldY());
+            double attackRange = 420.0;
+            if (distanceSquared <= attackRange * attackRange) {
+                Projectile projectile = enemy2.fireAt(player.getWorldX(), player.getWorldY());
+                if (projectile != null) {
+                    enemyProjectiles.add(projectile);
+                }
+            }
+        }
+    }
+
+    private void updateEnemyProjectiles(double deltaTime) {
+        Iterator<Projectile> projectileIterator = enemyProjectiles.iterator();
+        while (projectileIterator.hasNext()) {
+            Projectile projectile = projectileIterator.next();
+            projectile.update(deltaTime);
+
+            boolean hitPlayer = projectile.hitsPlayer(
+                    player.getWorldX(), player.getWorldY(), player.getCollisionRadius());
+            if (hitPlayer || projectile.isExpired()) {
+                if (projectile.getOwner() instanceof TemplateEnemy2) {
+                    ((TemplateEnemy2) projectile.getOwner()).onProjectileDestroyed();
+                }
+                if (hitPlayer) {
+                    player.takeDamage(projectile.getDamage());
+                }
                 projectileIterator.remove();
             }
         }
@@ -251,6 +296,20 @@ public class GameLogic {
         return 1.8;
     }
 
+    private Enemy createEnemy(double worldX, double worldY) {
+        double level2Chance = 0.0;
+        if (level >= 2) {
+            level2Chance = 0.25;
+        }
+        if (gameTimer >= 25.0) {
+            level2Chance = Math.min(0.55, level2Chance + 0.2);
+        }
+        if (random.nextDouble() < level2Chance) {
+            return new TemplateEnemy2(worldX, worldY);
+        }
+        return new TemplateEnemy(worldX, worldY);
+    }
+
     private void spawnClump(int enemyCount) {
         int enemiesToSpawn = Math.min(enemyCount, availableSlots());
 
@@ -263,7 +322,7 @@ public class GameLogic {
             double angle = Math.PI * 2.0 * index / enemiesToSpawn;
             double enemyX = player.getWorldX() + Math.cos(angle) * SPAWN_RADIUS;
             double enemyY = player.getWorldY() + Math.sin(angle) * SPAWN_RADIUS;
-            enemies.add(new TemplateEnemy(enemyX, enemyY));
+            enemies.add(createEnemy(enemyX, enemyY));
         }
     }
 
@@ -285,7 +344,7 @@ public class GameLogic {
             double angle = Math.PI * 2.0 * index / enemiesToSpawn;
             double enemyX = player.getWorldX() + Math.cos(angle) * SPAWN_RADIUS;
             double enemyY = player.getWorldY() + Math.sin(angle) * SPAWN_RADIUS;
-            enemies.add(new TemplateEnemy(enemyX, enemyY));
+            enemies.add(createEnemy(enemyX, enemyY));
         }
     }
 
@@ -298,7 +357,7 @@ public class GameLogic {
         double angle = random.nextDouble() * Math.PI * 2.0;
         double enemyX = player.getWorldX() + Math.cos(angle) * SPAWN_RADIUS;
         double enemyY = player.getWorldY() + Math.sin(angle) * SPAWN_RADIUS;
-        enemies.add(new TemplateEnemy(enemyX, enemyY));
+        enemies.add(createEnemy(enemyX, enemyY));
     }
 
     private void repositionFarEnemies() {
@@ -366,6 +425,10 @@ public class GameLogic {
         }
         graphics.setColor(java.awt.Color.WHITE);
         for (Projectile projectile : projectiles) {
+            projectile.draw(graphics, centerX, centerY,
+                getWorldOffsetX(), getWorldOffsetY());
+        }
+        for (Projectile projectile : enemyProjectiles) {
             projectile.draw(graphics, centerX, centerY,
                 getWorldOffsetX(), getWorldOffsetY());
         }

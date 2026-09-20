@@ -25,6 +25,8 @@ public abstract class Player {
     private int spriteRow = 2;
     private final double maxHealth;
     private double health;
+    private static final double INVULNERABILITY_DURATION = 0.75;
+    private double invulnerabilityTime;
 
     protected Player(String spritePath, double speed, double animationSpeed,
             int spriteScale, int spriteWidth, int spriteHeight, double maxHealth) {
@@ -56,6 +58,8 @@ public abstract class Player {
     }
 
     public void update(double deltaTime) {
+        invulnerabilityTime = Math.max(0.0, invulnerabilityTime - deltaTime);
+
         int horizontal = horizontalInput();
         int vertical = verticalInput();
 
@@ -111,7 +115,15 @@ public abstract class Player {
     }
 
     public void takeDamage(double damage) {
+        if (invulnerabilityTime > 0) {
+            return;
+        }
         health = Math.max(0, health - damage);
+        invulnerabilityTime = INVULNERABILITY_DURATION;
+    }
+
+    public boolean isInvulnerable() {
+        return invulnerabilityTime > 0;
     }
 
     public void draw(Graphics2D graphics, int centerX, int centerY) {
@@ -126,10 +138,19 @@ public abstract class Player {
         int playerX = centerX - renderedWidth / 2;
         int playerY = centerY - renderedHeight / 2;
 
+        float alpha = invulnerabilityTime > 0 && ((int) (invulnerabilityTime * 20.0) % 2 == 0)
+                ? 0.35f
+                : 1.0f;
+        java.awt.AlphaComposite composite = java.awt.AlphaComposite.getInstance(
+                java.awt.AlphaComposite.SRC_OVER, alpha);
+        java.awt.Composite previousComposite = graphics.getComposite();
+        graphics.setComposite(composite);
+
         // Draw only one frame from the larger sprite sheet.
         graphics.drawImage(spriteSheet,
                 playerX, playerY, playerX + renderedWidth, playerY + renderedHeight,
                 sourceX, sourceY, sourceX + spriteWidth, sourceY + spriteHeight, null);
+        graphics.setComposite(previousComposite);
 
         // Draw a black background, then cover part of it with the remaining red health.
         int healthBarY = playerY + renderedHeight + HEALTH_BAR_GAP;
