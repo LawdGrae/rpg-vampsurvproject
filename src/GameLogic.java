@@ -27,13 +27,26 @@ public class GameLogic {
     private final List<Gem> gems = new ArrayList<>();
     private final Weapon weapon = new TemplateWeapon();
     private final List<Projectile> projectiles = new ArrayList<>();
-    private final List<Projectile> enemyProjectiles = new ArrayList<>();
     private final Random random = new Random();
     private final List<Double> spawnQueue = new ArrayList<>();
     private final List<String> upgradeChoices = Arrays.asList(
             "Rapid Fire",
             "Heavy Blows",
             "Arcane Magnet"
+    );
+    private final List<String> characterNames = Arrays.asList(
+            "placeholder girl",
+            "coming soon...",
+            "coming soon...",
+            "coming soon...",
+            "coming soon..."
+    );
+    private final List<String> characterWeapons = Arrays.asList(
+            "placeholder weapon",
+            "coming soon...",
+            "coming soon...",
+            "coming soon...",
+            "coming soon..."
     );
     private double whenToSpawn = INITIAL_SPAWN_DELAY;
     private double gameTimer;
@@ -42,6 +55,13 @@ public class GameLogic {
     private int exp = 0;
     private int expToNextLevel = 10;
     private boolean upgradeMenuOpen;
+    private boolean mainMenuOpen = true;
+    private boolean characterSelectOpen;
+    private boolean gameStarted;
+    private boolean paused;
+    private boolean settingsOpen;
+    private boolean soundEnabled = true;
+    private boolean debugInfoVisible;
 
     public GameLogic() {
         player = new TemplateCharacter();
@@ -112,9 +132,7 @@ public class GameLogic {
             projectiles.add(projectile);
         }
 
-        spawnEnemyProjectiles(deltaTime);
         updateProjectiles(deltaTime);
-        updateEnemyProjectiles(deltaTime);
         updateGems(deltaTime);
         enemies.removeIf(Enemy::isFinishedFading);
     }
@@ -160,48 +178,6 @@ public class GameLogic {
         }
     }
 
-    private void spawnEnemyProjectiles(double deltaTime) {
-        for (Enemy enemy : enemies) {
-            if (!(enemy instanceof TemplateEnemy2)) {
-                continue;
-            }
-            TemplateEnemy2 enemy2 = (TemplateEnemy2) enemy;
-            enemy2.updateFireCooldown(deltaTime);
-            if (!enemy2.canFire()) {
-                continue;
-            }
-            double distanceSquared = enemy2.distanceSquaredTo(
-                    player.getWorldX(), player.getWorldY());
-            double attackRange = 420.0;
-            if (distanceSquared <= attackRange * attackRange) {
-                Projectile projectile = enemy2.fireAt(player.getWorldX(), player.getWorldY());
-                if (projectile != null) {
-                    enemyProjectiles.add(projectile);
-                }
-            }
-        }
-    }
-
-    private void updateEnemyProjectiles(double deltaTime) {
-        Iterator<Projectile> projectileIterator = enemyProjectiles.iterator();
-        while (projectileIterator.hasNext()) {
-            Projectile projectile = projectileIterator.next();
-            projectile.update(deltaTime);
-
-            boolean hitPlayer = projectile.hitsPlayer(
-                    player.getWorldX(), player.getWorldY(), player.getCollisionRadius());
-            if (hitPlayer || projectile.isExpired()) {
-                if (projectile.getOwner() instanceof TemplateEnemy2) {
-                    ((TemplateEnemy2) projectile.getOwner()).onProjectileDestroyed();
-                }
-                if (hitPlayer) {
-                    player.takeDamage(projectile.getDamage());
-                }
-                projectileIterator.remove();
-            }
-        }
-    }
-
     private void dropGem(Enemy enemy) {
         if (enemy.hasLootDropped()) {
             return;
@@ -236,6 +212,82 @@ public class GameLogic {
         return upgradeMenuOpen;
     }
 
+    public boolean isMainMenuOpen() {
+        return mainMenuOpen;
+    }
+
+    public boolean isCharacterSelectOpen() {
+        return characterSelectOpen;
+    }
+
+    public boolean isGameStarted() {
+        return gameStarted;
+    }
+
+    public boolean isPaused() {
+        return paused;
+    }
+
+    public boolean isSettingsOpen() {
+        return settingsOpen;
+    }
+
+    public boolean isSoundEnabled() {
+        return soundEnabled;
+    }
+
+    public boolean isDebugInfoVisible() {
+        return debugInfoVisible;
+    }
+
+    public void showMainMenu() {
+        mainMenuOpen = true;
+        characterSelectOpen = false;
+        gameStarted = false;
+        paused = false;
+        settingsOpen = false;
+    }
+
+    public void showCharacterSelection() {
+        mainMenuOpen = false;
+        characterSelectOpen = true;
+        gameStarted = false;
+        paused = false;
+        settingsOpen = false;
+    }
+
+    public void startGame() {
+        mainMenuOpen = false;
+        characterSelectOpen = false;
+        gameStarted = true;
+        paused = false;
+        settingsOpen = false;
+    }
+
+    public void togglePause() {
+        paused = !paused;
+        if (!paused) {
+            settingsOpen = false;
+        }
+    }
+
+    public void resume() {
+        paused = false;
+        settingsOpen = false;
+    }
+
+    public void toggleSettings() {
+        settingsOpen = !settingsOpen;
+    }
+
+    public void setSoundEnabled(boolean enabled) {
+        soundEnabled = enabled;
+    }
+
+    public void setDebugInfoVisible(boolean visible) {
+        debugInfoVisible = visible;
+    }
+
     public void chooseUpgrade(int index) {
         if (!upgradeMenuOpen) {
             return;
@@ -248,6 +300,26 @@ public class GameLogic {
 
     public List<String> getUpgradeChoices() {
         return upgradeChoices;
+    }
+
+    public List<String> getCharacterNames() {
+        return characterNames;
+    }
+
+    public List<String> getCharacterWeapons() {
+        return characterWeapons;
+    }
+
+    public String getSelectedCharacterName() {
+        return characterNames.getFirst();
+    }
+
+    public String getSelectedWeaponName() {
+        return characterWeapons.getFirst();
+    }
+
+    public String getPortraitPath() {
+        return "/assets/portrait_temp.png";
     }
 
     public double getExpProgress() {
@@ -296,20 +368,6 @@ public class GameLogic {
         return 1.8;
     }
 
-    private Enemy createEnemy(double worldX, double worldY) {
-        double level2Chance = 0.0;
-        if (level >= 2) {
-            level2Chance = 0.25;
-        }
-        if (gameTimer >= 25.0) {
-            level2Chance = Math.min(0.55, level2Chance + 0.2);
-        }
-        if (random.nextDouble() < level2Chance) {
-            return new TemplateEnemy2(worldX, worldY);
-        }
-        return new TemplateEnemy(worldX, worldY);
-    }
-
     private void spawnClump(int enemyCount) {
         int enemiesToSpawn = Math.min(enemyCount, availableSlots());
 
@@ -322,7 +380,7 @@ public class GameLogic {
             double angle = Math.PI * 2.0 * index / enemiesToSpawn;
             double enemyX = player.getWorldX() + Math.cos(angle) * SPAWN_RADIUS;
             double enemyY = player.getWorldY() + Math.sin(angle) * SPAWN_RADIUS;
-            enemies.add(createEnemy(enemyX, enemyY));
+            enemies.add(new TemplateEnemy(enemyX, enemyY));
         }
     }
 
@@ -344,7 +402,7 @@ public class GameLogic {
             double angle = Math.PI * 2.0 * index / enemiesToSpawn;
             double enemyX = player.getWorldX() + Math.cos(angle) * SPAWN_RADIUS;
             double enemyY = player.getWorldY() + Math.sin(angle) * SPAWN_RADIUS;
-            enemies.add(createEnemy(enemyX, enemyY));
+            enemies.add(new TemplateEnemy(enemyX, enemyY));
         }
     }
 
@@ -357,7 +415,7 @@ public class GameLogic {
         double angle = random.nextDouble() * Math.PI * 2.0;
         double enemyX = player.getWorldX() + Math.cos(angle) * SPAWN_RADIUS;
         double enemyY = player.getWorldY() + Math.sin(angle) * SPAWN_RADIUS;
-        enemies.add(createEnemy(enemyX, enemyY));
+        enemies.add(new TemplateEnemy(enemyX, enemyY));
     }
 
     private void repositionFarEnemies() {
@@ -425,10 +483,6 @@ public class GameLogic {
         }
         graphics.setColor(java.awt.Color.WHITE);
         for (Projectile projectile : projectiles) {
-            projectile.draw(graphics, centerX, centerY,
-                getWorldOffsetX(), getWorldOffsetY());
-        }
-        for (Projectile projectile : enemyProjectiles) {
             projectile.draw(graphics, centerX, centerY,
                 getWorldOffsetX(), getWorldOffsetY());
         }
