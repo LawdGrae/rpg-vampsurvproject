@@ -125,7 +125,12 @@ public class GameLogic {
             // Damage is time-based, so the amount does not depend on frame rate.
             if (enemy.isCollidingWith(player.getWorldX(), player.getWorldY(),
                     player.getCollisionRadius())) {
-                player.takeDamage(enemy.getDamage() * deltaTime);
+                if (enemy instanceof TemplateEnemyMinion) {
+                    player.applySlow(TemplateEnemyMinion.SLOW_DURATION,
+                            TemplateEnemyMinion.SLOW_MULTIPLIER);
+                } else {
+                    player.takeDamage(enemy.getDamage() * deltaTime);
+                }
             }
         }
 
@@ -266,8 +271,25 @@ public class GameLogic {
             boolean hitEnemy = false;
             for (Enemy enemy : enemies) {
                 if (!enemy.isDead() && projectile.hits(enemy)) {
+                    if (enemy instanceof TemplateEnemy3 bossEnemy) {
+                        bossEnemy.registerPlayerProjectileHit();
+                        if (bossEnemy.shouldReflectPlayerProjectile(
+                                player.getWorldX(), player.getWorldY())) {
+                            Projectile reflected = bossEnemy.createReflectedProjectile(
+                                    player.getWorldX(), player.getWorldY());
+                            if (reflected != null) {
+                                enemyProjectiles.add(reflected);
+                            }
+                        }
+                    }
+
                     enemy.takeDamage(projectile.getDamage());
                     if (enemy.isDead()) {
+                        if (enemy instanceof TemplateEnemy3 bossEnemy
+                                && !bossEnemy.hasSummonedMinions()) {
+                            enemies.addAll(bossEnemy.createSummons(
+                                    enemy.getWorldX(), enemy.getWorldY(), random));
+                        }
                         dropGem(enemy);
                     }
                     hitEnemy = true;
@@ -310,9 +332,41 @@ public class GameLogic {
             Projectile projectile = projectileIterator.next();
             projectile.update(deltaTime);
 
-            boolean hitPlayer = projectile.hitsPlayer(
-                    player.getWorldX(), player.getWorldY(), player.getCollisionRadius());
-            if (hitPlayer || projectile.isExpired()) {
+            boolean hitEnemy = false;
+            boolean hitPlayer = false;
+
+            if (projectile.getOwner() instanceof TemplateEnemy3) {
+                Enemy nearestEnemy = null;
+                double nearestDistanceSquared = Double.POSITIVE_INFINITY;
+
+                for (Enemy enemy : enemies) {
+                    if (enemy == projectile.getOwner() || enemy.isDead()) {
+                        continue;
+                    }
+
+                    double distanceSquared = enemy.distanceSquaredTo(
+                            projectile.getWorldX(), projectile.getWorldY());
+                    if (distanceSquared < nearestDistanceSquared) {
+                        nearestDistanceSquared = distanceSquared;
+                        nearestEnemy = enemy;
+                    }
+                }
+
+                if (nearestEnemy != null && projectile.hits(nearestEnemy)) {
+                    nearestEnemy.takeDamage(projectile.getDamage());
+                    if (nearestEnemy.isDead()) {
+                        dropGem(nearestEnemy);
+                    }
+                    hitEnemy = true;
+                }
+            }
+
+            if (!hitEnemy) {
+                hitPlayer = projectile.hitsPlayer(
+                        player.getWorldX(), player.getWorldY(), player.getCollisionRadius());
+            }
+
+            if (hitEnemy || hitPlayer || projectile.isExpired()) {
                 if (projectile.getOwner() instanceof TemplateEnemy2) {
                     ((TemplateEnemy2) projectile.getOwner()).onProjectileDestroyed();
                 }
@@ -564,6 +618,20 @@ public class GameLogic {
     }
 
     private Enemy createEnemy(double worldX, double worldY) {
+        double level3Chance = 0.0;
+        if (level >= 3) {
+            level3Chance = 0.12;
+        }
+        if (level >= 5) {
+            level3Chance = 0.18;
+        }
+        if (gameTimer >= 30.0) {
+            level3Chance = Math.min(0.28, level3Chance + 0.08);
+        }
+        if (random.nextDouble() < level3Chance) {
+            return new TemplateEnemy3(worldX, worldY);
+        }
+
         double level2Chance = 0.0;
         if (level >= 2) {
             level2Chance = 0.25;

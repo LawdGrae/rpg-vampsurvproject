@@ -28,6 +28,8 @@ public abstract class Player {
     private double pickupRadius;
     private static final double INVULNERABILITY_DURATION = 0.75;
     private double invulnerabilityTime;
+    private double slowTime;
+    private double slowMultiplier = 1.0;
 
     protected Player(String spritePath, double speed, double animationSpeed,
             int spriteScale, int spriteWidth, int spriteHeight, double maxHealth) {
@@ -61,6 +63,10 @@ public abstract class Player {
 
     public void update(double deltaTime) {
         invulnerabilityTime = Math.max(0.0, invulnerabilityTime - deltaTime);
+        slowTime = Math.max(0.0, slowTime - deltaTime);
+        if (slowTime <= 0) {
+            slowMultiplier = 1.0;
+        }
 
         int horizontal = horizontalInput();
         int vertical = verticalInput();
@@ -78,13 +84,19 @@ public abstract class Player {
 
         double length = Math.sqrt(horizontal * horizontal + vertical * vertical);
         if (length > 0) {
-            double moveX = horizontal / length * speed * deltaTime;
-            double moveY = vertical / length * speed * deltaTime;
+            double effectiveSpeed = speed * slowMultiplier;
+            double moveX = horizontal / length * effectiveSpeed * deltaTime;
+            double moveY = vertical / length * effectiveSpeed * deltaTime;
 
             worldOffsetX -= moveX;
             worldOffsetY -= moveY;
             animationTime += deltaTime;
         }
+    }
+
+    public void applySlow(double duration, double multiplier) {
+        slowTime = Math.max(slowTime, duration);
+        slowMultiplier = Math.min(slowMultiplier, multiplier);
     }
 
     public double getWorldOffsetX() {
