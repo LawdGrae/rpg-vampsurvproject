@@ -97,6 +97,12 @@ public class GamePanel extends JPanel {
         bindKey(inputMap, actionMap, "released D", "right", false);
         bindKey(inputMap, actionMap, "pressed RIGHT", "right", true);
         bindKey(inputMap, actionMap, "released RIGHT", "right", false);
+        bindKey(inputMap, actionMap, "pressed SPACE", "jump", true); // Haze add
+        bindKey(inputMap, actionMap, "released SPACE", "jump", false);
+        bindKey(inputMap, actionMap, "pressed R", "run", true);
+        bindKey(inputMap, actionMap, "released R", "run", false);
+        bindKey(inputMap, actionMap, "pressed J", "attack", true);
+        bindKey(inputMap, actionMap, "released J", "attack", false);// Haze add
 
         inputMap.put(KeyStroke.getKeyStroke("ESCAPE"), "togglePause");
         actionMap.put("togglePause", new AbstractAction() {
