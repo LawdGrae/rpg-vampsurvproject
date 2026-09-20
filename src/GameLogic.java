@@ -34,6 +34,20 @@ public class GameLogic {
             "Heavy Blows",
             "Arcane Magnet"
     );
+    private final List<String> characterNames = Arrays.asList(
+            "placeholder girl",
+            "coming soon...",
+            "coming soon...",
+            "coming soon...",
+            "coming soon..."
+    );
+    private final List<String> characterWeapons = Arrays.asList(
+            "placeholder weapon",
+            "coming soon...",
+            "coming soon...",
+            "coming soon...",
+            "coming soon..."
+    );
     private double whenToSpawn = INITIAL_SPAWN_DELAY;
     private double gameTimer;
     private double repositionTimer;
@@ -41,6 +55,13 @@ public class GameLogic {
     private int exp = 0;
     private int expToNextLevel = 10;
     private boolean upgradeMenuOpen;
+    private boolean mainMenuOpen = true;
+    private boolean characterSelectOpen;
+    private boolean gameStarted;
+    private boolean paused;
+    private boolean settingsOpen;
+    private boolean soundEnabled = true;
+    private boolean debugInfoVisible;
 
     public GameLogic() {
         player = new TemplateCharacter();
@@ -191,6 +212,82 @@ public class GameLogic {
         return upgradeMenuOpen;
     }
 
+    public boolean isMainMenuOpen() {
+        return mainMenuOpen;
+    }
+
+    public boolean isCharacterSelectOpen() {
+        return characterSelectOpen;
+    }
+
+    public boolean isGameStarted() {
+        return gameStarted;
+    }
+
+    public boolean isPaused() {
+        return paused;
+    }
+
+    public boolean isSettingsOpen() {
+        return settingsOpen;
+    }
+
+    public boolean isSoundEnabled() {
+        return soundEnabled;
+    }
+
+    public boolean isDebugInfoVisible() {
+        return debugInfoVisible;
+    }
+
+    public void showMainMenu() {
+        mainMenuOpen = true;
+        characterSelectOpen = false;
+        gameStarted = false;
+        paused = false;
+        settingsOpen = false;
+    }
+
+    public void showCharacterSelection() {
+        mainMenuOpen = false;
+        characterSelectOpen = true;
+        gameStarted = false;
+        paused = false;
+        settingsOpen = false;
+    }
+
+    public void startGame() {
+        mainMenuOpen = false;
+        characterSelectOpen = false;
+        gameStarted = true;
+        paused = false;
+        settingsOpen = false;
+    }
+
+    public void togglePause() {
+        paused = !paused;
+        if (!paused) {
+            settingsOpen = false;
+        }
+    }
+
+    public void resume() {
+        paused = false;
+        settingsOpen = false;
+    }
+
+    public void toggleSettings() {
+        settingsOpen = !settingsOpen;
+    }
+
+    public void setSoundEnabled(boolean enabled) {
+        soundEnabled = enabled;
+    }
+
+    public void setDebugInfoVisible(boolean visible) {
+        debugInfoVisible = visible;
+    }
+
     public void chooseUpgrade(int index) {
         if (!upgradeMenuOpen) {
             return;
@@ -203,6 +300,26 @@ public class GameLogic {
 
     public List<String> getUpgradeChoices() {
         return upgradeChoices;
+    }
+
+    public List<String> getCharacterNames() {
+        return characterNames;
+    }
+
+    public List<String> getCharacterWeapons() {
+        return characterWeapons;
+    }
+
+    public String getSelectedCharacterName() {
+        return characterNames.getFirst();
+    }
+
+    public String getSelectedWeaponName() {
+        return characterWeapons.getFirst();
+    }
+
+    public String getPortraitPath() {
+        return "/assets/portrait_temp.png";
     }
 
     public double getExpProgress() {
