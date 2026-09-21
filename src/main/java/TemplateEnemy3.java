@@ -10,10 +10,10 @@ public class TemplateEnemy3 extends Enemy {
     private static final double ANIMATION_SPEED = 0.0;
     private static final int FRAME_WIDTH = 128;
     private static final int FRAME_HEIGHT = 128;
-    private static final int RENDER_SIZE = 64;
+    private static final int RENDER_SIZE = 90;
     private static final double COLLISION_RADIUS = RENDER_SIZE / 2.0;
     private static final double DAMAGE = 30.0;
-    private static final double MAX_HEALTH = 12.0;
+    private static final double MAX_HEALTH = 15.0;
     private static final int REFLECT_EVERY_HITS = 4;
     private static final double REFLECTED_PROJECTILE_SPEED = 420.0;
     private static final double REFLECTED_PROJECTILE_DAMAGE = 1.0;
@@ -90,30 +90,30 @@ public class TemplateEnemy3 extends Enemy {
     private static BufferedImage loadSpriteSheet() {
         try {
             return ImageIO.read(
-                    TemplateEnemy3.class.getResource("/assets/enemy/LVL3Walk.png"));
+                    TemplateEnemy3.class.getResource("/main/resources/enemy/LVL3Walk.png"));
         } catch (IOException | IllegalArgumentException exception) {
             throw new IllegalStateException(
-                    "Could not load assets/enemy/LVL3Walk.png", exception);
+                    "Could not load /main/resources/enemy/LVL3Walk.png", exception);
         }
     }
 
     private static BufferedImage loadDeathSheet() {
         try {
             return ImageIO.read(
-                    TemplateEnemy3.class.getResource("/assets/enemy/LVL3Death.png"));
+                    TemplateEnemy3.class.getResource("/main/resources/enemy/LVL3Death.png"));
         } catch (IOException | IllegalArgumentException exception) {
             throw new IllegalStateException(
-                    "Could not load assets/enemy/LVL3Death.png", exception);
+                    "Could not load /main/resources/enemy/LVL3Death.png", exception);
         }
     }
 
     private static BufferedImage loadReflectedProjectileSprite() {
         try {
             return ImageIO.read(
-                    TemplateEnemy3.class.getResource("/assets/projectiles/temp_bullet.png"));
+                    TemplateEnemy3.class.getResource("/main/resources/projectiles/temp_bullet.png"));
         } catch (IOException | IllegalArgumentException exception) {
             throw new IllegalStateException(
-                    "Could not load assets/projectiles/temp_bullet.png", exception);
+                    "Could not load /main/resources/projectiles/temp_bullet.png", exception);
         }
     }
 }

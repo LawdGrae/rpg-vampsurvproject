@@ -62,17 +62,17 @@ public class GamePanel extends JPanel {
 
     private BufferedImage loadGrassTile() {
         try {
-            return ImageIO.read(GamePanel.class.getResource("/assets/grasstile.png"));
+            return ImageIO.read(GamePanel.class.getResource("/main/resources/grasstile.png"));
         } catch (IOException | IllegalArgumentException exception) {
-            throw new IllegalStateException("Could not load assets/grasstile.png", exception);
+            throw new IllegalStateException("Could not load /main/resources/grasstile.png", exception);
         }
     }
 
     private BufferedImage loadLandscape() {
         try {
-            return ImageIO.read(GamePanel.class.getResource("/assets/landscape.png"));
+            return ImageIO.read(GamePanel.class.getResource("/main/resources/landscape.png"));
         } catch (IOException | IllegalArgumentException exception) {
-            throw new IllegalStateException("Could not load assets/landscape.png", exception);
+            throw new IllegalStateException("Could not load /main/resources/landscape.png", exception);
         }
     }
 
@@ -290,7 +290,7 @@ public class GamePanel extends JPanel {
             graphics.fillRoundRect(x, y, cardWidth, 230, 18, 18);
 
             try {
-                String portraitPath = index == 0 ? gameLogic.getPortraitPath() : "/assets/portrait_coming_soon.png";
+                String portraitPath = index == 0 ? gameLogic.getPortraitPath() : "/main/resources/portrait_coming_soon.png";
                 BufferedImage portrait = ImageIO.read(GamePanel.class.getResource(portraitPath));
                 graphics.drawImage(portrait, x + 20, y + 22, 80, 90, null);
             } catch (IOException | IllegalArgumentException ignored) {

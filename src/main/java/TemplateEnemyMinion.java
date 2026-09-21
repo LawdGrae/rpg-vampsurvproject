@@ -24,20 +24,20 @@ public class TemplateEnemyMinion extends Enemy {
     private static BufferedImage loadSpriteSheet() {
         try {
             return ImageIO.read(
-                    TemplateEnemyMinion.class.getResource("/assets/enemy/LVL1Walk.png"));
+                    TemplateEnemyMinion.class.getResource("/main/resources/enemy/LVL1Walk.png"));
         } catch (IOException | IllegalArgumentException exception) {
             throw new IllegalStateException(
-                    "Could not load assets/enemy/LVL1Walk.png", exception);
+                    "Could not load /main/resources/enemy/LVL1Walk.png", exception);
         }
     }
 
     private static BufferedImage loadDeathSheet() {
         try {
             return ImageIO.read(
-                    TemplateEnemyMinion.class.getResource("/assets/enemy/LVL1Death.png"));
+                    TemplateEnemyMinion.class.getResource("/main/resources/enemy/LVL1Death.png"));
         } catch (IOException | IllegalArgumentException exception) {
             throw new IllegalStateException(
-                    "Could not load assets/enemy/LVL1Death.png", exception);
+                    "Could not load /main/resources/enemy/LVL1Death.png", exception);
         }
     }
 }

@@ -28,6 +28,9 @@ public abstract class Player {
     private double pickupRadius;
     private double slowTime;
     private double slowMultiplier = 1.0;
+    private double recentMoveX = 1.0;
+    private double recentMoveY = 0.0;
+    private boolean hasRecentMove;
 
     protected Player(String spritePath, double speed, double animationSpeed,
             int spriteScale, int spriteWidth, int spriteHeight, double maxHealth) {
@@ -84,10 +87,16 @@ public abstract class Player {
             double effectiveSpeed = speed * slowMultiplier;
             double moveX = horizontal / length * effectiveSpeed * deltaTime;
             double moveY = vertical / length * effectiveSpeed * deltaTime;
+            recentMoveX = horizontal / length;
+            recentMoveY = vertical / length;
+            hasRecentMove = true;
 
             worldOffsetX -= moveX;
             worldOffsetY -= moveY;
             animationTime += deltaTime;
+        } else if (!hasRecentMove) {
+            recentMoveX = 1.0;
+            recentMoveY = 0.0;
         }
     }
 
@@ -148,6 +157,14 @@ public abstract class Player {
 
     public int getFacingY() {
         return spriteRow == 0 ? -1 : spriteRow == 2 ? 1 : 0;
+    }
+
+    public double getRecentMoveX() {
+        return recentMoveX;
+    }
+
+    public double getRecentMoveY() {
+        return recentMoveY;
     }
 
     public void takeDamage(double damage) {

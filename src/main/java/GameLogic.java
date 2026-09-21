@@ -146,12 +146,13 @@ public class GameLogic {
             }
         }
 
-        Enemy target = findNearestLivingEnemyInRange(SHOOT_RANGE);
-        Projectile projectile = null;
-        if (target != null) {
-            projectile = weapon.update(deltaTime, player.getWorldX(),
-                    player.getWorldY(), target);
+        Enemy target = findNearestLivingEnemyOnScreen();
+        if (target == null) {
+            target = findNearestLivingEnemyInRange(SHOOT_RANGE);
         }
+        Projectile projectile = weapon.update(deltaTime, player.getWorldX(),
+                player.getWorldY(), target,
+                player.getRecentMoveX(), player.getRecentMoveY());
         if (projectile != null) {
             projectiles.add(projectile);
         }
@@ -293,6 +294,32 @@ public class GameLogic {
         private boolean isExpired() {
             return life <= 0.0;
         }
+    }
+
+    private Enemy findNearestLivingEnemyOnScreen() {
+        Enemy nearestEnemy = null;
+        double nearestDistanceSquared = Double.POSITIVE_INFINITY;
+        double maxScreenX = PANEL_WIDTH * 0.65;
+        double maxScreenY = 600.0 * 0.65;
+
+        for (Enemy enemy : enemies) {
+            if (enemy.isDead()) {
+                continue;
+            }
+
+            double differenceX = enemy.getWorldX() - player.getWorldX();
+            double differenceY = enemy.getWorldY() - player.getWorldY();
+            if (Math.abs(differenceX) > maxScreenX || Math.abs(differenceY) > maxScreenY) {
+                continue;
+            }
+
+            double distanceSquared = differenceX * differenceX + differenceY * differenceY;
+            if (distanceSquared < nearestDistanceSquared) {
+                nearestDistanceSquared = distanceSquared;
+                nearestEnemy = enemy;
+            }
+        }
+        return nearestEnemy;
     }
 
     private Enemy findNearestLivingEnemyInRange(double maxDistance) {
@@ -656,7 +683,7 @@ public class GameLogic {
     }
 
     public String getPortraitPath() {
-        return "/assets/portrait_temp.png";
+        return "/main/resources/portrait_temp.png";
     }
 
     public double getExpProgress() {
@@ -697,12 +724,12 @@ public class GameLogic {
 
     private double getSpawnInterval() {
         if (gameTimer < 90.0) {
-            return 3.0;
+            return 1.8;
         }
         if (gameTimer < 150.0) {
-            return 2.2;
+            return 1.5;
         }
-        return 1.8;
+        return 1.2;
     }
 
     private Enemy createEnemy(double worldX, double worldY) {

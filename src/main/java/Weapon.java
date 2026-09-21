@@ -41,6 +41,27 @@ public abstract class Weapon {
         return createProjectile(originX, originY, targetX, targetY);
     }
 
+    public Projectile update(double deltaTime, double originX, double originY,
+            Enemy target, double fallbackDirectionX, double fallbackDirectionY) {
+        cooldown -= deltaTime;
+        if (cooldown > 0) {
+            return null;
+        }
+
+        cooldown += fireInterval;
+        if (target != null && !target.isDead()) {
+            return createProjectile(originX, originY, target.getWorldX(), target.getWorldY());
+        }
+
+        double length = Math.hypot(fallbackDirectionX, fallbackDirectionY);
+        if (length <= 0.0001) {
+            return createProjectile(originX, originY, originX + 1.0, originY);
+        }
+        return createProjectile(originX, originY,
+                originX + fallbackDirectionX / length,
+                originY + fallbackDirectionY / length);
+    }
+
     public void addDamage(double amount) {
         projectileDamage += amount;
     }

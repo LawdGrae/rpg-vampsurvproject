@@ -88,9 +88,9 @@ public class Gem {
 
     private static BufferedImage loadSprite() {
         try {
-            return ImageIO.read(Gem.class.getResource("/assets/gem.png"));
+            return ImageIO.read(Gem.class.getResource("/main/resources/gem.png"));
         } catch (IOException | IllegalArgumentException exception) {
-            throw new IllegalStateException("Could not load assets/gem.png", exception);
+            throw new IllegalStateException("Could not load /main/resources/gem.png", exception);
         }
     }
 }

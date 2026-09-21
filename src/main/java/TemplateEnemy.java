@@ -10,7 +10,7 @@ public class TemplateEnemy extends Enemy {
     private static final int RENDER_SIZE = 64;
     private static final double COLLISION_RADIUS = RENDER_SIZE / 2.0;
     private static final double DAMAGE = 20.0;
-    private static final double MAX_HEALTH = 2.0;
+    private static final double MAX_HEALTH = 5.0;
     private static final BufferedImage SPRITE_SHEET = loadSpriteSheet();
     private static final BufferedImage DEATH_SHEET = loadDeathSheet();
 
@@ -22,20 +22,20 @@ public class TemplateEnemy extends Enemy {
     private static BufferedImage loadSpriteSheet() {
         try {
             return ImageIO.read(
-                    TemplateEnemy.class.getResource("/assets/enemy/LVL1Walk.png"));
+                    TemplateEnemy.class.getResource("/main/resources/enemy/LVL1Walk.png"));
         } catch (IOException | IllegalArgumentException exception) {
             throw new IllegalStateException(
-                    "Could not load assets/enemy/LVL1Walk.png", exception);
+                    "Could not load /main/resources/enemy/LVL1Walk.png", exception);
         }
     }
 
     private static BufferedImage loadDeathSheet() {
         try {
             return ImageIO.read(
-                    TemplateEnemy.class.getResource("/assets/enemy/LVL1Death.png"));
+                    TemplateEnemy.class.getResource("/main/resources/enemy/LVL1Death.png"));
         } catch (IOException | IllegalArgumentException exception) {
             throw new IllegalStateException(
-                    "Could not load assets/enemy/LVL1Death.png", exception);
+                    "Could not load /main/resources/enemy/LVL1Death.png", exception);
         }
     }
 }
