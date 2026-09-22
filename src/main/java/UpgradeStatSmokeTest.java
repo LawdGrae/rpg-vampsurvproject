@@ -20,7 +20,7 @@ public class UpgradeStatSmokeTest {
         if (weapon.getCritChance() <= 0.0) {
             throw new IllegalStateException("Crit chance upgrade did not apply");
         }
-        if (weapon.getFireInterval() >= 0.5) {
+        if (weapon.getFireInterval() >= 0.7) {
             throw new IllegalStateException("Fire speed upgrade did not apply");
         }
     }

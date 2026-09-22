@@ -1,6 +1,4 @@
 import java.awt.image.BufferedImage;
-import java.io.IOException;
-import javax.imageio.ImageIO;
 
 public class TemplateEnemy extends Enemy {
     private static final double SPEED = 50.0;
@@ -20,22 +18,10 @@ public class TemplateEnemy extends Enemy {
     }
 
     private static BufferedImage loadSpriteSheet() {
-        try {
-            return ImageIO.read(
-                    TemplateEnemy.class.getResource("/main/resources/enemy/LVL1Walk.png"));
-        } catch (IOException | IllegalArgumentException exception) {
-            throw new IllegalStateException(
-                    "Could not load /main/resources/enemy/LVL1Walk.png", exception);
-        }
+        return ResourceLoader.loadImage("/main/resources/enemy/LVL1Walk.png");
     }
 
     private static BufferedImage loadDeathSheet() {
-        try {
-            return ImageIO.read(
-                    TemplateEnemy.class.getResource("/main/resources/enemy/LVL1Death.png"));
-        } catch (IOException | IllegalArgumentException exception) {
-            throw new IllegalStateException(
-                    "Could not load /main/resources/enemy/LVL1Death.png", exception);
-        }
+        return ResourceLoader.loadImage("/main/resources/enemy/LVL1Death.png");
     }
 }

@@ -1,10 +1,8 @@
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
-import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
-import javax.imageio.ImageIO;
 
 public abstract class Player {
     private static final int HEALTH_BAR_HEIGHT = 5;
@@ -46,11 +44,7 @@ public abstract class Player {
     }
 
     private BufferedImage loadSpriteSheet(String spritePath) {
-        try {
-            return ImageIO.read(Player.class.getResource(spritePath));
-        } catch (IOException | IllegalArgumentException exception) {
-            throw new IllegalStateException("Could not load " + spritePath, exception);
-        }
+        return ResourceLoader.loadImage(spritePath);
     }
 
     public void setKeyPressed(String direction, boolean pressed) {
@@ -169,6 +163,17 @@ public abstract class Player {
 
     public void takeDamage(double damage) {
         health = Math.max(0, health - damage);
+    }
+
+    public void heal(double amount) {
+        if (amount > 0.0) {
+            health = Math.min(maxHealth, health + amount);
+        }
+    }
+
+    public void moveWorld(double differenceX, double differenceY) {
+        worldOffsetX -= differenceX;
+        worldOffsetY -= differenceY;
     }
 
     public void draw(Graphics2D graphics, int centerX, int centerY) {

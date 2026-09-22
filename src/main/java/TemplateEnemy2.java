@@ -1,6 +1,4 @@
 import java.awt.image.BufferedImage;
-import java.io.IOException;
-import javax.imageio.ImageIO;
 
 public class TemplateEnemy2 extends Enemy {
     private static final double SPEED = 45.0;
@@ -58,32 +56,14 @@ public class TemplateEnemy2 extends Enemy {
     }
 
     private static BufferedImage loadSpriteSheet() {
-        try {
-            return ImageIO.read(
-                    TemplateEnemy2.class.getResource("/main/resources/enemy/LVL2Walks.png"));
-        } catch (IOException | IllegalArgumentException exception) {
-            throw new IllegalStateException(
-                    "Could not load /main/resources/enemy/LVL2Walks.png", exception);
-        }
+        return ResourceLoader.loadImage("/main/resources/enemy/LVL2Walks.png");
     }
 
     private static BufferedImage loadDeathSheet() {
-        try {
-            return ImageIO.read(
-                    TemplateEnemy2.class.getResource("/main/resources/enemy/LVL2Death.png"));
-        } catch (IOException | IllegalArgumentException exception) {
-            throw new IllegalStateException(
-                    "Could not load /main/resources/enemy/LVL2Death.png", exception);
-        }
+        return ResourceLoader.loadImage("/main/resources/enemy/LVL2Death.png");
     }
 
     private static BufferedImage loadProjectileSprite() {
-        try {
-            return ImageIO.read(
-                    TemplateEnemy2.class.getResource("/main/resources/projectiles/enemylv2projectile.png"));
-        } catch (IOException | IllegalArgumentException exception) {
-            throw new IllegalStateException(
-                    "Could not load /main/resources/projectiles/enemylv2projectile.png", exception);
-        }
+        return ResourceLoader.loadImage("/main/resources/projectiles/enemylv2projectile.png");
     }
 }
