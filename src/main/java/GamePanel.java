@@ -478,7 +478,8 @@ public class GamePanel extends JPanel {
         graphics.drawString("The hero was overwhelmed.", 245, 250);
         graphics.drawString("The battlefield will remember this moment.", 150, 285);
 
-        drawMenuButton(graphics, new Rectangle(290, 330, 220, 52), "Main Menu");
+        drawMenuButton(graphics, getTryAgainButtonBounds(), "Try Again");
+        drawMenuButton(graphics, getGameOverMainMenuButtonBounds(), "Main Menu");
     }
 
     private void drawPauseMenu(Graphics2D graphics) {
@@ -546,10 +547,21 @@ public class GamePanel extends JPanel {
     }
 
     private void handleGameOverClick(MouseEvent event) {
-        Rectangle mainMenuButton = new Rectangle(290, 330, 220, 52);
-        if (contains(event, mainMenuButton)) {
+        if (contains(event, getTryAgainButtonBounds())) {
+            gameLogic.startGame();
+            return;
+        }
+        if (contains(event, getGameOverMainMenuButtonBounds())) {
             gameLogic.showMainMenu();
         }
+    }
+
+    private Rectangle getTryAgainButtonBounds() {
+        return new Rectangle(290, 320, 220, 46);
+    }
+
+    private Rectangle getGameOverMainMenuButtonBounds() {
+        return new Rectangle(290, 382, 220, 46);
     }
 
     private void handlePauseMenuClick(MouseEvent event) {
