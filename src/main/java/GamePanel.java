@@ -1,10 +1,13 @@
 import java.awt.Color;
 import java.awt.AlphaComposite;
+import java.awt.BasicStroke;
 import java.awt.Dimension;
 import java.awt.Font;
+import java.awt.GradientPaint;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
+import java.awt.RenderingHints;
 import java.awt.event.ActionEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -24,7 +27,25 @@ public class GamePanel extends JPanel {
     private static final int EXP_BAR_Y = 18;
     private static final int[] FPS_OPTIONS = {30, 45, 60, 90, 120};
 
-    private static final Font TIMES_NEW_ROMAN = new Font("Times New Roman", Font.BOLD, 18);
+    private static final Color PANEL_DARK = new Color(15, 16, 24, 226);
+    private static final Color PANEL_MID = new Color(28, 27, 36, 232);
+    private static final Color GOLD = new Color(214, 172, 86);
+    private static final Color GOLD_LIGHT = new Color(255, 226, 142);
+    private static final Color TEXT_SOFT = new Color(225, 218, 202);
+    private static final Color TEXT_MUTED = new Color(167, 158, 145);
+    private static final Color BUTTON_TOP = new Color(74, 66, 80);
+    private static final Color BUTTON_BOTTOM = new Color(38, 37, 48);
+    private static final Color BUTTON_HOVER_TOP = new Color(106, 89, 88);
+    private static final Color BUTTON_HOVER_BOTTOM = new Color(61, 48, 58);
+    private static final Color HEALTH_RED = new Color(212, 58, 64);
+    private static final Color MANA_BLUE = new Color(75, 170, 255);
+    private static final Color EXP_CYAN = new Color(70, 207, 225);
+
+    private static final Font TITLE_FONT = new Font("Times New Roman", Font.BOLD, 54);
+    private static final Font HEADER_FONT = new Font("Times New Roman", Font.BOLD, 32);
+    private static final Font BUTTON_FONT = new Font("Times New Roman", Font.BOLD, 20);
+    private static final Font LABEL_FONT = new Font("Times New Roman", Font.BOLD, 13);
+    private static final Font BODY_FONT = new Font("Times New Roman", Font.PLAIN, 14);
 
     private final BufferedImage grassTile;
     private final BufferedImage landscape;
@@ -36,6 +57,7 @@ public class GamePanel extends JPanel {
     private int selectedFpsIndex = 2;
     private int mouseX = -1;
     private int mouseY = -1;
+    private boolean mouseDown;
 
     public GamePanel() {
         setPreferredSize(new Dimension(PANEL_WIDTH, PANEL_HEIGHT));
@@ -138,7 +160,9 @@ public class GamePanel extends JPanel {
         actionMap.put("togglePause", new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent event) {
-                if (!gameLogic.isUpgradeMenuOpen()) {
+                if (gameLogic.isSettingsOpen()) {
+                    gameLogic.toggleSettings();
+                } else if (gameLogic.isGameStarted() && !gameLogic.isUpgradeMenuOpen()) {
                     if (gameLogic.isPaused()) {
                         gameLogic.resume();
                     } else {
@@ -166,6 +190,9 @@ public class GamePanel extends JPanel {
         addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent event) {
+                mouseDown = true;
+                mouseX = event.getX();
+                mouseY = event.getY();
                 if (gameLogic.isMainMenuOpen()) {
                     handleMainMenuClick(event);
                     return;
@@ -219,6 +246,22 @@ public class GamePanel extends JPanel {
                     }
                 }
             }
+
+            @Override
+            public void mouseReleased(MouseEvent event) {
+                mouseDown = false;
+                mouseX = event.getX();
+                mouseY = event.getY();
+                repaint();
+            }
+
+            @Override
+            public void mouseExited(MouseEvent event) {
+                mouseDown = false;
+                mouseX = -1;
+                mouseY = -1;
+                repaint();
+            }
         });
 
         addMouseMotionListener(new MouseAdapter() {
@@ -240,6 +283,8 @@ public class GamePanel extends JPanel {
     protected void paintComponent(Graphics graphics) {
         super.paintComponent(graphics);
         Graphics2D graphics2D = (Graphics2D) graphics;
+        graphics2D.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        graphics2D.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 
         if (gameLogic.isMainMenuOpen()) {
             drawMainMenu(graphics2D);
@@ -285,35 +330,38 @@ public class GamePanel extends JPanel {
 
     private void drawMainMenu(Graphics2D graphics) {
         graphics.drawImage(landscape, 0, 0, PANEL_WIDTH, PANEL_HEIGHT, null);
+        drawVignette(graphics);
 
-        graphics.setColor(new Color(0, 0, 0, 170));
-        graphics.fillRoundRect(120, 90, 560, 420, 24, 24);
+        Rectangle panel = new Rectangle(118, 74, 564, 452);
+        drawPanel(graphics, panel, 24);
 
-        graphics.setColor(Color.WHITE);
-        graphics.setFont(new Font("Times New Roman", Font.BOLD, 52));
-        graphics.drawString("RPG", 355, 180);
+        drawCenteredText(graphics, "RPG", TITLE_FONT, GOLD_LIGHT, 0, 164);
 
-        graphics.setFont(new Font("Times New Roman", Font.PLAIN, 22));
-        graphics.drawString("Placeholder adventure", 285, 220);
+        graphics.setFont(new Font("Times New Roman", Font.PLAIN, 20));
+        graphics.setColor(TEXT_SOFT);
+        drawCenteredString(graphics, "Placeholder adventure", 0, 212, PANEL_WIDTH);
 
         drawMenuButton(graphics, new Rectangle(290, 270, 220, 52), "Play");
         drawMenuButton(graphics, new Rectangle(290, 340, 220, 52), "Settings");
         drawMenuButton(graphics, new Rectangle(290, 410, 220, 52), "Quit");
 
-        graphics.setColor(new Color(255, 255, 255, 180));
-        graphics.setFont(new Font("Times New Roman", Font.PLAIN, 16));
+        graphics.setColor(TEXT_MUTED);
+        graphics.setFont(new Font("Times New Roman", Font.PLAIN, 14));
         graphics.drawString("V0.0.1", PANEL_WIDTH - 80, PANEL_HEIGHT - 22);
+
+        if (gameLogic.isSettingsOpen()) {
+            drawDimOverlay(graphics, 150);
+            drawSettingsFrame(graphics);
+        }
     }
 
     private void drawCharacterSelection(Graphics2D graphics) {
         graphics.drawImage(landscape, 0, 0, PANEL_WIDTH, PANEL_HEIGHT, null);
+        drawVignette(graphics);
 
-        graphics.setColor(new Color(0, 0, 0, 170));
-        graphics.fillRoundRect(70, 60, 660, 500, 24, 24);
+        drawPanel(graphics, new Rectangle(70, 56, 660, 510), 24);
 
-        graphics.setColor(Color.WHITE);
-        graphics.setFont(new Font("Times New Roman", Font.BOLD, 34));
-        graphics.drawString("Choose your hero", 270, 110);
+        drawCenteredText(graphics, "Choose your hero", HEADER_FONT, GOLD_LIGHT, 0, 108);
 
         List<String> names = gameLogic.getCharacterNames();
         List<String> weapons = gameLogic.getCharacterWeapons();
@@ -328,8 +376,14 @@ public class GamePanel extends JPanel {
             int y = startY;
             boolean selectable = index == 0;
 
-            graphics.setColor(selectable ? new Color(80, 120, 180) : new Color(50, 50, 50));
+            Rectangle card = new Rectangle(x, y, cardWidth, 230);
+            boolean hovered = containsPoint(mouseX, mouseY, card);
+            graphics.setPaint(new GradientPaint(x, y,
+                    selectable ? new Color(55, 72, 92) : new Color(38, 38, 44),
+                    x, y + card.height, selectable ? new Color(23, 24, 34) : new Color(22, 22, 27)));
             graphics.fillRoundRect(x, y, cardWidth, 230, 18, 18);
+            graphics.setColor(selectable ? (hovered ? GOLD_LIGHT : GOLD) : new Color(94, 91, 96));
+            graphics.drawRoundRect(x, y, cardWidth, 230, 18, 18);
 
             try {
                 String portraitPath = index == 0 ? gameLogic.getPortraitPath() : "/main/resources/portrait_coming_soon.png";
@@ -340,8 +394,8 @@ public class GamePanel extends JPanel {
                 graphics.fillRect(x + 20, y + 22, 80, 90);
             }
 
-            graphics.setColor(Color.WHITE);
-            graphics.setFont(new Font("Times New Roman", Font.BOLD, 15));
+            graphics.setColor(TEXT_SOFT);
+            graphics.setFont(LABEL_FONT);
             String name = names.get(index);
             if (selectable) {
                 graphics.drawString(name, x + 10, y + 140);
@@ -362,7 +416,7 @@ public class GamePanel extends JPanel {
 
             if (selectable) {
                 graphics.setColor(new Color(140, 235, 160));
-                graphics.setFont(new Font("Times New Roman", Font.BOLD, 14));
+                graphics.setFont(LABEL_FONT);
                 graphics.drawString("Selected", x + 22, y + 212);
                 drawCharacterAbilityPreview(graphics, x + 12, y + 176);
             }
@@ -373,17 +427,24 @@ public class GamePanel extends JPanel {
 
     private void drawExperienceBar(Graphics2D graphics) {
         double progress = gameLogic.getExpProgress();
-        int barWidth = PANEL_WIDTH;
-        int barX = 0;
-        int barY = EXP_BAR_Y;
-        int filledWidth = (int) Math.round(barWidth * progress);
+        int barWidth = 278;
+        int barX = 22;
+        int barY = 72;
 
-        graphics.setColor(new Color(51, 204, 255));
-        graphics.fillRect(barX, barY, filledWidth, EXP_BAR_HEIGHT);
+        drawResourceBar(graphics, barX, barY, barWidth, EXP_BAR_HEIGHT, progress,
+                EXP_CYAN, new Color(28, 77, 91), "EXP "
+                        + gameLogic.getCurrentExp() + "/" + gameLogic.getExpToNextLevel());
 
-        graphics.setColor(Color.WHITE);
-        graphics.setFont(new Font("Times New Roman", Font.BOLD, 12));
-        graphics.drawString("LVL " + gameLogic.getLevel(), 10, 12);
+        double healthRatio = gameLogic.getPlayerMaxHealth() <= 0.0
+                ? 0.0
+                : gameLogic.getPlayerHealth() / gameLogic.getPlayerMaxHealth();
+        drawResourceBar(graphics, barX, 38, barWidth, 16, healthRatio,
+                HEALTH_RED, new Color(90, 25, 33), String.format("HP %.0f/%.0f",
+                        gameLogic.getPlayerHealth(), gameLogic.getPlayerMaxHealth()));
+
+        graphics.setColor(GOLD_LIGHT);
+        graphics.setFont(LABEL_FONT);
+        graphics.drawString("LVL " + gameLogic.getLevel(), barX, 28);
     }
 
     private void drawGameTimer(Graphics2D graphics) {
@@ -393,8 +454,12 @@ public class GamePanel extends JPanel {
         String timerText = String.format("%02d:%02d", minutes, seconds);
         int textWidth = graphics.getFontMetrics().stringWidth(timerText);
 
-        graphics.setColor(Color.WHITE);
-        graphics.drawString(timerText, (PANEL_WIDTH - textWidth) / 2, 24);
+        int x = (PANEL_WIDTH - textWidth) / 2;
+        graphics.setColor(new Color(0, 0, 0, 150));
+        graphics.fillRoundRect(x - 15, 12, textWidth + 30, 26, 12, 12);
+        graphics.setColor(GOLD_LIGHT);
+        graphics.setFont(LABEL_FONT);
+        graphics.drawString(timerText, x, 30);
     }
 
     private void drawAbilityHud(Graphics2D graphics) {
@@ -404,14 +469,9 @@ public class GamePanel extends JPanel {
         int manaY = PANEL_HEIGHT - 82;
         double manaRatio = manager.getMana() / manager.getMaxMana();
 
-        graphics.setColor(new Color(15, 18, 28, 220));
-        graphics.fillRoundRect(barX, manaY, barWidth, 10, 8, 8);
-        graphics.setColor(gameLogic.getManaPulseColor());
-        graphics.fillRoundRect(barX, manaY, (int) Math.round(barWidth * manaRatio), 10, 8, 8);
-        graphics.setColor(Color.WHITE);
-        graphics.setFont(new Font("Times New Roman", Font.BOLD, 11));
-        graphics.drawString(String.format("Mana %.0f/%.0f", manager.getMana(), manager.getMaxMana()),
-                barX + 72, manaY - 4);
+        drawResourceBar(graphics, barX, manaY, barWidth, 11, manaRatio,
+                gameLogic.getManaPulseColor(), new Color(28, 47, 76),
+                String.format("MP %.0f/%.0f", manager.getMana(), manager.getMaxMana()));
 
         RpgAbility[] equipped = manager.getEquippedAbilities();
         for (int index = 0; index < equipped.length; index++) {
@@ -439,25 +499,29 @@ public class GamePanel extends JPanel {
         int gap = 20;
         int cardHeight = 100;
 
-        graphics.setColor(new Color(0, 0, 0, 180));
-        graphics.fillRect(0, 0, PANEL_WIDTH, PANEL_HEIGHT);
+        drawDimOverlay(graphics, 185);
 
-        graphics.setColor(new Color(25, 25, 25, 220));
-        graphics.fillRoundRect(left - 10, top - 10, 3 * cardWidth + 2 * gap + 20, cardHeight + 20, 16, 16);
+        drawPanel(graphics, new Rectangle(left - 22, top - 52,
+                3 * cardWidth + 2 * gap + 44, cardHeight + 78), 18);
 
-        graphics.setColor(Color.WHITE);
-        graphics.setFont(new Font("Times New Roman", Font.BOLD, 20));
-        graphics.drawString("Choose an upgrade", left + 10, top - 20);
+        graphics.setColor(GOLD_LIGHT);
+        graphics.setFont(HEADER_FONT.deriveFont(24f));
+        graphics.drawString("Choose an upgrade", left + 8, top - 20);
 
         for (int index = 0; index < 3; index++) {
             int x = left + index * (cardWidth + gap);
             int y = top;
             String upgradeName = gameLogic.getUpgradeChoices().get(index);
             String description = gameLogic.getUpgradeDescription(upgradeName);
-            graphics.setColor(new Color(60, 60, 60));
+            Rectangle card = new Rectangle(x, y, cardWidth, cardHeight);
+            boolean hovered = containsPoint(mouseX, mouseY, card);
+            graphics.setPaint(new GradientPaint(x, y, hovered ? new Color(86, 69, 75) : new Color(48, 45, 56),
+                    x, y + cardHeight, hovered ? new Color(52, 39, 50) : new Color(28, 27, 36)));
             graphics.fillRoundRect(x, y, cardWidth, cardHeight, 12, 12);
-            graphics.setColor(Color.WHITE);
-            graphics.setFont(new Font("Times New Roman", Font.BOLD, 15));
+            graphics.setColor(hovered ? GOLD_LIGHT : GOLD);
+            graphics.drawRoundRect(x, y, cardWidth, cardHeight, 12, 12);
+            graphics.setColor(TEXT_SOFT);
+            graphics.setFont(LABEL_FONT);
             graphics.drawString(upgradeName, x + 12, y + 28);
             graphics.setFont(new Font("Times New Roman", Font.PLAIN, 11));
             graphics.drawString(description, x + 12, y + 48);
@@ -466,19 +530,20 @@ public class GamePanel extends JPanel {
     }
 
     private void drawGameOverScreen(Graphics2D graphics) {
-        graphics.setColor(new Color(0, 0, 0, 180));
-        graphics.fillRect(0, 0, PANEL_WIDTH, PANEL_HEIGHT);
+        drawDimOverlay(graphics, 190);
 
-        graphics.setColor(new Color(255, 90, 90));
         graphics.setFont(new Font("Times New Roman", Font.BOLD, 64));
         String title = "GAME OVER";
         int titleWidth = graphics.getFontMetrics().stringWidth(title);
+        graphics.setColor(new Color(0, 0, 0, 185));
+        graphics.drawString(title, (PANEL_WIDTH - titleWidth) / 2 + 3, 203);
+        graphics.setColor(new Color(255, 90, 90));
         graphics.drawString(title, (PANEL_WIDTH - titleWidth) / 2, 200);
 
-        graphics.setColor(new Color(255, 220, 140));
+        graphics.setColor(TEXT_SOFT);
         graphics.setFont(new Font("Times New Roman", Font.PLAIN, 22));
-        graphics.drawString("The hero was overwhelmed.", 245, 250);
-        graphics.drawString("The battlefield will remember this moment.", 150, 285);
+        drawCenteredString(graphics, "The hero was overwhelmed.", 0, 250, PANEL_WIDTH);
+        drawCenteredString(graphics, "The battlefield will remember this moment.", 0, 285, PANEL_WIDTH);
 
         drawMenuButton(graphics, getTryAgainButtonBounds(), "Try Again");
         drawMenuButton(graphics, getGameOverMainMenuButtonBounds(), "Main Menu");
@@ -489,21 +554,17 @@ public class GamePanel extends JPanel {
             return;
         }
 
-        graphics.setColor(new Color(0, 0, 0, 180));
-        graphics.fillRect(0, 0, PANEL_WIDTH, PANEL_HEIGHT);
+        drawDimOverlay(graphics, 180);
 
         int menuWidth = 340;
         int menuHeight = 260;
         int x = (PANEL_WIDTH - menuWidth) / 2;
         int y = 140;
 
-        graphics.setColor(new Color(26, 26, 26, 220));
-        graphics.fillRoundRect(x, y, menuWidth, menuHeight, 18, 18);
+        drawPanel(graphics, new Rectangle(x, y, menuWidth, menuHeight), 18);
 
-        graphics.setColor(Color.WHITE);
-        graphics.setFont(new Font("Times New Roman", Font.BOLD, 36));
         String title = gameLogic.isSettingsOpen() ? "Settings" : "Paused";
-        graphics.drawString(title, x + 110, y + 52);
+        drawCenteredString(graphics, title, HEADER_FONT, GOLD_LIGHT, x, y + 52, menuWidth);
 
         if (gameLogic.isSettingsOpen()) {
             drawSettingsMenu(graphics, x, y);
@@ -520,7 +581,8 @@ public class GamePanel extends JPanel {
         int rowHeight = 42;
         int start = y + 78;
 
-        graphics.setFont(new Font("Times New Roman", Font.PLAIN, 22));
+        graphics.setColor(TEXT_SOFT);
+        graphics.setFont(new Font("Times New Roman", Font.PLAIN, 21));
         graphics.drawString("Show FPS", left, start + 22);
         graphics.drawString("Target FPS", left, start + 22 + rowHeight);
         graphics.drawString("Sound", left, start + 22 + rowHeight * 2);
@@ -538,10 +600,10 @@ public class GamePanel extends JPanel {
         Rectangle valueBox = new Rectangle(x + 30, y, 60, 28);
 
         drawSmallButton(graphics, decreaseButton, "<");
-        graphics.setColor(new Color(38, 38, 38));
+        graphics.setColor(new Color(20, 21, 29, 230));
         graphics.fillRoundRect(valueBox.x, valueBox.y, valueBox.width, valueBox.height, 8, 8);
-        graphics.setColor(Color.WHITE);
-        graphics.setFont(new Font("Times New Roman", Font.BOLD, 16));
+        graphics.setColor(GOLD_LIGHT);
+        graphics.setFont(LABEL_FONT);
         String value = Integer.toString(getTargetFramesPerSecond());
         int textWidth = graphics.getFontMetrics().stringWidth(value);
         graphics.drawString(value, valueBox.x + (valueBox.width - textWidth) / 2, valueBox.y + 20);
@@ -549,29 +611,129 @@ public class GamePanel extends JPanel {
     }
 
     private void drawSmallButton(Graphics2D graphics, Rectangle bounds, String text) {
-        graphics.setColor(new Color(80, 80, 80));
+        boolean hovered = containsPoint(mouseX, mouseY, bounds);
+        graphics.setColor(hovered ? new Color(104, 85, 83) : new Color(54, 52, 63));
         graphics.fillRoundRect(bounds.x, bounds.y, bounds.width, bounds.height, 8, 8);
-        graphics.setColor(Color.WHITE);
-        graphics.setFont(new Font("Times New Roman", Font.BOLD, 16));
+        graphics.setColor(hovered ? GOLD_LIGHT : GOLD);
+        graphics.drawRoundRect(bounds.x, bounds.y, bounds.width, bounds.height, 8, 8);
+        graphics.setColor(TEXT_SOFT);
+        graphics.setFont(LABEL_FONT);
         int textWidth = graphics.getFontMetrics().stringWidth(text);
         graphics.drawString(text, bounds.x + (bounds.width - textWidth) / 2, bounds.y + 20);
     }
 
     private void drawMenuButton(Graphics2D graphics, Rectangle bounds, String text) {
-        graphics.setColor(new Color(80, 80, 80));
-        graphics.fillRoundRect(bounds.x, bounds.y, bounds.width, bounds.height, 12, 12);
-        graphics.setColor(Color.WHITE);
-        graphics.setFont(new Font("Times New Roman", Font.BOLD, 20));
+        boolean hovered = containsPoint(mouseX, mouseY, bounds);
+        boolean pressed = hovered && mouseDown;
+        int yOffset = pressed ? 2 : 0;
+
+        Graphics2D buttonGraphics = (Graphics2D) graphics.create();
+        buttonGraphics.setPaint(new GradientPaint(bounds.x, bounds.y,
+                hovered ? BUTTON_HOVER_TOP : BUTTON_TOP,
+                bounds.x, bounds.y + bounds.height,
+                hovered ? BUTTON_HOVER_BOTTOM : BUTTON_BOTTOM));
+        buttonGraphics.fillRoundRect(bounds.x, bounds.y + yOffset, bounds.width, bounds.height, 12, 12);
+        buttonGraphics.setStroke(new BasicStroke(hovered ? 2f : 1f));
+        buttonGraphics.setColor(hovered ? GOLD_LIGHT : GOLD);
+        buttonGraphics.drawRoundRect(bounds.x, bounds.y + yOffset, bounds.width, bounds.height, 12, 12);
+        buttonGraphics.dispose();
+
+        graphics.setColor(pressed ? new Color(235, 220, 190) : TEXT_SOFT);
+        graphics.setFont(BUTTON_FONT);
         int textWidth = graphics.getFontMetrics().stringWidth(text);
         graphics.drawString(text, bounds.x + (bounds.width - textWidth) / 2,
-                bounds.y + 25);
+                bounds.y + yOffset + bounds.height / 2 + 7);
     }
 
     private void drawToggleButton(Graphics2D graphics, int x, int y, int width, int height, boolean enabled) {
-        graphics.setColor(enabled ? new Color(90, 180, 90) : new Color(120, 120, 120));
+        Rectangle bounds = new Rectangle(x, y, width, height);
+        boolean hovered = containsPoint(mouseX, mouseY, bounds);
+        graphics.setColor(enabled ? new Color(86, 168, 104) : new Color(91, 88, 97));
         graphics.fillRoundRect(x, y, width, height, 12, 12);
-        graphics.setColor(Color.WHITE);
-        graphics.fillOval(enabled ? x + width - 14 : x + 2, y + 2, 10, 10);
+        graphics.setColor(hovered ? GOLD_LIGHT : new Color(205, 199, 190));
+        graphics.drawRoundRect(x, y, width, height, 12, 12);
+        graphics.setColor(new Color(238, 234, 222));
+        graphics.fillOval(enabled ? x + width - 15 : x + 3, y + 3, height - 6, height - 6);
+    }
+
+    private void drawSettingsFrame(Graphics2D graphics) {
+        int menuWidth = 340;
+        int menuHeight = 260;
+        int x = (PANEL_WIDTH - menuWidth) / 2;
+        int y = 140;
+        drawPanel(graphics, new Rectangle(x, y, menuWidth, menuHeight), 18);
+        drawCenteredString(graphics, "Settings", HEADER_FONT, GOLD_LIGHT, x, y + 52, menuWidth);
+        drawSettingsMenu(graphics, x, y);
+    }
+
+    private void drawDimOverlay(Graphics2D graphics, int alpha) {
+        graphics.setColor(new Color(0, 0, 0, alpha));
+        graphics.fillRect(0, 0, PANEL_WIDTH, PANEL_HEIGHT);
+    }
+
+    private void drawVignette(Graphics2D graphics) {
+        graphics.setColor(new Color(0, 0, 0, 82));
+        graphics.fillRect(0, 0, PANEL_WIDTH, PANEL_HEIGHT);
+        graphics.setColor(new Color(0, 0, 0, 90));
+        graphics.fillRect(0, 0, PANEL_WIDTH, 74);
+        graphics.fillRect(0, PANEL_HEIGHT - 74, PANEL_WIDTH, 74);
+    }
+
+    private void drawPanel(Graphics2D graphics, Rectangle bounds, int arc) {
+        Graphics2D panelGraphics = (Graphics2D) graphics.create();
+        panelGraphics.setPaint(new GradientPaint(bounds.x, bounds.y, PANEL_MID,
+                bounds.x, bounds.y + bounds.height, PANEL_DARK));
+        panelGraphics.fillRoundRect(bounds.x, bounds.y, bounds.width, bounds.height, arc, arc);
+        panelGraphics.setStroke(new BasicStroke(2f));
+        panelGraphics.setColor(GOLD);
+        panelGraphics.drawRoundRect(bounds.x, bounds.y, bounds.width, bounds.height, arc, arc);
+        panelGraphics.setStroke(new BasicStroke(1f));
+        panelGraphics.setColor(new Color(255, 255, 255, 38));
+        panelGraphics.drawRoundRect(bounds.x + 5, bounds.y + 5,
+                bounds.width - 10, bounds.height - 10, Math.max(arc - 6, 6), Math.max(arc - 6, 6));
+        panelGraphics.dispose();
+    }
+
+    private void drawCenteredText(Graphics2D graphics, String text, Font font, Color color, int x, int y) {
+        drawCenteredString(graphics, text, font, color, x, y, PANEL_WIDTH);
+    }
+
+    private void drawCenteredString(Graphics2D graphics, String text, int x, int y, int width) {
+        drawCenteredString(graphics, text, graphics.getFont(), graphics.getColor(), x, y, width);
+    }
+
+    private void drawCenteredString(Graphics2D graphics, String text, Font font,
+            Color color, int x, int y, int width) {
+        graphics.setFont(font);
+        int textWidth = graphics.getFontMetrics().stringWidth(text);
+        graphics.setColor(new Color(0, 0, 0, 150));
+        graphics.drawString(text, x + (width - textWidth) / 2 + 2, y + 2);
+        graphics.setColor(color);
+        graphics.drawString(text, x + (width - textWidth) / 2, y);
+    }
+
+    private void drawResourceBar(Graphics2D graphics, int x, int y, int width, int height,
+            double ratio, Color fillColor, Color emptyColor, String label) {
+        double clampedRatio = Math.max(0.0, Math.min(1.0, ratio));
+        int filledWidth = (int) Math.round(width * clampedRatio);
+        graphics.setColor(new Color(0, 0, 0, 145));
+        graphics.fillRoundRect(x - 2, y - 2, width + 4, height + 4, 10, 10);
+        graphics.setColor(emptyColor);
+        graphics.fillRoundRect(x, y, width, height, 8, 8);
+        graphics.setColor(fillColor);
+        graphics.fillRoundRect(x, y, filledWidth, height, 8, 8);
+        graphics.setColor(new Color(255, 255, 255, 70));
+        graphics.fillRoundRect(x, y, filledWidth, Math.max(2, height / 2), 8, 8);
+        graphics.setColor(GOLD);
+        graphics.drawRoundRect(x, y, width, height, 8, 8);
+        if (label != null && !label.isEmpty()) {
+            graphics.setFont(new Font("Times New Roman", Font.BOLD, 11));
+            int textWidth = graphics.getFontMetrics().stringWidth(label);
+            graphics.setColor(new Color(0, 0, 0, 165));
+            graphics.drawString(label, x + (width - textWidth) / 2 + 1, y + height - 3);
+            graphics.setColor(TEXT_SOFT);
+            graphics.drawString(label, x + (width - textWidth) / 2, y + height - 4);
+        }
     }
 
     private void handleGameOverClick(MouseEvent event) {
@@ -596,39 +758,7 @@ public class GamePanel extends JPanel {
         if (gameLogic.isSettingsOpen()) {
             int x = (PANEL_WIDTH - 340) / 2;
             int y = 140;
-            if (event.getX() >= x + 75 && event.getX() <= x + 315 && event.getY() >= y + 210 && event.getY() <= y + 245) {
-                gameLogic.toggleSettings();
-                return;
-            }
-
-            int left = x + 52;
-            int start = y + 78;
-            int rowHeight = 42;
-            Rectangle backButton = new Rectangle(left + 160, start + rowHeight * 3 - 18, 90, 32);
-            if (contains(event, backButton)) {
-                gameLogic.toggleSettings();
-                return;
-            }
-            Rectangle fpsToggle = new Rectangle(left + 180, start - 10, 36, 24);
-            Rectangle fpsDecreaseButton = new Rectangle(left + 142, start - 12 + rowHeight, 26, 28);
-            Rectangle fpsIncreaseButton = new Rectangle(left + 236, start - 12 + rowHeight, 26, 28);
-            Rectangle soundToggle = new Rectangle(left + 180, start - 10 + rowHeight * 2, 36, 24);
-            if (contains(event, fpsToggle)) {
-                gameLogic.setDebugInfoVisible(!gameLogic.isDebugInfoVisible());
-                return;
-            }
-            if (contains(event, fpsDecreaseButton)) {
-                adjustTargetFramesPerSecond(-1);
-                return;
-            }
-            if (contains(event, fpsIncreaseButton)) {
-                adjustTargetFramesPerSecond(1);
-                return;
-            }
-            if (contains(event, soundToggle)) {
-                gameLogic.setSoundEnabled(!gameLogic.isSoundEnabled());
-                return;
-            }
+            handleSettingsClick(event, x, y);
             return;
         }
 
@@ -652,6 +782,13 @@ public class GamePanel extends JPanel {
     }
 
     private void handleMainMenuClick(MouseEvent event) {
+        if (gameLogic.isSettingsOpen()) {
+            int x = (PANEL_WIDTH - 340) / 2;
+            int y = 140;
+            handleSettingsClick(event, x, y);
+            return;
+        }
+
         Rectangle playButton = new Rectangle(290, 270, 220, 52);
         Rectangle settingsButton = new Rectangle(290, 340, 220, 52);
         Rectangle quitButton = new Rectangle(290, 410, 220, 52);
@@ -666,6 +803,37 @@ public class GamePanel extends JPanel {
         }
         if (contains(event, quitButton)) {
             System.exit(0);
+        }
+    }
+
+    private void handleSettingsClick(MouseEvent event, int x, int y) {
+        int left = x + 52;
+        int start = y + 78;
+        int rowHeight = 42;
+        Rectangle backButton = new Rectangle(left + 160, start + rowHeight * 3 - 18, 90, 32);
+        Rectangle fpsToggle = new Rectangle(left + 180, start - 10, 36, 24);
+        Rectangle fpsDecreaseButton = new Rectangle(left + 142, start - 12 + rowHeight, 26, 28);
+        Rectangle fpsIncreaseButton = new Rectangle(left + 236, start - 12 + rowHeight, 26, 28);
+        Rectangle soundToggle = new Rectangle(left + 180, start - 10 + rowHeight * 2, 36, 24);
+
+        if (contains(event, backButton)) {
+            gameLogic.toggleSettings();
+            return;
+        }
+        if (contains(event, fpsToggle)) {
+            gameLogic.setDebugInfoVisible(!gameLogic.isDebugInfoVisible());
+            return;
+        }
+        if (contains(event, fpsDecreaseButton)) {
+            adjustTargetFramesPerSecond(-1);
+            return;
+        }
+        if (contains(event, fpsIncreaseButton)) {
+            adjustTargetFramesPerSecond(1);
+            return;
+        }
+        if (contains(event, soundToggle)) {
+            gameLogic.setSoundEnabled(!gameLogic.isSoundEnabled());
         }
     }
 
@@ -735,9 +903,10 @@ public class GamePanel extends JPanel {
 
     private void drawAbilitySlot(Graphics2D graphics, Rectangle bounds, RpgAbility ability,
             int shortcut, boolean showCooldown, int playerLevel) {
-        graphics.setColor(new Color(18, 20, 28, 225));
+        boolean hovered = containsPoint(mouseX, mouseY, bounds);
+        graphics.setColor(hovered ? new Color(45, 42, 55, 238) : new Color(18, 20, 28, 225));
         graphics.fillRoundRect(bounds.x, bounds.y, bounds.width, bounds.height, 8, 8);
-        graphics.setColor(new Color(210, 210, 220));
+        graphics.setColor(hovered ? GOLD_LIGHT : new Color(155, 146, 139));
         graphics.drawRoundRect(bounds.x, bounds.y, bounds.width, bounds.height, 8, 8);
 
         if (ability != null) {
@@ -746,13 +915,13 @@ public class GamePanel extends JPanel {
             if (showCooldown) {
                 drawCooldownOverlay(graphics, bounds, ability);
             }
-            graphics.setColor(Color.WHITE);
+            graphics.setColor(TEXT_SOFT);
             graphics.setFont(new Font("Times New Roman", Font.BOLD, 11));
             graphics.drawString(String.valueOf((int) ability.getDefinition().getManaCost()),
                     bounds.x + 3, bounds.y + bounds.height - 4);
         }
 
-        graphics.setColor(new Color(255, 255, 255, 210));
+        graphics.setColor(GOLD_LIGHT);
         graphics.setFont(new Font("Times New Roman", Font.BOLD, 12));
         graphics.drawString(String.valueOf(shortcut), bounds.x + bounds.width - 10, bounds.y + 13);
     }
@@ -764,7 +933,7 @@ public class GamePanel extends JPanel {
         if (!unlocked) {
             graphics.setColor(new Color(0, 0, 0, 170));
             graphics.fillRoundRect(bounds.x, bounds.y, bounds.width, bounds.height, 8, 8);
-            graphics.setColor(new Color(255, 220, 130));
+            graphics.setColor(GOLD_LIGHT);
             graphics.setFont(new Font("Times New Roman", Font.BOLD, 10));
             graphics.drawString("LV " + ability.getDefinition().getUnlockLevel(),
                     bounds.x + 8, bounds.y + bounds.height / 2 + 4);
@@ -779,7 +948,7 @@ public class GamePanel extends JPanel {
         int overlayHeight = (int) Math.round(bounds.height * ratio);
         graphics.setColor(new Color(0, 0, 0, 165));
         graphics.fillRoundRect(bounds.x, bounds.y, bounds.width, overlayHeight, 8, 8);
-        graphics.setColor(Color.WHITE);
+        graphics.setColor(TEXT_SOFT);
         graphics.setFont(new Font("Times New Roman", Font.BOLD, 13));
         String text = String.valueOf((int) Math.ceil(ability.getCooldownRemaining()));
         graphics.drawString(text, bounds.x + bounds.width / 2 - 5,
@@ -797,18 +966,20 @@ public class GamePanel extends JPanel {
         overlay.fillRect(0, 0, PANEL_WIDTH, PANEL_HEIGHT);
         overlay.dispose();
 
-        graphics.setColor(Color.WHITE);
+        drawPanel(graphics, new Rectangle(20, 24, PANEL_WIDTH - 40, PANEL_HEIGHT - 48), 18);
+        graphics.setColor(GOLD_LIGHT);
         graphics.setFont(new Font("Times New Roman", Font.BOLD, 28));
-        graphics.drawString("Skills", 36, 54);
+        graphics.drawString("Skills", 42, 62);
 
         graphics.setFont(new Font("Times New Roman", Font.PLAIN, 14));
+        graphics.setColor(TEXT_SOFT);
         graphics.drawString("Select a slot, then choose an unlocked ability.", 116, 53);
 
         RpgAbility[] equipped = gameLogic.getAbilityManager().getEquippedAbilities();
         for (int index = 0; index < equipped.length; index++) {
             Rectangle bounds = getSkillMenuSlotBounds(index);
             if (index == gameLogic.getAbilityManager().getSelectedEquipSlot()) {
-                graphics.setColor(new Color(255, 220, 120, 180));
+                graphics.setColor(new Color(255, 220, 120, 150));
                 graphics.fillRoundRect(bounds.x - 3, bounds.y - 3,
                         bounds.width + 6, bounds.height + 6, 10, 10);
             }
@@ -823,7 +994,7 @@ public class GamePanel extends JPanel {
         for (AbilityClass abilityClass : AbilityClass.values()) {
             int column = abilityClass.ordinal();
             int x = startX + column * columnWidth;
-            graphics.setColor(new Color(255, 255, 255, 220));
+            graphics.setColor(GOLD_LIGHT);
             graphics.setFont(new Font("Times New Roman", Font.BOLD, 14));
             graphics.drawString(abilityClass.getDisplayName(), x, startY - 14);
 
@@ -838,7 +1009,7 @@ public class GamePanel extends JPanel {
                     graphics.drawRoundRect(bounds.x - 1, bounds.y - 1,
                             bounds.width + 2, bounds.height + 2, 8, 8);
                 }
-                graphics.setColor(unlocked ? Color.WHITE : new Color(170, 170, 170));
+                graphics.setColor(unlocked ? TEXT_SOFT : TEXT_MUTED);
                 graphics.setFont(new Font("Times New Roman", Font.PLAIN, 10));
                 drawClippedString(graphics, ability.getName(),
                         bounds.x + iconSize + 5, bounds.y + 13, columnWidth - iconSize - 8);
@@ -887,13 +1058,12 @@ public class GamePanel extends JPanel {
         AbilityDefinition definition = ability.getDefinition();
         int x = Math.min(mouseX + 14, PANEL_WIDTH - 230);
         int y = Math.min(mouseY + 16, PANEL_HEIGHT - 96);
-        graphics.setColor(new Color(15, 16, 22, 235));
-        graphics.fillRoundRect(x, y, 220, 86, 8, 8);
-        graphics.setColor(new Color(230, 230, 235));
-        graphics.drawRoundRect(x, y, 220, 86, 8, 8);
-        graphics.setFont(new Font("Times New Roman", Font.BOLD, 14));
+        drawPanel(graphics, new Rectangle(x, y, 220, 86), 8);
+        graphics.setFont(LABEL_FONT);
+        graphics.setColor(GOLD_LIGHT);
         graphics.drawString(definition.getName(), x + 10, y + 20);
         graphics.setFont(new Font("Times New Roman", Font.PLAIN, 11));
+        graphics.setColor(TEXT_SOFT);
         graphics.drawString(definition.getAbilityClass().getDisplayName(), x + 10, y + 36);
         graphics.drawString("Mana " + (int) definition.getManaCost()
                 + "  Cooldown " + (int) definition.getCooldownSeconds() + "s",
@@ -936,14 +1106,14 @@ public class GamePanel extends JPanel {
         }
 
         String fpsText = String.format("FPS %.0f/%d", framesPerSecond, getTargetFramesPerSecond());
-        graphics.setFont(new Font("Times New Roman", Font.BOLD, 13));
+        graphics.setFont(LABEL_FONT);
         int textWidth = graphics.getFontMetrics().stringWidth(fpsText);
         int boxWidth = textWidth + 16;
         int boxX = PANEL_WIDTH - boxWidth - 12;
         int boxY = 34;
-        graphics.setColor(new Color(0, 0, 0, 155));
+        graphics.setColor(new Color(0, 0, 0, 170));
         graphics.fillRoundRect(boxX, boxY, boxWidth, 22, 8, 8);
-        graphics.setColor(Color.WHITE);
+        graphics.setColor(GOLD_LIGHT);
         graphics.drawString(fpsText, boxX + 8, boxY + 15);
     }
 }

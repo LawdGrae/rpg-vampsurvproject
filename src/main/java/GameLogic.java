@@ -633,6 +633,14 @@ public class GameLogic {
         return abilityManager;
     }
 
+    public double getPlayerHealth() {
+        return player.getHealth();
+    }
+
+    public double getPlayerMaxHealth() {
+        return player.getMaxHealth();
+    }
+
     public void triggerAbility() {
         triggerAbility(0);
     }
