@@ -1,4 +1,5 @@
 import java.awt.Color;
+import java.awt.Font;
 import java.awt.Graphics2D;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -52,7 +53,7 @@ public class GameLogic {
             "coming soon..."
     );
     private final List<String> characterWeapons = Arrays.asList(
-            "placeholder weapon",
+            "Shadow Dagger",
             "coming soon...",
             "coming soon...",
             "coming soon...",
@@ -72,7 +73,7 @@ public class GameLogic {
     private boolean settingsOpen;
     private boolean skillMenuOpen;
     private boolean soundEnabled = true;
-    private boolean debugInfoVisible;
+    private boolean debugInfoVisible = true;
     private boolean gameOver;
     private double gameOverTimer;
     private double damageReductionTimer;
@@ -394,15 +395,8 @@ public class GameLogic {
                         }
                     }
 
-                    enemy.takeDamage(projectile.getDamage());
-                    if (enemy.isDead()) {
-                        if (enemy instanceof TemplateEnemy3 bossEnemy
-                                && !bossEnemy.hasSummonedMinions()) {
-                            enemies.addAll(bossEnemy.createSummons(
-                                    enemy.getWorldX(), enemy.getWorldY(), random));
-                        }
-                        dropGem(enemy);
-                    }
+                    damageEnemy(enemy, projectile.getDamage(), DamageElement.PHYSICAL,
+                            projectile.getWorldX(), projectile.getWorldY());
                     hitEnemy = true;
                     break;
                 }
@@ -464,10 +458,8 @@ public class GameLogic {
                 }
 
                 if (nearestEnemy != null && projectile.hits(nearestEnemy)) {
-                    nearestEnemy.takeDamage(projectile.getDamage());
-                    if (nearestEnemy.isDead()) {
-                        dropGem(nearestEnemy);
-                    }
+                    damageEnemy(nearestEnemy, projectile.getDamage(), DamageElement.PHYSICAL,
+                            projectile.getWorldX(), projectile.getWorldY());
                     hitEnemy = true;
                 }
             }
@@ -621,12 +613,19 @@ public class GameLogic {
                 double cameraX, double cameraY) {
             double progress = 1.0 - Math.max(0.0, life / MAX_LIFE);
             int alpha = Math.max(0, Math.min(255, (int) Math.round(255.0 * life / MAX_LIFE)));
-            int screenX = (int) Math.round(centerX + x + cameraX);
+            Font previousFont = graphics.getFont();
+            graphics.setFont(new Font("Times New Roman", Font.BOLD, 16));
+            int textWidth = graphics.getFontMetrics().stringWidth(text);
+            int screenX = (int) Math.round(centerX + x + cameraX - textWidth / 2.0);
             int screenY = (int) Math.round(centerY + y + cameraY - progress * 34.0);
-            graphics.setColor(new Color(0, 0, 0, Math.min(alpha, 150)));
-            graphics.drawString(text, screenX + 1, screenY + 1);
+            graphics.setColor(new Color(0, 0, 0, Math.min(alpha, 190)));
+            graphics.drawString(text, screenX - 1, screenY);
+            graphics.drawString(text, screenX + 1, screenY);
+            graphics.drawString(text, screenX, screenY - 1);
+            graphics.drawString(text, screenX, screenY + 1);
             graphics.setColor(new Color(color.getRed(), color.getGreen(), color.getBlue(), alpha));
             graphics.drawString(text, screenX, screenY);
+            graphics.setFont(previousFont);
         }
     }
 
@@ -1137,10 +1136,12 @@ public class GameLogic {
         if (enemy == null || enemy.isDead()) {
             return;
         }
-        double visibleDamage = Math.min(999, Math.max(1, Math.round(damage)));
+        double healthBefore = enemy.getHealth();
         enemy.takeDamage(damage, element, originX, originY);
+        double actualDamage = Math.max(0.0, healthBefore - enemy.getHealth());
+        double visibleDamage = Math.min(9999, Math.max(1, Math.round(actualDamage)));
         addFloatingText(String.valueOf((int) visibleDamage), enemy.getWorldX(),
-                enemy.getWorldY() - enemy.getCollisionRadius(), new Color(255, 220, 120));
+                enemy.getWorldY() - enemy.getCollisionRadius(), getDamageNumberColor(element));
         if (enemy.isDead()) {
             if (enemy instanceof TemplateEnemy3 bossEnemy && !bossEnemy.hasSummonedMinions()) {
                 enemies.addAll(bossEnemy.createSummons(enemy.getWorldX(), enemy.getWorldY(), random));
@@ -1215,6 +1216,18 @@ public class GameLogic {
         if (floatingTexts.size() > 48) {
             floatingTexts.removeFirst();
         }
+    }
+
+    private Color getDamageNumberColor(DamageElement element) {
+        return switch (element) {
+            case FIRE, EXPLOSION -> new Color(255, 120, 55);
+            case ICE -> new Color(120, 220, 255);
+            case LIGHTNING -> new Color(255, 245, 105);
+            case POISON -> new Color(125, 255, 100);
+            case SHADOW -> new Color(210, 130, 255);
+            case HOLY -> new Color(255, 245, 180);
+            default -> new Color(255, 225, 90);
+        };
     }
 
     private void addScreenShake(double duration, double strength) {

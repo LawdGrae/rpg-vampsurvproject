@@ -1,5 +1,6 @@
 import java.awt.Color;
 import java.awt.Graphics2D;
+import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.util.HashSet;
 import java.util.Set;
@@ -15,6 +16,7 @@ public abstract class Player {
     protected final int spriteWidth;
     protected final int spriteHeight;
     protected final BufferedImage spriteSheet;
+    protected final BufferedImage weaponSprite;
 
     private final Set<String> pressedKeys = new HashSet<>();
     private double worldOffsetX;
@@ -32,6 +34,12 @@ public abstract class Player {
 
     protected Player(String spritePath, double speed, double animationSpeed,
             int spriteScale, int spriteWidth, int spriteHeight, double maxHealth) {
+        this(spritePath, null, speed, animationSpeed,
+                spriteScale, spriteWidth, spriteHeight, maxHealth);
+    }
+
+    protected Player(String spritePath, String weaponPath, double speed, double animationSpeed,
+            int spriteScale, int spriteWidth, int spriteHeight, double maxHealth) {
         this.speed = speed;
         this.animationSpeed = animationSpeed;
         this.spriteScale = spriteScale;
@@ -41,6 +49,7 @@ public abstract class Player {
         this.health = maxHealth;
         this.pickupRadius = 50.0;
         this.spriteSheet = loadSpriteSheet(spritePath);
+        this.weaponSprite = weaponPath == null ? null : ResourceLoader.loadImage(weaponPath);
     }
 
     private BufferedImage loadSpriteSheet(String spritePath) {
@@ -192,6 +201,7 @@ public abstract class Player {
         graphics.drawImage(spriteSheet,
                 playerX, playerY, playerX + renderedWidth, playerY + renderedHeight,
                 sourceX, sourceY, sourceX + spriteWidth, sourceY + spriteHeight, null);
+        drawWeapon(graphics, centerX, centerY, renderedWidth, renderedHeight);
 
         // Draw a black background, then cover part of it with the remaining red health.
         int healthBarY = playerY + renderedHeight + HEALTH_BAR_GAP;
@@ -201,6 +211,43 @@ public abstract class Player {
         graphics.fillRect(playerX, healthBarY, healthBarWidth, HEALTH_BAR_HEIGHT);
         graphics.setColor(Color.RED);
         graphics.fillRect(playerX, healthBarY, currentHealthWidth, HEALTH_BAR_HEIGHT);
+    }
+
+    private void drawWeapon(Graphics2D graphics, int centerX, int centerY,
+            int renderedWidth, int renderedHeight) {
+        if (weaponSprite == null) {
+            return;
+        }
+
+        int facingX = getFacingX();
+        int facingY = getFacingY();
+        int weaponSize = Math.max(44, Math.min(64, renderedHeight + 24));
+        double offsetX = renderedWidth * 0.62;
+        double offsetY = renderedHeight * 0.12;
+        double angle = -Math.PI / 4.0;
+
+        if (facingX < 0) {
+            offsetX = -renderedWidth * 0.62;
+            angle = -Math.PI * 3.0 / 4.0;
+        } else if (facingY < 0) {
+            offsetX = renderedWidth * 0.25;
+            offsetY = -renderedHeight * 0.38;
+            angle = -Math.PI / 2.0;
+        } else if (facingY > 0) {
+            offsetX = renderedWidth * 0.25;
+            offsetY = renderedHeight * 0.42;
+            angle = Math.PI / 2.0;
+        }
+
+        Graphics2D weaponGraphics = (Graphics2D) graphics.create();
+        AffineTransform transform = new AffineTransform();
+        transform.translate(centerX + offsetX, centerY + offsetY);
+        transform.rotate(angle);
+        transform.scale(weaponSize / (double) weaponSprite.getWidth(),
+                weaponSize / (double) weaponSprite.getHeight());
+        transform.translate(-weaponSprite.getWidth() / 2.0, -weaponSprite.getHeight() / 2.0);
+        weaponGraphics.drawImage(weaponSprite, transform, null);
+        weaponGraphics.dispose();
     }
 
     private int horizontalInput() {

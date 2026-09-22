@@ -20,18 +20,20 @@ import javax.swing.Timer;
 public class GamePanel extends JPanel {
     private static final int PANEL_WIDTH = 800;
     private static final int PANEL_HEIGHT = 600;
-    private static final boolean DEBUG_ENABLED = false;
     private static final int EXP_BAR_HEIGHT = 12;
     private static final int EXP_BAR_Y = 18;
+    private static final int[] FPS_OPTIONS = {30, 45, 60, 90, 120};
 
     private static final Font TIMES_NEW_ROMAN = new Font("Times New Roman", Font.BOLD, 18);
 
     private final BufferedImage grassTile;
     private final BufferedImage landscape;
     private final GameLogic gameLogic;
+    private final Timer frameTimer;
     private long lastUpdateNanos = System.nanoTime();
     private double lastDeltaTime;
     private double framesPerSecond;
+    private int selectedFpsIndex = 2;
     private int mouseX = -1;
     private int mouseY = -1;
 
@@ -43,7 +45,7 @@ public class GamePanel extends JPanel {
         installKeyBindings();
         installUpgradeClickHandling();
 
-        Timer timer = new Timer(16, event -> {
+        frameTimer = new Timer(getFrameDelayMillis(), event -> {
             // Measure real elapsed time so movement is independent of frame rate.
             long currentTimeNanos = System.nanoTime();
             double deltaTime = (currentTimeNanos - lastUpdateNanos) / 1_000_000_000.0;
@@ -59,7 +61,7 @@ public class GamePanel extends JPanel {
             }
             repaint();
         });
-        timer.start();
+        frameTimer.start();
     }
 
     private BufferedImage loadGrassTile() {
@@ -515,18 +517,44 @@ public class GamePanel extends JPanel {
 
     private void drawSettingsMenu(Graphics2D graphics, int x, int y) {
         int left = x + 52;
-        int width = 236;
         int rowHeight = 42;
-        int start = y + 90;
+        int start = y + 78;
 
         graphics.setFont(new Font("Times New Roman", Font.PLAIN, 22));
         graphics.drawString("Show FPS", left, start + 22);
-        graphics.drawString("Sound", left, start + 22 + rowHeight);
-        graphics.drawString("Back", left, start + 22 + rowHeight * 2);
+        graphics.drawString("Target FPS", left, start + 22 + rowHeight);
+        graphics.drawString("Sound", left, start + 22 + rowHeight * 2);
+        graphics.drawString("Back", left, start + 22 + rowHeight * 3);
 
         drawToggleButton(graphics, left + 180, start - 10, 36, 24, gameLogic.isDebugInfoVisible());
-        drawToggleButton(graphics, left + 180, start - 10 + rowHeight, 36, 24, gameLogic.isSoundEnabled());
-        drawMenuButton(graphics, new Rectangle(left + 160, start + rowHeight * 2 - 18, 90, 32), "Back");
+        drawFpsAdjuster(graphics, left + 142, start - 12 + rowHeight);
+        drawToggleButton(graphics, left + 180, start - 10 + rowHeight * 2, 36, 24, gameLogic.isSoundEnabled());
+        drawMenuButton(graphics, new Rectangle(left + 160, start + rowHeight * 3 - 18, 90, 32), "Back");
+    }
+
+    private void drawFpsAdjuster(Graphics2D graphics, int x, int y) {
+        Rectangle decreaseButton = new Rectangle(x, y, 26, 28);
+        Rectangle increaseButton = new Rectangle(x + 94, y, 26, 28);
+        Rectangle valueBox = new Rectangle(x + 30, y, 60, 28);
+
+        drawSmallButton(graphics, decreaseButton, "<");
+        graphics.setColor(new Color(38, 38, 38));
+        graphics.fillRoundRect(valueBox.x, valueBox.y, valueBox.width, valueBox.height, 8, 8);
+        graphics.setColor(Color.WHITE);
+        graphics.setFont(new Font("Times New Roman", Font.BOLD, 16));
+        String value = Integer.toString(getTargetFramesPerSecond());
+        int textWidth = graphics.getFontMetrics().stringWidth(value);
+        graphics.drawString(value, valueBox.x + (valueBox.width - textWidth) / 2, valueBox.y + 20);
+        drawSmallButton(graphics, increaseButton, ">");
+    }
+
+    private void drawSmallButton(Graphics2D graphics, Rectangle bounds, String text) {
+        graphics.setColor(new Color(80, 80, 80));
+        graphics.fillRoundRect(bounds.x, bounds.y, bounds.width, bounds.height, 8, 8);
+        graphics.setColor(Color.WHITE);
+        graphics.setFont(new Font("Times New Roman", Font.BOLD, 16));
+        int textWidth = graphics.getFontMetrics().stringWidth(text);
+        graphics.drawString(text, bounds.x + (bounds.width - textWidth) / 2, bounds.y + 20);
     }
 
     private void drawMenuButton(Graphics2D graphics, Rectangle bounds, String text) {
@@ -574,11 +602,27 @@ public class GamePanel extends JPanel {
             }
 
             int left = x + 52;
-            int start = y + 90;
+            int start = y + 78;
+            int rowHeight = 42;
+            Rectangle backButton = new Rectangle(left + 160, start + rowHeight * 3 - 18, 90, 32);
+            if (contains(event, backButton)) {
+                gameLogic.toggleSettings();
+                return;
+            }
             Rectangle fpsToggle = new Rectangle(left + 180, start - 10, 36, 24);
-            Rectangle soundToggle = new Rectangle(left + 180, start - 10 + 42, 36, 24);
+            Rectangle fpsDecreaseButton = new Rectangle(left + 142, start - 12 + rowHeight, 26, 28);
+            Rectangle fpsIncreaseButton = new Rectangle(left + 236, start - 12 + rowHeight, 26, 28);
+            Rectangle soundToggle = new Rectangle(left + 180, start - 10 + rowHeight * 2, 36, 24);
             if (contains(event, fpsToggle)) {
                 gameLogic.setDebugInfoVisible(!gameLogic.isDebugInfoVisible());
+                return;
+            }
+            if (contains(event, fpsDecreaseButton)) {
+                adjustTargetFramesPerSecond(-1);
+                return;
+            }
+            if (contains(event, fpsIncreaseButton)) {
+                adjustTargetFramesPerSecond(1);
                 return;
             }
             if (contains(event, soundToggle)) {
@@ -865,20 +909,41 @@ public class GamePanel extends JPanel {
         graphics.drawString(clipped, x, y);
     }
 
-    private void drawDebugInfo(Graphics2D graphics) {
-        if (!DEBUG_ENABLED || !gameLogic.isDebugInfoVisible()) {
+    private int getTargetFramesPerSecond() {
+        return FPS_OPTIONS[selectedFpsIndex];
+    }
+
+    private int getFrameDelayMillis() {
+        return Math.max(1, Math.round(1000.0f / getTargetFramesPerSecond()));
+    }
+
+    private void adjustTargetFramesPerSecond(int direction) {
+        int newIndex = Math.max(0, Math.min(FPS_OPTIONS.length - 1, selectedFpsIndex + direction));
+        if (newIndex == selectedFpsIndex) {
             return;
         }
 
-        gameLogic.drawCollisionAreas(graphics, PANEL_WIDTH / 2, PANEL_HEIGHT / 2);
+        selectedFpsIndex = newIndex;
+        frameTimer.setDelay(getFrameDelayMillis());
+        frameTimer.setInitialDelay(getFrameDelayMillis());
+        lastUpdateNanos = System.nanoTime();
+        framesPerSecond = getTargetFramesPerSecond();
+    }
 
-        // Add future debug values in this method so they stay together.
+    private void drawDebugInfo(Graphics2D graphics) {
+        if (!gameLogic.isDebugInfoVisible()) {
+            return;
+        }
+
+        String fpsText = String.format("FPS %.0f/%d", framesPerSecond, getTargetFramesPerSecond());
+        graphics.setFont(new Font("Times New Roman", Font.BOLD, 13));
+        int textWidth = graphics.getFontMetrics().stringWidth(fpsText);
+        int boxWidth = textWidth + 16;
+        int boxX = PANEL_WIDTH - boxWidth - 12;
+        int boxY = 34;
+        graphics.setColor(new Color(0, 0, 0, 155));
+        graphics.fillRoundRect(boxX, boxY, boxWidth, 22, 8, 8);
         graphics.setColor(Color.WHITE);
-        graphics.setFont(new Font("Times New Roman", Font.PLAIN, 14));
-        graphics.drawString(String.format("FPS: %.1f", framesPerSecond), 10, 20);
-        graphics.drawString(String.format("Delta time: %.4f s", lastDeltaTime), 10, 38);
-        graphics.drawString(String.format("World X: %.1f", gameLogic.getPlayerWorldX()), 10, 56);
-        graphics.drawString(String.format("World Y: %.1f", gameLogic.getPlayerWorldY()), 10, 74);
-        graphics.drawString("Enemies: " + gameLogic.getEnemyCount(), 10, 92);
+        graphics.drawString(fpsText, boxX + 8, boxY + 15);
     }
 }
