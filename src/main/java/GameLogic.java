@@ -23,7 +23,7 @@ public class GameLogic {
     private static final double GEM_MAX_SPEED = 260.0;
     private static final int LEVEL_UP_EXP_BONUS = 6;
 
-    private final Player player;
+    private Player player;
     private final List<Enemy> enemies = new ArrayList<>();
     private final List<Gem> gems = new ArrayList<>();
     private final Weapon weapon = new TemplateWeapon();
@@ -86,7 +86,6 @@ public class GameLogic {
     private double manaPulseTime;
     private Color manaPulseColor = new Color(75, 170, 255);
     private final List<ExplosionParticle> explosionParticles = new ArrayList<>();
-    private final List<AbilityBurst> abilityBursts = new ArrayList<>();
 
     public GameLogic() {
         player = new TemplateCharacter();
@@ -111,7 +110,6 @@ public class GameLogic {
         if (hitStopRemaining > 0.0) {
             hitStopRemaining = Math.max(0.0, hitStopRemaining - deltaTime);
             abilityManager.update(deltaTime);
-            updateAbilityBursts(deltaTime);
             updateAbilityVisualEffects(deltaTime);
             updateFloatingTexts(deltaTime);
             updateFeedback(deltaTime);
@@ -122,7 +120,6 @@ public class GameLogic {
         player.update(deltaTime);
         abilityManager.update(deltaTime);
         updatePlayerBuffs(deltaTime);
-        updateAbilityBursts(deltaTime);
         updateAbilityVisualEffects(deltaTime);
         updateFloatingTexts(deltaTime);
         updateFeedback(deltaTime);
@@ -232,17 +229,6 @@ public class GameLogic {
         }
     }
 
-    private void updateAbilityBursts(double deltaTime) {
-        Iterator<AbilityBurst> burstIterator = abilityBursts.iterator();
-        while (burstIterator.hasNext()) {
-            AbilityBurst burst = burstIterator.next();
-            burst.update(deltaTime);
-            if (burst.isExpired()) {
-                burstIterator.remove();
-            }
-        }
-    }
-
     private void updateAbilityVisualEffects(double deltaTime) {
         Iterator<AbilityVisualEffect> effectIterator = abilityVisualEffects.iterator();
         while (effectIterator.hasNext()) {
@@ -296,14 +282,6 @@ public class GameLogic {
         for (FloatingText text : floatingTexts) {
             text.draw(graphics, centerX, centerY, getWorldOffsetX(), getWorldOffsetY());
         }
-        for (AbilityBurst burst : abilityBursts) {
-            double alpha = Math.max(0.0, burst.life / burst.maxLife);
-            int radius = (int) Math.round(burst.radius * (1.0 + (1.0 - alpha) * 1.8));
-            int screenX = (int) Math.round(centerX + burst.x + getWorldOffsetX());
-            int screenY = (int) Math.round(centerY + burst.y + getWorldOffsetY());
-            graphics.setColor(new Color(255, 200, 80, (int) (alpha * 180.0)));
-            graphics.fillOval(screenX - radius, screenY - radius, radius * 2, radius * 2);
-        }
     }
 
     public void drawGameOverEffect(Graphics2D graphics, int centerX, int centerY) {
@@ -318,30 +296,6 @@ public class GameLogic {
             int radius = (int) Math.round(particle.radius);
             graphics.setColor(new Color(255, 140, 40, (int) (alpha * 220.0)));
             graphics.fillOval((int) screenX - radius, (int) screenY - radius, radius * 2, radius * 2);
-        }
-    }
-
-    private static class AbilityBurst {
-        private double x;
-        private double y;
-        private final double radius;
-        private final double maxLife;
-        private double life;
-
-        private AbilityBurst(double x, double y, double radius, double maxLife) {
-            this.x = x;
-            this.y = y;
-            this.radius = radius;
-            this.maxLife = maxLife;
-            this.life = maxLife;
-        }
-
-        private void update(double deltaTime) {
-            life -= deltaTime;
-        }
-
-        private boolean isExpired() {
-            return life <= 0.0;
         }
     }
 
@@ -691,21 +645,6 @@ public class GameLogic {
         abilityManager.triggerSlot(slotIndex, this, level);
     }
 
-    private void createAbilityBurst(double originX, double originY) {
-        abilityBursts.add(new AbilityBurst(0.0, 0.0, 140.0, 0.5));
-        for (int index = 0; index < 18; index++) {
-            double angle = random.nextDouble() * Math.PI * 2.0;
-            double speed = 30.0 + random.nextDouble() * 80.0;
-            explosionParticles.add(new ExplosionParticle(
-                    originX,
-                    originY,
-                    Math.cos(angle) * speed,
-                    Math.sin(angle) * speed,
-                    5.0 + random.nextDouble() * 12.0,
-                    0.3 + random.nextDouble() * 0.5));
-        }
-    }
-
     public void showMainMenu() {
         resetRunState();
         mainMenuOpen = true;
@@ -736,10 +675,10 @@ public class GameLogic {
     }
 
     private void resetRunState() {
+        player = new TemplateCharacter();
         gameOver = false;
         gameOverTimer = 0.0;
         explosionParticles.clear();
-        abilityBursts.clear();
         enemies.clear();
         gems.clear();
         projectiles.clear();
@@ -1172,7 +1111,6 @@ public class GameLogic {
             default -> {
             }
         }
-        createAbilityBurst(originX, originY);
     }
 
     private void damageEnemiesInRadius(double worldX, double worldY, double radius,
