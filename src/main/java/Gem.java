@@ -2,8 +2,6 @@ import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
-import java.io.IOException;
-import javax.imageio.ImageIO;
 
 public class Gem {
     private static final double GEM_SIZE = 16.0;
@@ -87,10 +85,6 @@ public class Gem {
     }
 
     private static BufferedImage loadSprite() {
-        try {
-            return ImageIO.read(Gem.class.getResource("/main/resources/gem.png"));
-        } catch (IOException | IllegalArgumentException exception) {
-            throw new IllegalStateException("Could not load /main/resources/gem.png", exception);
-        }
+        return ResourceLoader.loadImage("/main/resources/gem.png");
     }
 }

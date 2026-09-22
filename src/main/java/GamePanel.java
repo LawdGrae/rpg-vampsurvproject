@@ -1,4 +1,5 @@
 import java.awt.Color;
+import java.awt.AlphaComposite;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.Graphics;
@@ -8,9 +9,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
-import java.io.IOException;
 import java.util.List;
-import javax.imageio.ImageIO;
 import javax.swing.AbstractAction;
 import javax.swing.ActionMap;
 import javax.swing.InputMap;
@@ -33,6 +32,8 @@ public class GamePanel extends JPanel {
     private long lastUpdateNanos = System.nanoTime();
     private double lastDeltaTime;
     private double framesPerSecond;
+    private int mouseX = -1;
+    private int mouseY = -1;
 
     public GamePanel() {
         setPreferredSize(new Dimension(PANEL_WIDTH, PANEL_HEIGHT));
@@ -52,7 +53,8 @@ public class GamePanel extends JPanel {
             double instantFramesPerSecond = deltaTime > 0 ? 1.0 / deltaTime : 0;
             framesPerSecond = framesPerSecond * 0.9 + instantFramesPerSecond * 0.1;
 
-            if (gameLogic.isGameStarted() && !gameLogic.isUpgradeMenuOpen() && !gameLogic.isPaused()) {
+            if (gameLogic.isGameStarted() && !gameLogic.isUpgradeMenuOpen()
+                    && !gameLogic.isPaused() && !gameLogic.isSkillMenuOpen()) {
                 gameLogic.update(deltaTime);
             }
             repaint();
@@ -61,19 +63,11 @@ public class GamePanel extends JPanel {
     }
 
     private BufferedImage loadGrassTile() {
-        try {
-            return ImageIO.read(GamePanel.class.getResource("/main/resources/grasstile.png"));
-        } catch (IOException | IllegalArgumentException exception) {
-            throw new IllegalStateException("Could not load /main/resources/grasstile.png", exception);
-        }
+        return ResourceLoader.loadImage("/main/resources/grasstile.png");
     }
 
     private BufferedImage loadLandscape() {
-        try {
-            return ImageIO.read(GamePanel.class.getResource("/main/resources/landscape.png"));
-        } catch (IOException | IllegalArgumentException exception) {
-            throw new IllegalStateException("Could not load /main/resources/landscape.png", exception);
-        }
+        return ResourceLoader.loadImage("/main/resources/landscape.png");
     }
 
     private void installKeyBindings() {
@@ -119,6 +113,25 @@ public class GamePanel extends JPanel {
         bindKey(inputMap, actionMap, "pressed J", "attack", true);
         bindKey(inputMap, actionMap, "released J", "attack", false);// Haze add
 
+        for (int index = 0; index < AbilityManager.EQUIPPED_SLOT_COUNT; index++) {
+            final int slotIndex = index;
+            inputMap.put(KeyStroke.getKeyStroke("pressed " + (index + 1)), "ability" + index);
+            actionMap.put("ability" + index, new AbstractAction() {
+                @Override
+                public void actionPerformed(ActionEvent event) {
+                    gameLogic.triggerAbility(slotIndex);
+                }
+            });
+        }
+
+        inputMap.put(KeyStroke.getKeyStroke("pressed K"), "toggleSkillMenu");
+        actionMap.put("toggleSkillMenu", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent event) {
+                gameLogic.toggleSkillMenu();
+            }
+        });
+
         inputMap.put(KeyStroke.getKeyStroke("ESCAPE"), "togglePause");
         actionMap.put("togglePause", new AbstractAction() {
             @Override
@@ -161,6 +174,11 @@ public class GamePanel extends JPanel {
                     return;
                 }
 
+                if (gameLogic.isSkillMenuOpen()) {
+                    handleSkillMenuClick(event);
+                    return;
+                }
+
                 if (gameLogic.isUpgradeMenuOpen()) {
                     int left = (PANEL_WIDTH - 440) / 2;
                     int top = 150;
@@ -191,11 +209,27 @@ public class GamePanel extends JPanel {
                 }
 
                 if (gameLogic.isGameStarted() && !gameLogic.isUpgradeMenuOpen()) {
-                    Rectangle abilityButton = new Rectangle(18 + 190 - 38, PANEL_HEIGHT - 52 + 7, 28, 18);
-                    if (contains(event, abilityButton)) {
-                        gameLogic.triggerAbility();
+                    for (int index = 0; index < AbilityManager.EQUIPPED_SLOT_COUNT; index++) {
+                        if (contains(event, getHotbarSlotBounds(index))) {
+                            gameLogic.triggerAbility(index);
+                            return;
+                        }
                     }
                 }
+            }
+        });
+
+        addMouseMotionListener(new MouseAdapter() {
+            @Override
+            public void mouseMoved(MouseEvent event) {
+                mouseX = event.getX();
+                mouseY = event.getY();
+            }
+
+            @Override
+            public void mouseDragged(MouseEvent event) {
+                mouseX = event.getX();
+                mouseY = event.getY();
             }
         });
     }
@@ -215,6 +249,9 @@ public class GamePanel extends JPanel {
             return;
         }
 
+        Graphics2D worldGraphics = (Graphics2D) graphics2D.create();
+        worldGraphics.translate(gameLogic.getScreenShakeOffsetX(), gameLogic.getScreenShakeOffsetY());
+
         int tileWidth = grassTile.getWidth();
         int tileHeight = grassTile.getHeight();
         int startX = Math.floorMod((int) gameLogic.getWorldOffsetX(), tileWidth) - tileWidth;
@@ -222,12 +259,13 @@ public class GamePanel extends JPanel {
 
         for (int tileX = startX; tileX < PANEL_WIDTH; tileX += tileWidth) {
             for (int tileY = startY; tileY < PANEL_HEIGHT; tileY += tileHeight) {
-                graphics2D.drawImage(grassTile, tileX, tileY, null);
+                worldGraphics.drawImage(grassTile, tileX, tileY, null);
             }
         }
 
-        gameLogic.drawEntities(graphics2D, PANEL_WIDTH / 2, PANEL_HEIGHT / 2);
-        gameLogic.drawAbilityBursts(graphics2D, PANEL_WIDTH / 2, PANEL_HEIGHT / 2);
+        gameLogic.drawEntities(worldGraphics, PANEL_WIDTH / 2, PANEL_HEIGHT / 2);
+        gameLogic.drawAbilityBursts(worldGraphics, PANEL_WIDTH / 2, PANEL_HEIGHT / 2);
+        worldGraphics.dispose();
         drawExperienceBar(graphics2D);
         drawGameTimer(graphics2D);
         drawAbilityHud(graphics2D);
@@ -238,6 +276,8 @@ public class GamePanel extends JPanel {
         }
         drawUpgradeMenu(graphics2D);
         drawPauseMenu(graphics2D);
+        drawSkillMenu(graphics2D);
+        drawAbilityTooltip(graphics2D);
         drawDebugInfo(graphics2D);
     }
 
@@ -291,9 +331,9 @@ public class GamePanel extends JPanel {
 
             try {
                 String portraitPath = index == 0 ? gameLogic.getPortraitPath() : "/main/resources/portrait_coming_soon.png";
-                BufferedImage portrait = ImageIO.read(GamePanel.class.getResource(portraitPath));
+                BufferedImage portrait = ResourceLoader.loadImage(portraitPath);
                 graphics.drawImage(portrait, x + 20, y + 22, 80, 90, null);
-            } catch (IOException | IllegalArgumentException ignored) {
+            } catch (IllegalStateException ignored) {
                 graphics.setColor(Color.WHITE);
                 graphics.fillRect(x + 20, y + 22, 80, 90);
             }
@@ -322,6 +362,7 @@ public class GamePanel extends JPanel {
                 graphics.setColor(new Color(140, 235, 160));
                 graphics.setFont(new Font("Times New Roman", Font.BOLD, 14));
                 graphics.drawString("Selected", x + 22, y + 212);
+                drawCharacterAbilityPreview(graphics, x + 12, y + 176);
             }
         }
 
@@ -355,35 +396,34 @@ public class GamePanel extends JPanel {
     }
 
     private void drawAbilityHud(Graphics2D graphics) {
-        Ability ability = gameLogic.getAbility();
-        int boxX = 18;
-        int boxY = PANEL_HEIGHT - 52;
-        int boxWidth = 190;
-        int boxHeight = 34;
-        double cooldownRatio = Math.max(0.0, Math.min(1.0, ability.getCooldownRemaining() / 60.0));
+        AbilityManager manager = gameLogic.getAbilityManager();
+        int barWidth = 224;
+        int barX = (PANEL_WIDTH - barWidth) / 2;
+        int manaY = PANEL_HEIGHT - 82;
+        double manaRatio = manager.getMana() / manager.getMaxMana();
 
-        graphics.setColor(new Color(20, 20, 20, 210));
-        graphics.fillRoundRect(boxX, boxY, boxWidth, boxHeight, 10, 10);
-
-        graphics.setColor(new Color(90, 90, 90));
-        graphics.fillRoundRect(boxX + 8, boxY + 21, boxWidth - 52, 7, 5, 5);
-        graphics.setColor(ability.isReady() ? new Color(120, 220, 140) : new Color(220, 140, 80));
-        graphics.fillRoundRect(boxX + 8, boxY + 21, (int) Math.round((boxWidth - 52) * (1.0 - cooldownRatio)), 7, 5, 5);
-
-        graphics.setColor(Color.WHITE);
-        graphics.setFont(new Font("Times New Roman", Font.BOLD, 12));
-        graphics.drawString("placeholder ability", boxX + 10, boxY + 14);
-
-        String cooldownText = ability.isReady() ? "Ready" : String.format("%ds", (int) Math.ceil(ability.getCooldownRemaining()));
-        graphics.setFont(new Font("Times New Roman", Font.PLAIN, 11));
-        graphics.drawString(cooldownText, boxX + 10, boxY + 30);
-
-        Rectangle buttonBounds = new Rectangle(boxX + boxWidth - 38, boxY + 7, 28, 18);
-        graphics.setColor(ability.isReady() ? new Color(90, 180, 90) : new Color(100, 100, 100));
-        graphics.fillRoundRect(buttonBounds.x, buttonBounds.y, buttonBounds.width, buttonBounds.height, 6, 6);
+        graphics.setColor(new Color(15, 18, 28, 220));
+        graphics.fillRoundRect(barX, manaY, barWidth, 10, 8, 8);
+        graphics.setColor(gameLogic.getManaPulseColor());
+        graphics.fillRoundRect(barX, manaY, (int) Math.round(barWidth * manaRatio), 10, 8, 8);
         graphics.setColor(Color.WHITE);
         graphics.setFont(new Font("Times New Roman", Font.BOLD, 11));
-        graphics.drawString("USE", buttonBounds.x + 5, buttonBounds.y + 13);
+        graphics.drawString(String.format("Mana %.0f/%.0f", manager.getMana(), manager.getMaxMana()),
+                barX + 72, manaY - 4);
+
+        RpgAbility[] equipped = manager.getEquippedAbilities();
+        for (int index = 0; index < equipped.length; index++) {
+            drawAbilitySlot(graphics, getHotbarSlotBounds(index), equipped[index], index + 1,
+                    true, gameLogic.getLevel());
+        }
+    }
+
+    private void drawCharacterAbilityPreview(Graphics2D graphics, int x, int y) {
+        List<RpgAbility> abilities = gameLogic.getAbilityManager().getAbilities(AbilityClass.ASSASSIN);
+        for (int index = 0; index < Math.min(4, abilities.size()); index++) {
+            Rectangle bounds = new Rectangle(x + index * 24, y, 20, 20);
+            drawAbilityIcon(graphics, bounds, abilities.get(index), true, gameLogic.getLevel());
+        }
     }
 
     private void drawUpgradeMenu(Graphics2D graphics) {
@@ -595,9 +635,222 @@ public class GamePanel extends JPanel {
         }
     }
 
+    private void handleSkillMenuClick(MouseEvent event) {
+        for (int index = 0; index < AbilityManager.EQUIPPED_SLOT_COUNT; index++) {
+            Rectangle bounds = getSkillMenuSlotBounds(index);
+            if (contains(event, bounds)) {
+                gameLogic.selectAbilityEquipSlot(index);
+                return;
+            }
+        }
+
+        RpgAbility clickedAbility = abilityAtSkillMenuPoint(event.getX(), event.getY());
+        if (clickedAbility != null) {
+            gameLogic.equipAbility(clickedAbility);
+        }
+    }
+
     private boolean contains(MouseEvent event, Rectangle rectangle) {
         return event.getX() >= rectangle.x && event.getX() <= rectangle.x + rectangle.width
                 && event.getY() >= rectangle.y && event.getY() <= rectangle.y + rectangle.height;
+    }
+
+    private boolean containsPoint(int x, int y, Rectangle rectangle) {
+        return x >= rectangle.x && x <= rectangle.x + rectangle.width
+                && y >= rectangle.y && y <= rectangle.y + rectangle.height;
+    }
+
+    private Rectangle getHotbarSlotBounds(int index) {
+        int slotSize = 46;
+        int gap = 10;
+        int totalWidth = AbilityManager.EQUIPPED_SLOT_COUNT * slotSize
+                + (AbilityManager.EQUIPPED_SLOT_COUNT - 1) * gap;
+        int startX = (PANEL_WIDTH - totalWidth) / 2;
+        return new Rectangle(startX + index * (slotSize + gap), PANEL_HEIGHT - 66,
+                slotSize, slotSize);
+    }
+
+    private Rectangle getSkillMenuSlotBounds(int index) {
+        int slotSize = 46;
+        int gap = 10;
+        int startX = 290;
+        return new Rectangle(startX + index * (slotSize + gap), 76, slotSize, slotSize);
+    }
+
+    private void drawAbilitySlot(Graphics2D graphics, Rectangle bounds, RpgAbility ability,
+            int shortcut, boolean showCooldown, int playerLevel) {
+        graphics.setColor(new Color(18, 20, 28, 225));
+        graphics.fillRoundRect(bounds.x, bounds.y, bounds.width, bounds.height, 8, 8);
+        graphics.setColor(new Color(210, 210, 220));
+        graphics.drawRoundRect(bounds.x, bounds.y, bounds.width, bounds.height, 8, 8);
+
+        if (ability != null) {
+            drawAbilityIcon(graphics, bounds, ability,
+                    ability.getDefinition().isUnlockedAt(playerLevel), playerLevel);
+            if (showCooldown) {
+                drawCooldownOverlay(graphics, bounds, ability);
+            }
+            graphics.setColor(Color.WHITE);
+            graphics.setFont(new Font("Times New Roman", Font.BOLD, 11));
+            graphics.drawString(String.valueOf((int) ability.getDefinition().getManaCost()),
+                    bounds.x + 3, bounds.y + bounds.height - 4);
+        }
+
+        graphics.setColor(new Color(255, 255, 255, 210));
+        graphics.setFont(new Font("Times New Roman", Font.BOLD, 12));
+        graphics.drawString(String.valueOf(shortcut), bounds.x + bounds.width - 10, bounds.y + 13);
+    }
+
+    private void drawAbilityIcon(Graphics2D graphics, Rectangle bounds,
+            RpgAbility ability, boolean unlocked, int playerLevel) {
+        graphics.drawImage(ability.getIcon(), bounds.x + 4, bounds.y + 4,
+                bounds.width - 8, bounds.height - 8, null);
+        if (!unlocked) {
+            graphics.setColor(new Color(0, 0, 0, 170));
+            graphics.fillRoundRect(bounds.x, bounds.y, bounds.width, bounds.height, 8, 8);
+            graphics.setColor(new Color(255, 220, 130));
+            graphics.setFont(new Font("Times New Roman", Font.BOLD, 10));
+            graphics.drawString("LV " + ability.getDefinition().getUnlockLevel(),
+                    bounds.x + 8, bounds.y + bounds.height / 2 + 4);
+        }
+    }
+
+    private void drawCooldownOverlay(Graphics2D graphics, Rectangle bounds, RpgAbility ability) {
+        double ratio = ability.getCooldownRatio();
+        if (ratio <= 0.0) {
+            return;
+        }
+        int overlayHeight = (int) Math.round(bounds.height * ratio);
+        graphics.setColor(new Color(0, 0, 0, 165));
+        graphics.fillRoundRect(bounds.x, bounds.y, bounds.width, overlayHeight, 8, 8);
+        graphics.setColor(Color.WHITE);
+        graphics.setFont(new Font("Times New Roman", Font.BOLD, 13));
+        String text = String.valueOf((int) Math.ceil(ability.getCooldownRemaining()));
+        graphics.drawString(text, bounds.x + bounds.width / 2 - 5,
+                bounds.y + bounds.height / 2 + 4);
+    }
+
+    private void drawSkillMenu(Graphics2D graphics) {
+        if (!gameLogic.isSkillMenuOpen()) {
+            return;
+        }
+
+        Graphics2D overlay = (Graphics2D) graphics.create();
+        overlay.setComposite(AlphaComposite.SrcOver.derive(0.88f));
+        overlay.setColor(new Color(9, 10, 15));
+        overlay.fillRect(0, 0, PANEL_WIDTH, PANEL_HEIGHT);
+        overlay.dispose();
+
+        graphics.setColor(Color.WHITE);
+        graphics.setFont(new Font("Times New Roman", Font.BOLD, 28));
+        graphics.drawString("Skills", 36, 54);
+
+        graphics.setFont(new Font("Times New Roman", Font.PLAIN, 14));
+        graphics.drawString("Select a slot, then choose an unlocked ability.", 116, 53);
+
+        RpgAbility[] equipped = gameLogic.getAbilityManager().getEquippedAbilities();
+        for (int index = 0; index < equipped.length; index++) {
+            Rectangle bounds = getSkillMenuSlotBounds(index);
+            if (index == gameLogic.getAbilityManager().getSelectedEquipSlot()) {
+                graphics.setColor(new Color(255, 220, 120, 180));
+                graphics.fillRoundRect(bounds.x - 3, bounds.y - 3,
+                        bounds.width + 6, bounds.height + 6, 10, 10);
+            }
+            drawAbilitySlot(graphics, bounds, equipped[index], index + 1, false, gameLogic.getLevel());
+        }
+
+        int columnWidth = 126;
+        int startX = 24;
+        int startY = 145;
+        int iconSize = 30;
+        int rowHeight = 38;
+        for (AbilityClass abilityClass : AbilityClass.values()) {
+            int column = abilityClass.ordinal();
+            int x = startX + column * columnWidth;
+            graphics.setColor(new Color(255, 255, 255, 220));
+            graphics.setFont(new Font("Times New Roman", Font.BOLD, 14));
+            graphics.drawString(abilityClass.getDisplayName(), x, startY - 14);
+
+            List<RpgAbility> abilities = gameLogic.getAbilityManager().getAbilities(abilityClass);
+            for (int index = 0; index < abilities.size(); index++) {
+                RpgAbility ability = abilities.get(index);
+                Rectangle bounds = getSkillMenuAbilityBounds(abilityClass.ordinal(), index);
+                boolean unlocked = ability.getDefinition().isUnlockedAt(gameLogic.getLevel());
+                drawAbilityIcon(graphics, bounds, ability, unlocked, gameLogic.getLevel());
+                if (ability.isEquipped()) {
+                    graphics.setColor(new Color(120, 235, 150, 210));
+                    graphics.drawRoundRect(bounds.x - 1, bounds.y - 1,
+                            bounds.width + 2, bounds.height + 2, 8, 8);
+                }
+                graphics.setColor(unlocked ? Color.WHITE : new Color(170, 170, 170));
+                graphics.setFont(new Font("Times New Roman", Font.PLAIN, 10));
+                drawClippedString(graphics, ability.getName(),
+                        bounds.x + iconSize + 5, bounds.y + 13, columnWidth - iconSize - 8);
+            }
+        }
+    }
+
+    private Rectangle getSkillMenuAbilityBounds(int classIndex, int abilityIndex) {
+        int columnWidth = 126;
+        int startX = 24;
+        int startY = 145;
+        int rowHeight = 38;
+        return new Rectangle(startX + classIndex * columnWidth, startY + abilityIndex * rowHeight,
+                30, 30);
+    }
+
+    private RpgAbility abilityAtSkillMenuPoint(int x, int y) {
+        for (AbilityClass abilityClass : AbilityClass.values()) {
+            List<RpgAbility> abilities = gameLogic.getAbilityManager().getAbilities(abilityClass);
+            for (int index = 0; index < abilities.size(); index++) {
+                if (containsPoint(x, y, getSkillMenuAbilityBounds(abilityClass.ordinal(), index))) {
+                    return abilities.get(index);
+                }
+            }
+        }
+        return null;
+    }
+
+    private RpgAbility hoveredAbility() {
+        for (int index = 0; index < AbilityManager.EQUIPPED_SLOT_COUNT; index++) {
+            if (containsPoint(mouseX, mouseY, getHotbarSlotBounds(index))) {
+                return gameLogic.getAbilityManager().getEquippedAbilities()[index];
+            }
+        }
+        if (gameLogic.isSkillMenuOpen()) {
+            return abilityAtSkillMenuPoint(mouseX, mouseY);
+        }
+        return null;
+    }
+
+    private void drawAbilityTooltip(Graphics2D graphics) {
+        RpgAbility ability = hoveredAbility();
+        if (ability == null) {
+            return;
+        }
+        AbilityDefinition definition = ability.getDefinition();
+        int x = Math.min(mouseX + 14, PANEL_WIDTH - 230);
+        int y = Math.min(mouseY + 16, PANEL_HEIGHT - 96);
+        graphics.setColor(new Color(15, 16, 22, 235));
+        graphics.fillRoundRect(x, y, 220, 86, 8, 8);
+        graphics.setColor(new Color(230, 230, 235));
+        graphics.drawRoundRect(x, y, 220, 86, 8, 8);
+        graphics.setFont(new Font("Times New Roman", Font.BOLD, 14));
+        graphics.drawString(definition.getName(), x + 10, y + 20);
+        graphics.setFont(new Font("Times New Roman", Font.PLAIN, 11));
+        graphics.drawString(definition.getAbilityClass().getDisplayName(), x + 10, y + 36);
+        graphics.drawString("Mana " + (int) definition.getManaCost()
+                + "  Cooldown " + (int) definition.getCooldownSeconds() + "s",
+                x + 10, y + 52);
+        drawClippedString(graphics, definition.getDescription(), x + 10, y + 70, 196);
+    }
+
+    private void drawClippedString(Graphics2D graphics, String text, int x, int y, int maxWidth) {
+        String clipped = text;
+        while (graphics.getFontMetrics().stringWidth(clipped) > maxWidth && clipped.length() > 3) {
+            clipped = clipped.substring(0, clipped.length() - 4) + "...";
+        }
+        graphics.drawString(clipped, x, y);
     }
 
     private void drawDebugInfo(Graphics2D graphics) {

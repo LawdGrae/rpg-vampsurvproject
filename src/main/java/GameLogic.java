@@ -27,9 +27,12 @@ public class GameLogic {
     private final List<Enemy> enemies = new ArrayList<>();
     private final List<Gem> gems = new ArrayList<>();
     private final Weapon weapon = new TemplateWeapon();
-    private final Ability ability = new TemplateAbility();
+    private final Ability legacyAbility = new TemplateAbility();
+    private final AbilityManager abilityManager = new AbilityManager();
     private final List<Projectile> projectiles = new ArrayList<>();
     private final List<Projectile> enemyProjectiles = new ArrayList<>();
+    private final List<AbilityVisualEffect> abilityVisualEffects = new ArrayList<>();
+    private final List<FloatingText> floatingTexts = new ArrayList<>();
     private final Random random = new Random();
     private final List<Double> spawnQueue = new ArrayList<>();
     private static final List<String> GENERIC_UPGRADE_NAMES = Arrays.asList(
@@ -67,10 +70,21 @@ public class GameLogic {
     private boolean gameStarted;
     private boolean paused;
     private boolean settingsOpen;
+    private boolean skillMenuOpen;
     private boolean soundEnabled = true;
     private boolean debugInfoVisible;
     private boolean gameOver;
     private double gameOverTimer;
+    private double damageReductionTimer;
+    private double damageReductionMultiplier = 1.0;
+    private double damageBoostTimer;
+    private double damageBoostMultiplier = 1.0;
+    private double hitStopRemaining;
+    private double screenShakeTime;
+    private double screenShakeDuration;
+    private double screenShakeStrength;
+    private double manaPulseTime;
+    private Color manaPulseColor = new Color(75, 170, 255);
     private final List<ExplosionParticle> explosionParticles = new ArrayList<>();
     private final List<AbilityBurst> abilityBursts = new ArrayList<>();
 
@@ -94,10 +108,24 @@ public class GameLogic {
             return;
         }
 
+        if (hitStopRemaining > 0.0) {
+            hitStopRemaining = Math.max(0.0, hitStopRemaining - deltaTime);
+            abilityManager.update(deltaTime);
+            updateAbilityBursts(deltaTime);
+            updateAbilityVisualEffects(deltaTime);
+            updateFloatingTexts(deltaTime);
+            updateFeedback(deltaTime);
+            return;
+        }
+
         // Update all game objects once per timer tick.
         player.update(deltaTime);
-        ability.update(deltaTime);
+        abilityManager.update(deltaTime);
+        updatePlayerBuffs(deltaTime);
         updateAbilityBursts(deltaTime);
+        updateAbilityVisualEffects(deltaTime);
+        updateFloatingTexts(deltaTime);
+        updateFeedback(deltaTime);
 
         // Start small and ramp up the wave size over time instead of instantly
         // surrounding the player with a full ring at startup.
@@ -133,7 +161,7 @@ public class GameLogic {
                     player.applySlow(TemplateEnemyMinion.SLOW_DURATION,
                             TemplateEnemyMinion.SLOW_MULTIPLIER);
                 } else {
-                    player.takeDamage(enemy.getDamage() * deltaTime);
+                    player.takeDamage(enemy.getDamage() * deltaTime * damageReductionMultiplier);
                 }
             }
         }
@@ -215,7 +243,59 @@ public class GameLogic {
         }
     }
 
+    private void updateAbilityVisualEffects(double deltaTime) {
+        Iterator<AbilityVisualEffect> effectIterator = abilityVisualEffects.iterator();
+        while (effectIterator.hasNext()) {
+            AbilityVisualEffect effect = effectIterator.next();
+            effect.update(deltaTime);
+            if (effect.isExpired()) {
+                effectIterator.remove();
+            }
+        }
+    }
+
+    private void updateFloatingTexts(double deltaTime) {
+        Iterator<FloatingText> textIterator = floatingTexts.iterator();
+        while (textIterator.hasNext()) {
+            FloatingText text = textIterator.next();
+            text.update(deltaTime);
+            if (text.isExpired()) {
+                textIterator.remove();
+            }
+        }
+    }
+
+    private void updateFeedback(double deltaTime) {
+        if (screenShakeTime > 0.0) {
+            screenShakeTime = Math.max(0.0, screenShakeTime - deltaTime);
+        }
+        if (manaPulseTime > 0.0) {
+            manaPulseTime = Math.max(0.0, manaPulseTime - deltaTime);
+        }
+    }
+
+    private void updatePlayerBuffs(double deltaTime) {
+        if (damageReductionTimer > 0.0) {
+            damageReductionTimer = Math.max(0.0, damageReductionTimer - deltaTime);
+            if (damageReductionTimer <= 0.0) {
+                damageReductionMultiplier = 1.0;
+            }
+        }
+        if (damageBoostTimer > 0.0) {
+            damageBoostTimer = Math.max(0.0, damageBoostTimer - deltaTime);
+            if (damageBoostTimer <= 0.0) {
+                damageBoostMultiplier = 1.0;
+            }
+        }
+    }
+
     public void drawAbilityBursts(Graphics2D graphics, int centerX, int centerY) {
+        for (AbilityVisualEffect effect : abilityVisualEffects) {
+            effect.draw(graphics, centerX, centerY, getWorldOffsetX(), getWorldOffsetY());
+        }
+        for (FloatingText text : floatingTexts) {
+            text.draw(graphics, centerX, centerY, getWorldOffsetX(), getWorldOffsetY());
+        }
         for (AbilityBurst burst : abilityBursts) {
             double alpha = Math.max(0.0, burst.life / burst.maxLife);
             int radius = (int) Math.round(burst.radius * (1.0 + (1.0 - alpha) * 1.8));
@@ -553,16 +633,62 @@ public class GameLogic {
     }
 
     public Ability getAbility() {
-        return ability;
+        RpgAbility[] equippedAbilities = abilityManager.getEquippedAbilities();
+        return equippedAbilities.length > 0 && equippedAbilities[0] != null
+                ? equippedAbilities[0]
+                : legacyAbility;
+    }
+
+    private static class FloatingText {
+        private static final double MAX_LIFE = 0.85;
+
+        private final String text;
+        private final double x;
+        private final double y;
+        private final Color color;
+        private double life = MAX_LIFE;
+
+        private FloatingText(String text, double x, double y, Color color) {
+            this.text = text;
+            this.x = x;
+            this.y = y;
+            this.color = color;
+        }
+
+        private void update(double deltaTime) {
+            life -= deltaTime;
+        }
+
+        private boolean isExpired() {
+            return life <= 0.0;
+        }
+
+        private void draw(Graphics2D graphics, int centerX, int centerY,
+                double cameraX, double cameraY) {
+            double progress = 1.0 - Math.max(0.0, life / MAX_LIFE);
+            int alpha = Math.max(0, Math.min(255, (int) Math.round(255.0 * life / MAX_LIFE)));
+            int screenX = (int) Math.round(centerX + x + cameraX);
+            int screenY = (int) Math.round(centerY + y + cameraY - progress * 34.0);
+            graphics.setColor(new Color(0, 0, 0, Math.min(alpha, 150)));
+            graphics.drawString(text, screenX + 1, screenY + 1);
+            graphics.setColor(new Color(color.getRed(), color.getGreen(), color.getBlue(), alpha));
+            graphics.drawString(text, screenX, screenY);
+        }
+    }
+
+    public AbilityManager getAbilityManager() {
+        return abilityManager;
     }
 
     public void triggerAbility() {
-        if (!ability.isReady()) {
+        triggerAbility(0);
+    }
+
+    public void triggerAbility(int slotIndex) {
+        if (gameOver || upgradeMenuOpen || paused || !gameStarted) {
             return;
         }
-
-        ability.trigger(player.getWorldX(), player.getWorldY(), enemies);
-        createAbilityBurst(player.getWorldX(), player.getWorldY());
+        abilityManager.triggerSlot(slotIndex, this, level);
     }
 
     private void createAbilityBurst(double originX, double originY) {
@@ -587,6 +713,7 @@ public class GameLogic {
         gameStarted = false;
         paused = false;
         settingsOpen = false;
+        skillMenuOpen = false;
     }
 
     public void showCharacterSelection() {
@@ -595,6 +722,7 @@ public class GameLogic {
         gameStarted = false;
         paused = false;
         settingsOpen = false;
+        skillMenuOpen = false;
     }
 
     public void startGame() {
@@ -604,6 +732,7 @@ public class GameLogic {
         gameStarted = true;
         paused = false;
         settingsOpen = false;
+        skillMenuOpen = false;
     }
 
     private void resetRunState() {
@@ -615,6 +744,8 @@ public class GameLogic {
         gems.clear();
         projectiles.clear();
         enemyProjectiles.clear();
+        abilityVisualEffects.clear();
+        floatingTexts.clear();
         spawnQueue.clear();
         whenToSpawn = INITIAL_SPAWN_DELAY;
         gameTimer = 0.0;
@@ -623,7 +754,17 @@ public class GameLogic {
         exp = 0;
         expToNextLevel = 10;
         upgradeMenuOpen = false;
-        ability.reset();
+        damageReductionTimer = 0.0;
+        damageReductionMultiplier = 1.0;
+        damageBoostTimer = 0.0;
+        damageBoostMultiplier = 1.0;
+        hitStopRemaining = 0.0;
+        screenShakeTime = 0.0;
+        screenShakeDuration = 0.0;
+        screenShakeStrength = 0.0;
+        manaPulseTime = 0.0;
+        abilityManager.resetRunState();
+        legacyAbility.reset();
     }
 
     public void togglePause() {
@@ -640,6 +781,26 @@ public class GameLogic {
 
     public void toggleSettings() {
         settingsOpen = !settingsOpen;
+    }
+
+    public void toggleSkillMenu() {
+        if (gameStarted && !upgradeMenuOpen && !gameOver) {
+            skillMenuOpen = !skillMenuOpen;
+        }
+    }
+
+    public boolean isSkillMenuOpen() {
+        return skillMenuOpen;
+    }
+
+    public void selectAbilityEquipSlot(int slotIndex) {
+        abilityManager.selectEquipSlot(slotIndex);
+    }
+
+    public void equipAbility(RpgAbility ability) {
+        if (ability != null && ability.getDefinition().isUnlockedAt(level)) {
+            abilityManager.equip(ability);
+        }
     }
 
     public void setSoundEnabled(boolean enabled) {
@@ -894,5 +1055,310 @@ public class GameLogic {
 
     public void drawCollisionAreas(Graphics2D graphics, int centerX, int centerY) {
         // Collision debug overlays are disabled; no solid map collisions remain.
+    }
+
+    public void applyAbilityEffect(AbilityDefinition definition) {
+        double originX = player.getWorldX();
+        double originY = player.getWorldY();
+        Color color = colorFor(definition);
+        double damage = definition.getDamage() * damageBoostMultiplier;
+        double radius = definition.getRadius();
+        DamageElement element = elementFor(definition);
+        Enemy target = findNearestLivingEnemyInRange(Math.max(radius, 420.0));
+        double effectX = target == null ? originX : target.getWorldX();
+        double effectY = target == null ? originY : target.getWorldY();
+        triggerCastFeedback(definition);
+
+        switch (definition.getEffectType()) {
+            case SINGLE_TARGET -> {
+                if (target != null) {
+                    damageEnemy(target, damage, element, originX, originY);
+                    addAbilityVisual(definition, originX, originY, effectX, effectY, 90, color, 0.45);
+                }
+            }
+            case AREA_DAMAGE -> {
+                damageEnemiesInRadius(effectX, effectY, radius, damage, true, element);
+                addAbilityVisual(definition, originX, originY, effectX, effectY, radius, color, 0.55);
+            }
+            case POISON -> {
+                for (Enemy enemy : enemiesInRadius(effectX, effectY, radius)) {
+                    damageEnemy(enemy, damage, element, originX, originY);
+                    enemy.applyPoison(Math.max(1.0, damage * 0.25), Math.max(3.0, definition.getDuration()));
+                }
+                addAbilityVisual(definition, originX, originY, effectX, effectY, radius, color, 0.7);
+            }
+            case SLOW -> {
+                for (Enemy enemy : enemiesInRadius(effectX, effectY, radius)) {
+                    damageEnemy(enemy, damage, element, originX, originY);
+                    enemy.applySlow(0.45, Math.max(2.5, definition.getDuration()));
+                }
+                applyDamageReduction(0.75, Math.min(4.0, Math.max(1.0, definition.getDuration())));
+                addAbilityVisual(definition, originX, originY, effectX, effectY, radius, color, 0.75);
+            }
+            case STUN -> {
+                for (Enemy enemy : enemiesInRadius(effectX, effectY, radius)) {
+                    damageEnemy(enemy, damage, element, originX, originY);
+                    enemy.applyStun(Math.max(0.8, definition.getDuration()));
+                }
+                addAbilityVisual(definition, originX, originY, effectX, effectY, radius, color, 0.55);
+            }
+            case DASH -> {
+                double beforeX = player.getWorldX();
+                double beforeY = player.getWorldY();
+                dashPlayer(definition.getDuration());
+                damageEnemiesInRadius(player.getWorldX(), player.getWorldY(), radius, damage, true, element);
+                addAbilityVisual(definition, beforeX, beforeY, player.getWorldX(), player.getWorldY(), radius, color, 0.55);
+            }
+            case HEAL -> {
+                player.heal(damage);
+                addFloatingText("+" + (int) Math.round(damage), originX, originY - 42, new Color(120, 255, 150));
+                abilityManager.restoreMana(damage * 0.25);
+                if (radius > 0.0) {
+                    damageEnemiesInRadius(originX, originY, radius, damage * 0.65, false, element);
+                }
+                addAbilityVisual(definition, originX, originY, originX, originY, Math.max(90, radius), color, 0.75);
+            }
+            case SHIELD -> {
+                applyDamageReduction(0.35, Math.max(3.0, definition.getDuration()));
+                if (damage > 0.0) {
+                    player.heal(damage);
+                    addFloatingText("+" + (int) Math.round(damage), originX, originY - 42, new Color(120, 255, 150));
+                }
+                addAbilityVisual(definition, originX, originY, originX, originY, 150, color, 0.9);
+            }
+            case BUFF -> {
+                applyDamageBoost(1.45, Math.max(4.0, definition.getDuration()));
+                if (definition.getAbilityClass() == AbilityClass.PRIEST) {
+                    abilityManager.boostManaRegen(Math.max(4.0, definition.getDuration()), 1.8);
+                }
+                if (definition.getAbilityClass() == AbilityClass.WARLOCK) {
+                    player.takeDamage(5.0);
+                    addFloatingText("-5", originX, originY - 42, new Color(220, 60, 90));
+                }
+                addAbilityVisual(definition, originX, originY, originX, originY, 130, color, 0.75);
+            }
+            case MARK -> {
+                for (Enemy enemy : enemiesInRadius(effectX, effectY, radius)) {
+                    damageEnemy(enemy, damage, element, originX, originY);
+                    enemy.applyMark(1.45, Math.max(4.0, definition.getDuration()));
+                }
+                addAbilityVisual(definition, originX, originY, effectX, effectY, radius, color, 0.75);
+            }
+            case EXECUTE -> {
+                for (Enemy enemy : enemiesInRadius(effectX, effectY, radius)) {
+                    damageEnemy(enemy, enemy.getHealthRatio() <= 0.35 ? 9999.0 : damage,
+                            element, originX, originY);
+                }
+                addAbilityVisual(definition, originX, originY, effectX, effectY, radius, color, 0.7);
+            }
+            case SUMMON -> {
+                damageEnemiesInRadius(effectX, effectY, radius, damage, true, element);
+                for (Enemy enemy : enemiesInRadius(effectX, effectY, radius)) {
+                    enemy.applyMark(1.25, Math.max(3.0, definition.getDuration()));
+                }
+                addAbilityVisual(definition, originX, originY, effectX, effectY, radius, color, 1.0);
+            }
+            case ULTIMATE -> {
+                damageEnemiesInRadius(originX, originY, radius, damage, true, element);
+                for (Enemy enemy : enemiesInRadius(originX, originY, radius)) {
+                    enemy.applySlow(0.35, Math.max(3.0, definition.getDuration()));
+                    enemy.applyPoison(Math.max(1.0, damage * 0.12), Math.max(2.0, definition.getDuration()));
+                }
+                if (definition.getAbilityClass() == AbilityClass.BLACK_KNIGHT) {
+                    applyDamageReduction(0.25, Math.max(4.0, definition.getDuration()));
+                }
+                addAbilityVisual(definition, originX, originY, originX, originY, radius, color, 1.2);
+            }
+            default -> {
+            }
+        }
+        createAbilityBurst(originX, originY);
+    }
+
+    private void damageEnemiesInRadius(double worldX, double worldY, double radius,
+            double damage, boolean knockback) {
+        damageEnemiesInRadius(worldX, worldY, radius, damage, knockback, DamageElement.PHYSICAL);
+    }
+
+    private void damageEnemiesInRadius(double worldX, double worldY, double radius,
+            double damage, boolean knockback, DamageElement element) {
+        for (Enemy enemy : enemiesInRadius(worldX, worldY, radius)) {
+            damageEnemy(enemy, damage, element, worldX, worldY);
+            if (knockback) {
+                enemy.knockAwayFrom(worldX, worldY, element == DamageElement.EXPLOSION ? 46.0 : 28.0);
+            }
+        }
+    }
+
+    private void damageEnemy(Enemy enemy, double damage) {
+        damageEnemy(enemy, damage, DamageElement.PHYSICAL, player.getWorldX(), player.getWorldY());
+    }
+
+    private void damageEnemy(Enemy enemy, double damage, DamageElement element,
+            double originX, double originY) {
+        if (enemy == null || enemy.isDead()) {
+            return;
+        }
+        double visibleDamage = Math.min(999, Math.max(1, Math.round(damage)));
+        enemy.takeDamage(damage, element, originX, originY);
+        addFloatingText(String.valueOf((int) visibleDamage), enemy.getWorldX(),
+                enemy.getWorldY() - enemy.getCollisionRadius(), new Color(255, 220, 120));
+        if (enemy.isDead()) {
+            if (enemy instanceof TemplateEnemy3 bossEnemy && !bossEnemy.hasSummonedMinions()) {
+                enemies.addAll(bossEnemy.createSummons(enemy.getWorldX(), enemy.getWorldY(), random));
+            }
+            dropGem(enemy);
+        }
+    }
+
+    private List<Enemy> enemiesInRadius(double worldX, double worldY, double radius) {
+        List<Enemy> matching = new ArrayList<>();
+        double radiusSquared = radius * radius;
+        for (Enemy enemy : enemies) {
+            if (!enemy.isDead() && enemy.distanceSquaredTo(worldX, worldY) <= radiusSquared) {
+                matching.add(enemy);
+            }
+        }
+        return matching;
+    }
+
+    private void dashPlayer(double requestedDuration) {
+        double directionX = player.getRecentMoveX();
+        double directionY = player.getRecentMoveY();
+        double length = Math.hypot(directionX, directionY);
+        if (length <= 0.0001) {
+            directionX = 1.0;
+            directionY = 0.0;
+            length = 1.0;
+        }
+        double distance = requestedDuration <= 0.0 ? 95.0 : 160.0;
+        player.moveWorld(directionX / length * distance, directionY / length * distance);
+    }
+
+    private void applyDamageReduction(double multiplier, double duration) {
+        damageReductionMultiplier = Math.min(damageReductionMultiplier, multiplier);
+        damageReductionTimer = Math.max(damageReductionTimer, duration);
+    }
+
+    private void applyDamageBoost(double multiplier, double duration) {
+        damageBoostMultiplier = Math.max(damageBoostMultiplier, multiplier);
+        damageBoostTimer = Math.max(damageBoostTimer, duration);
+    }
+
+    private void addAbilityVisual(AbilityDefinition definition, double startX,
+            double startY, double targetX, double targetY, double radius,
+            Color color, double maxLife) {
+        abilityVisualEffects.add(new AbilityVisualEffect(definition, startX, startY,
+                targetX, targetY, radius, color, maxLife));
+    }
+
+    private void triggerCastFeedback(AbilityDefinition definition) {
+        if (soundEnabled) {
+            AbilitySoundPlayer.play(definition);
+        }
+        double shake = switch (definition.getEffectType()) {
+            case ULTIMATE -> 10.0;
+            case EXECUTE, SUMMON -> 7.0;
+            case AREA_DAMAGE, STUN, DASH -> 5.0;
+            default -> 2.5;
+        };
+        double stop = switch (definition.getEffectType()) {
+            case ULTIMATE -> 0.12;
+            case EXECUTE -> 0.1;
+            case SINGLE_TARGET, AREA_DAMAGE, STUN -> 0.06;
+            default -> 0.035;
+        };
+        addScreenShake(0.2, shake);
+        hitStopRemaining = Math.max(hitStopRemaining, stop);
+    }
+
+    private void addFloatingText(String text, double worldX, double worldY, Color color) {
+        floatingTexts.add(new FloatingText(text, worldX, worldY, color));
+        if (floatingTexts.size() > 48) {
+            floatingTexts.removeFirst();
+        }
+    }
+
+    private void addScreenShake(double duration, double strength) {
+        screenShakeDuration = Math.max(screenShakeDuration, duration);
+        screenShakeTime = Math.max(screenShakeTime, duration);
+        screenShakeStrength = Math.max(screenShakeStrength, strength);
+    }
+
+    public int getScreenShakeOffsetX() {
+        if (screenShakeTime <= 0.0 || screenShakeDuration <= 0.0) {
+            return 0;
+        }
+        double strength = screenShakeStrength * (screenShakeTime / screenShakeDuration);
+        return (int) Math.round(Math.sin(screenShakeTime * 83.0) * strength);
+    }
+
+    public int getScreenShakeOffsetY() {
+        if (screenShakeTime <= 0.0 || screenShakeDuration <= 0.0) {
+            return 0;
+        }
+        double strength = screenShakeStrength * (screenShakeTime / screenShakeDuration);
+        return (int) Math.round(Math.cos(screenShakeTime * 71.0) * strength);
+    }
+
+    public void showManaSpent(AbilityDefinition definition) {
+        manaPulseTime = 0.18;
+        manaPulseColor = new Color(90, 190, 255);
+        addFloatingText("-" + (int) definition.getManaCost() + " MP",
+                player.getWorldX(), player.getWorldY() - 64, new Color(100, 190, 255));
+    }
+
+    public void showAbilityDenied(AbilityDefinition definition) {
+        manaPulseTime = 0.22;
+        manaPulseColor = new Color(255, 85, 95);
+        addFloatingText("NO MANA", player.getWorldX(), player.getWorldY() - 64,
+                new Color(255, 95, 105));
+    }
+
+    public Color getManaPulseColor() {
+        return manaPulseTime > 0.0 ? manaPulseColor : new Color(75, 170, 255);
+    }
+
+    private Color colorFor(AbilityDefinition definition) {
+        return switch (definition.getAbilityClass()) {
+            case ASSASSIN -> new Color(130, 70, 210);
+            case BLACK_KNIGHT -> new Color(190, 45, 55);
+            case PRIEST -> new Color(255, 230, 120);
+            case RANGER -> new Color(90, 220, 120);
+            case WARLOCK -> new Color(150, 65, 210);
+            case ELEMENTALIST -> new Color(90, 190, 255);
+        };
+    }
+
+    private DamageElement elementFor(AbilityDefinition definition) {
+        String id = definition.getId();
+        if (id.contains("fire") || id.contains("flame") || id.contains("meteor")) {
+            return DamageElement.FIRE;
+        }
+        if (id.contains("explosive") || id.contains("cataclysm") || id.contains("apocalypse")) {
+            return DamageElement.EXPLOSION;
+        }
+        if (id.contains("ice") || id.contains("frost") || id.contains("blizzard")) {
+            return DamageElement.ICE;
+        }
+        if (id.contains("lightning") || id.contains("thunder")) {
+            return DamageElement.LIGHTNING;
+        }
+        if (id.contains("poison") || id.contains("venom")) {
+            return DamageElement.POISON;
+        }
+        if (id.contains("holy") || id.contains("divine") || id.contains("heal")
+                || id.contains("blessing") || id.contains("prayer")
+                || id.contains("sanctuary") || id.contains("resurrection")
+                || id.contains("purify")) {
+            return DamageElement.HOLY;
+        }
+        if (definition.getAbilityClass() == AbilityClass.ASSASSIN
+                || definition.getAbilityClass() == AbilityClass.WARLOCK
+                || id.contains("dark") || id.contains("shadow") || id.contains("soul")
+                || id.contains("curse") || id.contains("fear")) {
+            return DamageElement.SHADOW;
+        }
+        return DamageElement.PHYSICAL;
     }
 }
