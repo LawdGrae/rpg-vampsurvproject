@@ -331,6 +331,9 @@ public abstract class Enemy {
             case HOLY -> drawHolyDeath(graphics, centerX, centerY, progress, alpha);
             default -> drawPhysicalDeath(graphics, centerX, centerY, progress, alpha);
         }
+        if (this instanceof TemplateEnemy3) {
+            drawBossDeath(graphics, centerX, centerY, progress, alpha);
+        }
     }
 
     private void updateStatusEffects(double deltaTime) {
@@ -436,6 +439,24 @@ public abstract class Enemy {
         graphics.setColor(new Color(255, 245, 180, Math.min(190, alpha)));
         graphics.fillRect(x - renderSize / 5, y - renderSize, renderSize / 3, renderSize);
         drawFragments(graphics, x, y, new Color(255, 245, 180), progress, alpha, 10);
+    }
+
+    private void drawBossDeath(Graphics2D graphics, int x, int y, double progress, int alpha) {
+        int pulse = (int) Math.round(renderSize * (0.6 + progress * 1.35));
+        graphics.setStroke(new BasicStroke(8f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        graphics.setColor(new Color(255, 80, 120, Math.min(180, alpha)));
+        graphics.drawOval(x - pulse / 2, y - pulse / 2, pulse, pulse);
+        graphics.setColor(new Color(170, 70, 255, Math.min(180, alpha)));
+        for (int index = 0; index < 18; index++) {
+            double angle = Math.PI * 2.0 * index / 18.0;
+            int inner = (int) (renderSize * 0.25);
+            int outer = (int) (renderSize * (0.45 + progress));
+            graphics.drawLine((int) (x + Math.cos(angle) * inner),
+                    (int) (y + Math.sin(angle) * inner),
+                    (int) (x + Math.cos(angle) * outer),
+                    (int) (y + Math.sin(angle) * outer));
+        }
+        drawFragments(graphics, x, y, new Color(210, 90, 255), progress, alpha, 20);
     }
 
     private void drawFragments(Graphics2D graphics, int x, int y, Color color,
