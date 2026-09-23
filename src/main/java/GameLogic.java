@@ -1,5 +1,6 @@
 import java.awt.Color;
 import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -73,6 +74,11 @@ public class GameLogic {
     private boolean bossDefeated;
     private boolean eliteBossSpawned;
     private double eliteBossSpawnTime;
+    private boolean finalBossSpawned;
+    private double finalBossSpawnTime;
+    private double finalBossPulseTimer;
+    private double finalBossLaserTimer;
+    private double finalBossWallTimer;
     private int level = 1;
     private int exp = 0;
     private int expToNextLevel = 10;
@@ -139,11 +145,13 @@ public class GameLogic {
 
         gameTimer += deltaTime;
         checkBossSpawns();
+        updateFinalBossScript(deltaTime);
 
         // Start small and ramp up the wave size over time instead of instantly
         // surrounding the player with a full ring at startup.
         boolean bossWaveActive = (bossSpawned && !bossDefeated) ||
-                (eliteBossSpawned && hasEliteBossAlive());
+                (eliteBossSpawned && hasEliteBossAlive()) ||
+                (finalBossSpawned && hasFinalBossAlive());
         if (!bossWaveActive) {
             while (gameTimer >= whenToSpawn) {
                 int enemiesToSpawn = getSpawnBatchSize();
@@ -173,6 +181,11 @@ public class GameLogic {
             if (enemy instanceof BossEnemy boss && boss.shouldSummon()) {
                 enemies.addAll(boss.createSummons(boss.getWorldX(), boss.getWorldY(), random));
                 boss.resetSummonCooldown();
+            }
+
+            if (enemy instanceof FinalBossEnemy finalBoss && finalBoss.shouldSummon()) {
+                enemies.addAll(finalBoss.createMinions(random, player.getWorldX(), player.getWorldY()));
+                finalBoss.resetSummonCooldown();
             }
 
             if (enemy instanceof EliteBossEnemy eliteBoss && eliteBoss.shouldApplyDebuff()) {
@@ -565,6 +578,12 @@ public class GameLogic {
     }
 
     private void updateSecretJpgs(double deltaTime) {
+        if (isBossWaveActive()) {
+            secretJpgs.clear();
+            secretCycleTimer = 0.0;
+            return;
+        }
+
         for (SecretJpg secretJpg : secretJpgs) {
             secretJpg.update(deltaTime);
         }
@@ -589,6 +608,139 @@ public class GameLogic {
                 : new SecretJpg(secretX, secretY);
         secretJpgs.add(secret);
         secretCycleAlternate = !secretCycleAlternate;
+    }
+
+    private boolean isBossWaveActive() {
+        return (bossSpawned && !bossDefeated)
+                || (eliteBossSpawned && hasEliteBossAlive())
+                || (finalBossSpawned && hasFinalBossAlive());
+    }
+
+    private void updateFinalBossScript(double deltaTime) {
+        FinalBossEnemy finalBoss = getAliveFinalBoss();
+        if (finalBoss == null) {
+            return;
+        }
+
+        if (finalBoss.isSplitState()) {
+            finalBossPulseTimer += deltaTime;
+            finalBossLaserTimer += deltaTime;
+            finalBossWallTimer += deltaTime;
+
+            if (finalBossPulseTimer >= 1.4) {
+                finalBossPulseTimer = 0.0;
+                spawnFinalBossSplitBurst(finalBoss);
+            }
+            if (finalBossLaserTimer >= 3.0) {
+                finalBossLaserTimer = 0.0;
+                spawnThinRealLaser(finalBoss);
+            }
+            if (finalBossWallTimer >= 8.0) {
+                finalBossWallTimer = 0.0;
+                triggerFinalBossWallLock(finalBoss);
+            }
+            return;
+        }
+
+        finalBossPulseTimer += deltaTime;
+        finalBossLaserTimer += deltaTime;
+        finalBossWallTimer += deltaTime;
+
+        if (finalBossPulseTimer >= 3.2) {
+            finalBossPulseTimer = 0.0;
+            spawnFinalBossBurst(finalBoss);
+        }
+        if (finalBossLaserTimer >= 6.4) {
+            finalBossLaserTimer = 0.0;
+            spawnFinalBossLaser(finalBoss);
+        }
+        if (finalBossWallTimer >= 11.5) {
+            finalBossWallTimer = 0.0;
+            triggerFinalBossWallLock(finalBoss);
+        }
+    }
+
+    private FinalBossEnemy getAliveFinalBoss() {
+        for (Enemy enemy : enemies) {
+            if (enemy instanceof FinalBossEnemy finalBoss && !finalBoss.isDead()) {
+                return finalBoss;
+            }
+        }
+        return null;
+    }
+
+    private void spawnFinalBossBurst(FinalBossEnemy boss) {
+        double bossX = boss.getWorldX();
+        double bossY = boss.getWorldY();
+        BufferedImage projectileSprite = ResourceLoader.loadImage("/main/resources/projectiles/LASER.png");
+
+        for (int index = 0; index < 12; index++) {
+            double angle = (Math.PI * 2.0 * index / 12.0) + random.nextDouble() * 0.32;
+            double targetX = player.getWorldX() + Math.cos(angle) * 220.0;
+            double targetY = player.getWorldY() + Math.sin(angle) * 220.0;
+            Projectile shot = new Projectile(bossX, bossY, targetX, targetY,
+                    220.0, 14.0, 12.0, projectileSprite, 10.0);
+            shot.setOwner(boss);
+            enemyProjectiles.add(shot);
+        }
+    }
+
+    private void spawnFinalBossLaser(FinalBossEnemy boss) {
+        double targetX = player.getWorldX();
+        double targetY = player.getWorldY();
+        BufferedImage projectileSprite = ResourceLoader.loadImage("/main/resources/projectiles/LASER.png");
+        Projectile laser = new Projectile(boss.getWorldX(), boss.getWorldY(), targetX, targetY,
+                310.0, 22.0, 14.0, projectileSprite, 14.0);
+        laser.setOwner(boss);
+        enemyProjectiles.add(laser);
+    }
+
+    private void spawnFinalBossSplitBurst(FinalBossEnemy boss) {
+        BufferedImage projectileSprite = ResourceLoader.loadImage("/main/resources/projectiles/LASER.png");
+        double[][] clones = {
+                {boss.getWorldX(), boss.getWorldY()},
+                {boss.getWorldX() - 100.0, boss.getWorldY() - 20.0},
+                {boss.getWorldX() + 110.0, boss.getWorldY() + 18.0}
+        };
+
+        for (double[] clone : clones) {
+            for (int index = 0; index < 8; index++) {
+                double angle = (Math.PI * 2.0 * index / 8.0) + random.nextDouble() * 0.25;
+                double targetX = clone[0] + Math.cos(angle) * 180.0;
+                double targetY = clone[1] + Math.sin(angle) * 180.0;
+                Projectile fakeShot = new Projectile(clone[0], clone[1], targetX, targetY,
+                        210.0, 0.0, 8.0, projectileSprite, 12.0);
+                fakeShot.setOwner(boss);
+                enemyProjectiles.add(fakeShot);
+            }
+        }
+    }
+
+    private void spawnThinRealLaser(FinalBossEnemy boss) {
+        double targetX = player.getWorldX();
+        double targetY = player.getWorldY();
+        BufferedImage projectileSprite = ResourceLoader.loadImage("/main/resources/projectiles/LASER.png");
+        Projectile laser = new Projectile(boss.getWorldX(), boss.getWorldY(), targetX, targetY,
+                340.0, 16.0, 5.0, projectileSprite, 18.0);
+        laser.setOwner(boss);
+        enemyProjectiles.add(laser);
+    }
+
+    private void triggerFinalBossWallLock(FinalBossEnemy boss) {
+        player.applyMovementLock(2.2);
+        player.applyAimLock(2.2);
+        double baseX = player.getWorldX();
+        double baseY = player.getWorldY();
+        BufferedImage projectileSprite = ResourceLoader.loadImage("/main/resources/projectiles/LASER.png");
+        for (int index = 0; index < 14; index++) {
+            double angle = (Math.PI * 2.0 * index / 14.0);
+            double targetX = baseX + Math.cos(angle) * 180.0;
+            double targetY = baseY + Math.sin(angle) * 180.0;
+            Projectile wallShot = new Projectile(boss.getWorldX(), boss.getWorldY(), targetX, targetY,
+                    190.0, 18.0, 10.0, projectileSprite, 12.0);
+            wallShot.setOwner(boss);
+            enemyProjectiles.add(wallShot);
+        }
     }
 
     private Enemy getRandomEnemyNearPlayer() {
@@ -679,6 +831,15 @@ public class GameLogic {
                         player.getWorldY() - SPAWN_RADIUS * 0.25));
             }
         }
+
+        if (eliteBossSpawned && !hasEliteBossAlive() && !finalBossSpawned
+                && gameTimer >= eliteBossSpawnTime + 180.0) {
+            finalBossSpawned = true;
+            finalBossSpawnTime = gameTimer;
+            resetSpawnCadence();
+            clearEnemiesForBossWave();
+            spawnBoss(new FinalBossEnemy(player.getWorldX(), player.getWorldY()));
+        }
     }
 
     private void resetSpawnCadence() {
@@ -704,11 +865,26 @@ public class GameLogic {
         return false;
     }
 
+    private boolean hasFinalBossAlive() {
+        for (Enemy enemy : enemies) {
+            if (enemy instanceof FinalBossEnemy && !enemy.isDead()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void clearEnemiesForBossWave() {
         Iterator<Enemy> enemyIterator = enemies.iterator();
         while (enemyIterator.hasNext()) {
             Enemy enemy = enemyIterator.next();
-            if (!(enemy instanceof BossEnemy) && !(enemy instanceof TemplateEnemyMinion)) {
+            if (!(enemy instanceof BossEnemy)
+                    && !(enemy instanceof EliteBossEnemy)
+                    && !(enemy instanceof FinalBossEnemy)
+                    && !(enemy instanceof TemplateEnemyMinion)
+                    && !(enemy instanceof BlueFinalMinion)
+                    && !(enemy instanceof GreenFinalMinion)
+                    && !(enemy instanceof RedFinalMinion)) {
                 enemyIterator.remove();
             }
         }
@@ -860,6 +1036,11 @@ public class GameLogic {
         bossDefeated = false;
         eliteBossSpawned = false;
         eliteBossSpawnTime = 0.0;
+        finalBossSpawned = false;
+        finalBossSpawnTime = 0.0;
+        finalBossPulseTimer = 0.0;
+        finalBossLaserTimer = 0.0;
+        finalBossWallTimer = 0.0;
         gameTimer = 0.0;
         repositionTimer = 0.0;
         level = 1;
