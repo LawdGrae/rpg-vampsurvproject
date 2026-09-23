@@ -11,7 +11,7 @@ public class WeaponDirectionSmokeTest {
             throw new IllegalStateException("Recent movement y should remain aligned with the last movement direction");
         }
 
-        TemplateWeapon weapon = new TemplateWeapon();
+        AutoFireWeapon weapon = new AutoFireWeapon();
         Projectile projectile = weapon.update(0.1, 0.0, 0.0,
                 player.getRecentMoveX(), player.getRecentMoveY());
         if (projectile == null) {
