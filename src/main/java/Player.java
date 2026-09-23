@@ -29,6 +29,10 @@ public abstract class Player {
     private double recentMoveX = 1.0;
     private double recentMoveY = 0.0;
     private boolean hasRecentMove;
+    private boolean movementLocked;
+    private boolean aimLocked;
+    private double movementLockTime;
+    private double aimLockTime;
 
     protected Player(String spritePath, double speed, double animationSpeed,
             int spriteScale, int spriteWidth, int spriteHeight, double maxHealth) {
@@ -62,8 +66,25 @@ public abstract class Player {
             slowMultiplier = 1.0;
         }
 
+        if (movementLockTime > 0.0) {
+            movementLockTime = Math.max(0.0, movementLockTime - deltaTime);
+            if (movementLockTime <= 0.0) {
+                movementLocked = false;
+            }
+        }
+        if (aimLockTime > 0.0) {
+            aimLockTime = Math.max(0.0, aimLockTime - deltaTime);
+            if (aimLockTime <= 0.0) {
+                aimLocked = false;
+            }
+        }
+
         int horizontal = horizontalInput();
         int vertical = verticalInput();
+        if (movementLocked) {
+            horizontal = 0;
+            vertical = 0;
+        }
 
         // Sprite rows: 0 = up, 1 = right, 2 = down, 3 = left.
         if (vertical < 0) {
@@ -97,6 +118,24 @@ public abstract class Player {
     public void applySlow(double duration, double multiplier) {
         slowTime = Math.max(slowTime, duration);
         slowMultiplier = Math.min(slowMultiplier, multiplier);
+    }
+
+    public void applyMovementLock(double duration) {
+        movementLocked = true;
+        movementLockTime = Math.max(movementLockTime, duration);
+    }
+
+    public void applyAimLock(double duration) {
+        aimLocked = true;
+        aimLockTime = Math.max(aimLockTime, duration);
+    }
+
+    public boolean isMovementLocked() {
+        return movementLocked || movementLockTime > 0.0;
+    }
+
+    public boolean isAimLocked() {
+        return aimLocked || aimLockTime > 0.0;
     }
 
     public double getWorldOffsetX() {

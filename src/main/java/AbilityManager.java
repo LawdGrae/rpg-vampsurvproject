@@ -15,6 +15,7 @@ public class AbilityManager {
     private double mana = MAX_MANA;
     private double manaRegenMultiplier = 1.0;
     private double manaRegenBoostTime;
+    private double manaLockTimer;
     private int selectedEquipSlot;
 
     public AbilityManager() {
@@ -25,14 +26,19 @@ public class AbilityManager {
     }
 
     public void update(double deltaTime) {
-        if (manaRegenBoostTime > 0.0) {
-            manaRegenBoostTime = Math.max(0.0, manaRegenBoostTime - deltaTime);
-            if (manaRegenBoostTime <= 0.0) {
-                manaRegenMultiplier = 1.0;
-            }
+        if (manaLockTimer > 0.0) {
+            manaLockTimer = Math.max(0.0, manaLockTimer - deltaTime);
         }
-        mana = Math.min(MAX_MANA,
-                mana + MANA_REGEN_PER_SECOND * manaRegenMultiplier * deltaTime);
+        if (manaLockTimer <= 0.0) {
+            if (manaRegenBoostTime > 0.0) {
+                manaRegenBoostTime = Math.max(0.0, manaRegenBoostTime - deltaTime);
+                if (manaRegenBoostTime <= 0.0) {
+                    manaRegenMultiplier = 1.0;
+                }
+            }
+            mana = Math.min(MAX_MANA,
+                    mana + MANA_REGEN_PER_SECOND * manaRegenMultiplier * deltaTime);
+        }
         for (RpgAbility ability : abilities) {
             ability.update(deltaTime);
         }
@@ -106,11 +112,25 @@ public class AbilityManager {
         return MAX_MANA;
     }
 
+    public boolean isManaLocked() {
+        return manaLockTimer > 0.0;
+    }
+
+    public void lockMana(double duration) {
+        manaLockTimer = Math.max(manaLockTimer, duration);
+    }
+
     public void spendMana(double amount) {
+        if (manaLockTimer > 0.0) {
+            return;
+        }
         mana = Math.max(0.0, mana - amount);
     }
 
     public void restoreMana(double amount) {
+        if (manaLockTimer > 0.0) {
+            return;
+        }
         mana = Math.min(MAX_MANA, mana + amount);
     }
 

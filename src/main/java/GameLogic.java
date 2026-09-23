@@ -21,11 +21,18 @@ public class GameLogic {
     private static final double GEM_COLLECTION_RADIUS = 18.0;
     private static final double GEM_ACCELERATION = 340.0;
     private static final double GEM_MAX_SPEED = 260.0;
+    private static final int MAX_SECRET_JPGS = 3;
+    private static final double SECRET_SPAWN_INTERVAL = 12.0;
+    private static final double FIRST_BOSS_SPAWN_TIME = 200.0;
+    private static final double ELITE_BOSS_DELAY_AFTER_BOSS = 180.0;
     private static final int LEVEL_UP_EXP_BONUS = 6;
 
     private Player player;
     private final List<Enemy> enemies = new ArrayList<>();
     private final List<Gem> gems = new ArrayList<>();
+    private final List<SecretJpg> secretJpgs = new ArrayList<>();
+    private boolean secretCycleAlternate;
+    private double secretCycleTimer;
     private final Weapon weapon = new TemplateWeapon();
     private final Ability legacyAbility = new TemplateAbility();
     private final AbilityManager abilityManager = new AbilityManager();
@@ -61,6 +68,11 @@ public class GameLogic {
     private double whenToSpawn = INITIAL_SPAWN_DELAY;
     private double gameTimer;
     private double repositionTimer;
+    private double secretSpawnTimer;
+    private boolean bossSpawned;
+    private boolean bossDefeated;
+    private boolean eliteBossSpawned;
+    private double eliteBossSpawnTime;
     private int level = 1;
     private int exp = 0;
     private int expToNextLevel = 10;
@@ -123,20 +135,27 @@ public class GameLogic {
         updateAbilityVisualEffects(deltaTime);
         updateFloatingTexts(deltaTime);
         updateFeedback(deltaTime);
+        updateSecretJpgs(deltaTime);
+
+        gameTimer += deltaTime;
+        checkBossSpawns();
 
         // Start small and ramp up the wave size over time instead of instantly
         // surrounding the player with a full ring at startup.
-        gameTimer += deltaTime;
-        while (gameTimer >= whenToSpawn) {
-            int enemiesToSpawn = getSpawnBatchSize();
-            spawnFixed(enemiesToSpawn);
-            whenToSpawn += getSpawnInterval();
-        }
-        if (!spawnQueue.isEmpty()) {
-            spawnQueue.sort(Double::compareTo);
-            while (gameTimer >= spawnQueue.getFirst()) {
-                spawnQueue.removeFirst();
-                spawnOne();
+        boolean bossWaveActive = (bossSpawned && !bossDefeated) ||
+                (eliteBossSpawned && hasEliteBossAlive());
+        if (!bossWaveActive) {
+            while (gameTimer >= whenToSpawn) {
+                int enemiesToSpawn = getSpawnBatchSize();
+                spawnFixed(enemiesToSpawn);
+                whenToSpawn += getSpawnInterval();
+            }
+            if (!spawnQueue.isEmpty()) {
+                spawnQueue.sort(Double::compareTo);
+                while (gameTimer >= spawnQueue.getFirst()) {
+                    spawnQueue.removeFirst();
+                    spawnOne();
+                }
             }
         }
 
@@ -151,12 +170,27 @@ public class GameLogic {
             enemy.update(deltaTime, player.getWorldX(), player.getWorldY(),
                     player.getCollisionRadius());
 
+            if (enemy instanceof BossEnemy boss && boss.shouldSummon()) {
+                enemies.addAll(boss.createSummons(boss.getWorldX(), boss.getWorldY(), random));
+                boss.resetSummonCooldown();
+            }
+
+            if (enemy instanceof EliteBossEnemy eliteBoss && eliteBoss.shouldApplyDebuff()) {
+                eliteBoss.applyBreakEffects(player, abilityManager);
+            }
+
             // Damage is time-based, so the amount does not depend on frame rate.
             if (enemy.isCollidingWith(player.getWorldX(), player.getWorldY(),
                     player.getCollisionRadius())) {
-                if (enemy instanceof TemplateEnemyMinion) {
+                if (enemy instanceof TemplateEnemyMinion minion) {
+                    player.takeDamage(minion.getDamage() * deltaTime * damageReductionMultiplier);
                     player.applySlow(TemplateEnemyMinion.SLOW_DURATION,
                             TemplateEnemyMinion.SLOW_MULTIPLIER);
+                    if (minion.shouldExplodeOnContact(player.getWorldX(), player.getWorldY(),
+                            player.getCollisionRadius())) {
+                        triggerMinionExplosion(minion);
+                        continue;
+                    }
                 } else {
                     player.takeDamage(enemy.getDamage() * deltaTime * damageReductionMultiplier);
                 }
@@ -175,9 +209,12 @@ public class GameLogic {
         if (target == null) {
             target = findNearestLivingEnemyInRange(SHOOT_RANGE);
         }
-        Projectile projectile = weapon.update(deltaTime, player.getWorldX(),
-                player.getWorldY(), target,
-                player.getRecentMoveX(), player.getRecentMoveY());
+        Projectile projectile = null;
+        if (!player.isAimLocked()) {
+            projectile = weapon.update(deltaTime, player.getWorldX(),
+                    player.getWorldY(), target,
+                    player.getRecentMoveX(), player.getRecentMoveY());
+        }
         if (projectile != null) {
             projectiles.add(projectile);
         }
@@ -215,6 +252,24 @@ public class GameLogic {
                     10.0 + random.nextDouble() * 20.0,
                     0.8 + random.nextDouble() * 0.8));
         }
+    }
+
+    private void triggerMinionExplosion(TemplateEnemyMinion minion) {
+        double explosionX = minion.getWorldX();
+        double explosionY = minion.getWorldY();
+        for (int index = 0; index < 18; index++) {
+            double angle = (Math.PI * 2.0 * index) / 18.0 + random.nextDouble() * 0.8;
+            double speed = 60.0 + random.nextDouble() * 120.0;
+            explosionParticles.add(new ExplosionParticle(
+                    explosionX,
+                    explosionY,
+                    Math.cos(angle) * speed,
+                    Math.sin(angle) * speed,
+                    8.0 + random.nextDouble() * 12.0,
+                    0.5 + random.nextDouble() * 0.6));
+        }
+        player.takeDamage(minion.getExplosionDamage());
+        minion.takeDamage(Double.MAX_VALUE);
     }
 
     private void updateGameOver(double deltaTime) {
@@ -509,6 +564,46 @@ public class GameLogic {
         }
     }
 
+    private void updateSecretJpgs(double deltaTime) {
+        for (SecretJpg secretJpg : secretJpgs) {
+            secretJpg.update(deltaTime);
+        }
+
+        if (!secretJpgs.isEmpty()) {
+            return;
+        }
+
+        secretCycleTimer += deltaTime;
+        if (secretCycleTimer < 3.5) {
+            return;
+        }
+
+        secretCycleTimer = 0.0;
+        double angle = random.nextDouble() * Math.PI * 2.0;
+        double distance = 160.0 + random.nextDouble() * 260.0;
+        double secretX = player.getWorldX() + Math.cos(angle) * distance;
+        double secretY = player.getWorldY() + Math.sin(angle) * distance;
+
+        SecretJpg secret = secretCycleAlternate
+                ? new SecretJpg2(secretX, secretY)
+                : new SecretJpg(secretX, secretY);
+        secretJpgs.add(secret);
+        secretCycleAlternate = !secretCycleAlternate;
+    }
+
+    private Enemy getRandomEnemyNearPlayer() {
+        List<Enemy> candidates = new ArrayList<>();
+        for (Enemy enemy : enemies) {
+            if (!enemy.isDead() && enemy.distanceSquaredTo(player.getWorldX(), player.getWorldY()) < 700.0 * 700.0) {
+                candidates.add(enemy);
+            }
+        }
+        if (candidates.isEmpty()) {
+            return null;
+        }
+        return candidates.get(random.nextInt(candidates.size()));
+    }
+
     private void refreshUpgradeChoices() {
         upgradeChoices.clear();
         List<String> remainingUpgrades = new ArrayList<>(GENERIC_UPGRADE_NAMES);
@@ -552,6 +647,80 @@ public class GameLogic {
             refreshUpgradeChoices();
             upgradeMenuOpen = true;
         }
+    }
+
+    private void checkBossSpawns() {
+        if (!bossSpawned && gameTimer >= FIRST_BOSS_SPAWN_TIME) {
+            bossSpawned = true;
+            bossDefeated = false;
+            resetSpawnCadence();
+            clearEnemiesForBossWave();
+            spawnBoss(new BossEnemy(player.getWorldX() + SPAWN_RADIUS * 0.85,
+                    player.getWorldY() + SPAWN_RADIUS * 0.35));
+            return;
+        }
+
+        if (bossSpawned && !bossDefeated && !hasBossAlive()) {
+            bossDefeated = true;
+            player.heal(player.getMaxHealth() - player.getHealth());
+            resetSpawnCadence();
+            eliteBossSpawnTime = gameTimer + ELITE_BOSS_DELAY_AFTER_BOSS;
+        }
+
+        if (bossSpawned && bossDefeated && !eliteBossSpawned) {
+            if (player.getHealth() < player.getMaxHealth()) {
+                player.heal(player.getMaxHealth() - player.getHealth());
+            }
+            if (gameTimer >= eliteBossSpawnTime) {
+                eliteBossSpawned = true;
+                resetSpawnCadence();
+                clearEnemiesForBossWave();
+                spawnBoss(new EliteBossEnemy(player.getWorldX() - SPAWN_RADIUS * 0.75,
+                        player.getWorldY() - SPAWN_RADIUS * 0.25));
+            }
+        }
+    }
+
+    private void resetSpawnCadence() {
+        whenToSpawn = gameTimer + INITIAL_SPAWN_DELAY;
+        spawnQueue.clear();
+    }
+
+    private boolean hasBossAlive() {
+        for (Enemy enemy : enemies) {
+            if (enemy instanceof BossEnemy && !enemy.isDead()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean hasEliteBossAlive() {
+        for (Enemy enemy : enemies) {
+            if (enemy instanceof EliteBossEnemy && !enemy.isDead()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void clearEnemiesForBossWave() {
+        Iterator<Enemy> enemyIterator = enemies.iterator();
+        while (enemyIterator.hasNext()) {
+            Enemy enemy = enemyIterator.next();
+            if (!(enemy instanceof BossEnemy) && !(enemy instanceof TemplateEnemyMinion)) {
+                enemyIterator.remove();
+            }
+        }
+        projectiles.clear();
+        enemyProjectiles.clear();
+    }
+
+    private void spawnBoss(Enemy boss) {
+        if (boss == null || boss.isDead()) {
+            return;
+        }
+        enemies.add(boss);
     }
 
     public boolean isUpgradeMenuOpen() {
@@ -687,6 +856,10 @@ public class GameLogic {
         floatingTexts.clear();
         spawnQueue.clear();
         whenToSpawn = INITIAL_SPAWN_DELAY;
+        bossSpawned = false;
+        bossDefeated = false;
+        eliteBossSpawned = false;
+        eliteBossSpawnTime = 0.0;
         gameTimer = 0.0;
         repositionTimer = 0.0;
         level = 1;
@@ -971,6 +1144,10 @@ public class GameLogic {
         }
         for (Gem gem : gems) {
             gem.draw(graphics, centerX, centerY,
+                    getWorldOffsetX(), getWorldOffsetY());
+        }
+        for (SecretJpg secretJpg : secretJpgs) {
+            secretJpg.draw(graphics, centerX, centerY,
                     getWorldOffsetX(), getWorldOffsetY());
         }
         graphics.setColor(java.awt.Color.WHITE);
