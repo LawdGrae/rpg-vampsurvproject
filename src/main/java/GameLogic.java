@@ -32,7 +32,7 @@ public class GameLogic {
     private final List<Enemy> enemies = new ArrayList<>();
     private final List<Gem> gems = new ArrayList<>();
     private final List<SecretJpg> secretJpgs = new ArrayList<>();
-    private boolean secretCycleAlternate;
+    private int secretCycleIndex;
     private double secretCycleTimer;
     private final Weapon weapon = new TemplateWeapon();
     private final Ability legacyAbility = new TemplateAbility();
@@ -584,8 +584,13 @@ public class GameLogic {
             return;
         }
 
-        for (SecretJpg secretJpg : secretJpgs) {
+        for (Iterator<SecretJpg> iterator = secretJpgs.iterator(); iterator.hasNext();) {
+            SecretJpg secretJpg = iterator.next();
             secretJpg.update(deltaTime);
+            if (!secretJpg.isVisible()) {
+                iterator.remove();
+                secretCycleTimer = 0.0;
+            }
         }
 
         if (!secretJpgs.isEmpty()) {
@@ -593,21 +598,22 @@ public class GameLogic {
         }
 
         secretCycleTimer += deltaTime;
-        if (secretCycleTimer < 3.5) {
+        if (secretCycleTimer < 2.0) {
             return;
         }
 
         secretCycleTimer = 0.0;
         double angle = random.nextDouble() * Math.PI * 2.0;
-        double distance = 160.0 + random.nextDouble() * 260.0;
-        double secretX = player.getWorldX() + Math.cos(angle) * distance;
-        double secretY = player.getWorldY() + Math.sin(angle) * distance;
+        double offsetX = Math.cos(angle) * 6.0;
+        double offsetY = Math.sin(angle) * 6.0;
+        double secretX = player.getWorldX() + offsetX;
+        double secretY = player.getWorldY() + offsetY;
 
-        SecretJpg secret = secretCycleAlternate
-                ? new SecretJpg2(secretX, secretY)
-                : new SecretJpg(secretX, secretY);
+        SecretJpg secret = (secretCycleIndex % 2 == 0)
+                ? new SecretJpg(secretX, secretY)
+                : new SecretJpg2(secretX, secretY);
         secretJpgs.add(secret);
-        secretCycleAlternate = !secretCycleAlternate;
+        secretCycleIndex++;
     }
 
     private boolean isBossWaveActive() {
@@ -1026,12 +1032,14 @@ public class GameLogic {
         explosionParticles.clear();
         enemies.clear();
         gems.clear();
+        secretJpgs.clear();
         projectiles.clear();
         enemyProjectiles.clear();
         abilityVisualEffects.clear();
         floatingTexts.clear();
         spawnQueue.clear();
         whenToSpawn = INITIAL_SPAWN_DELAY;
+        secretCycleIndex = 0;
         bossSpawned = false;
         bossDefeated = false;
         eliteBossSpawned = false;
