@@ -89,7 +89,7 @@ public class GameLogic {
     private final List<ExplosionParticle> explosionParticles = new ArrayList<>();
 
     public GameLogic() {
-        player = new TemplateCharacter();
+        player = new TemplateCharacter ();
         refreshUpgradeChoices();
     }
 
