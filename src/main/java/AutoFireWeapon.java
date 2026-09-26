@@ -1,13 +1,13 @@
 import java.awt.image.BufferedImage;
 
-public class TemplateWeapon extends Weapon {
+public class AutoFireWeapon extends Weapon {
     private static final double FIRE_INTERVAL = 0.7;
     private static final double PROJECTILE_SPEED = 450.0;
     private static final double PROJECTILE_DAMAGE = 1.0;
     private static final double PROJECTILE_RADIUS = 6.0;
     private static final BufferedImage PROJECTILE_SPRITE = loadProjectileSprite();
 
-    public TemplateWeapon() {
+    public AutoFireWeapon() {
         super(FIRE_INTERVAL, PROJECTILE_SPEED, PROJECTILE_DAMAGE,
                 PROJECTILE_RADIUS, PROJECTILE_SPRITE);
     }

@@ -27,12 +27,13 @@ public class GameLogic {
     private Player player;
     private final List<Enemy> enemies = new ArrayList<>();
     private final List<Gem> gems = new ArrayList<>();
-    private final Weapon weapon = new TemplateWeapon();
+    private final Weapon weapon = new AutoFireWeapon();
     private final Ability legacyAbility = new TemplateAbility();
     private final AbilityManager abilityManager = new AbilityManager();
     private final List<Projectile> projectiles = new ArrayList<>();
     private final List<Projectile> enemyProjectiles = new ArrayList<>();
     private final List<AbilityVisualEffect> abilityVisualEffects = new ArrayList<>();
+    private final List<CombatImpactEffect> combatImpactEffects = new ArrayList<>();
     private final List<FloatingText> floatingTexts = new ArrayList<>();
     private final Random random = new Random();
     private final List<Double> spawnQueue = new ArrayList<>();
@@ -53,7 +54,7 @@ public class GameLogic {
             "coming soon..."
     );
     private final List<String> characterWeapons = Arrays.asList(
-            "Shadow Dagger",
+            "Auto Fire",
             "coming soon...",
             "coming soon...",
             "coming soon...",
@@ -89,7 +90,7 @@ public class GameLogic {
     private final List<ExplosionParticle> explosionParticles = new ArrayList<>();
 
     public GameLogic() {
-        player = new TemplateCharacter ();
+        player = createDefaultPlayer();
         refreshUpgradeChoices();
     }
 
@@ -239,6 +240,15 @@ public class GameLogic {
                 effectIterator.remove();
             }
         }
+
+        Iterator<CombatImpactEffect> impactIterator = combatImpactEffects.iterator();
+        while (impactIterator.hasNext()) {
+            CombatImpactEffect effect = impactIterator.next();
+            effect.update(deltaTime);
+            if (effect.isExpired()) {
+                impactIterator.remove();
+            }
+        }
     }
 
     private void updateFloatingTexts(double deltaTime) {
@@ -278,6 +288,9 @@ public class GameLogic {
 
     public void drawAbilityBursts(Graphics2D graphics, int centerX, int centerY) {
         for (AbilityVisualEffect effect : abilityVisualEffects) {
+            effect.draw(graphics, centerX, centerY, getWorldOffsetX(), getWorldOffsetY());
+        }
+        for (CombatImpactEffect effect : combatImpactEffects) {
             effect.draw(graphics, centerX, centerY, getWorldOffsetX(), getWorldOffsetY());
         }
         for (FloatingText text : floatingTexts) {
@@ -633,6 +646,14 @@ public class GameLogic {
         return abilityManager;
     }
 
+    public double getPlayerHealth() {
+        return player.getHealth();
+    }
+
+    public double getPlayerMaxHealth() {
+        return player.getMaxHealth();
+    }
+
     public void triggerAbility() {
         triggerAbility(0);
     }
@@ -674,7 +695,7 @@ public class GameLogic {
     }
 
     private void resetRunState() {
-        player = new TemplateCharacter();
+        player = createDefaultPlayer();
         gameOver = false;
         gameOverTimer = 0.0;
         explosionParticles.clear();
@@ -683,6 +704,7 @@ public class GameLogic {
         projectiles.clear();
         enemyProjectiles.clear();
         abilityVisualEffects.clear();
+        combatImpactEffects.clear();
         floatingTexts.clear();
         spawnQueue.clear();
         whenToSpawn = INITIAL_SPAWN_DELAY;
@@ -703,6 +725,12 @@ public class GameLogic {
         manaPulseTime = 0.0;
         abilityManager.resetRunState();
         legacyAbility.reset();
+    }
+
+    private Player createDefaultPlayer() {
+        return new Player("/main/resources/character/temp_sheet.png", null,
+                200.0, 5.0, 2, 16, 18, 100.0) {
+        };
     }
 
     public void togglePause() {
@@ -1006,6 +1034,7 @@ public class GameLogic {
         double effectX = target == null ? originX : target.getWorldX();
         double effectY = target == null ? originY : target.getWorldY();
         triggerCastFeedback(definition);
+        player.playAttackAnimation(definition);
 
         switch (definition.getEffectType()) {
             case SINGLE_TARGET -> {
@@ -1062,7 +1091,8 @@ public class GameLogic {
                     player.heal(damage);
                     addFloatingText("+" + (int) Math.round(damage), originX, originY - 42, new Color(120, 255, 150));
                 }
-                addAbilityVisual(definition, originX, originY, originX, originY, 150, color, 0.9);
+                addAbilityVisual(definition, originX, originY, originX, originY, 150,
+                        color, Math.max(0.9, definition.getDuration()));
             }
             case BUFF -> {
                 applyDamageBoost(1.45, Math.max(4.0, definition.getDuration()));
@@ -1140,6 +1170,12 @@ public class GameLogic {
         enemy.takeDamage(damage, element, originX, originY);
         double actualDamage = Math.max(0.0, healthBefore - enemy.getHealth());
         double visibleDamage = Math.min(9999, Math.max(1, Math.round(actualDamage)));
+        if (actualDamage > 0.0) {
+            combatImpactEffects.add(new CombatImpactEffect(enemy.getWorldX(), enemy.getWorldY(), element));
+            if (combatImpactEffects.size() > 80) {
+                combatImpactEffects.removeFirst();
+            }
+        }
         addFloatingText(String.valueOf((int) visibleDamage), enemy.getWorldX(),
                 enemy.getWorldY() - enemy.getCollisionRadius(), getDamageNumberColor(element));
         if (enemy.isDead()) {
