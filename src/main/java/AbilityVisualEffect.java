@@ -15,6 +15,7 @@ public class AbilityVisualEffect {
     private final Color color;
     private final double maxLife;
     private final int variant;
+    private final SkillEffectAtlas.SkillAnimation spriteAnimation;
     private double life;
 
     public AbilityVisualEffect(AbilityDefinition definition, double startX,
@@ -30,6 +31,7 @@ public class AbilityVisualEffect {
         this.maxLife = maxLife;
         this.life = maxLife;
         this.variant = Math.abs(definition.getId().hashCode());
+        this.spriteAnimation = SkillEffectAtlas.getAnimation(definition.getId());
     }
 
     public void update(double deltaTime) {
@@ -50,9 +52,15 @@ public class AbilityVisualEffect {
         int y = screenY(centerY, cameraY, worldY);
 
         Graphics2D effectGraphics = (Graphics2D) graphics.create();
-        effectGraphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
-                RenderingHints.VALUE_ANTIALIAS_ON);
-        drawByAbility(effectGraphics, sx, sy, x, y, progress, alpha);
+        if (spriteAnimation != null) {
+            effectGraphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                    RenderingHints.VALUE_ANTIALIAS_OFF);
+            spriteAnimation.draw(effectGraphics, sx, sy, x, y, radius, progress, alpha);
+        } else {
+            effectGraphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                    RenderingHints.VALUE_ANTIALIAS_ON);
+            drawByAbility(effectGraphics, sx, sy, x, y, progress, alpha);
+        }
         effectGraphics.dispose();
     }
 
