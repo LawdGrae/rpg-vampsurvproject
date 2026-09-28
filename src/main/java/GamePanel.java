@@ -12,7 +12,9 @@ import java.awt.event.ActionEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import javax.swing.AbstractAction;
 import javax.swing.ActionMap;
 import javax.swing.InputMap;
@@ -51,6 +53,7 @@ public class GamePanel extends JPanel {
     private final BufferedImage landscape;
     private final GameLogic gameLogic;
     private final Timer frameTimer;
+    private final Map<String, BufferedImage> imageCache = new HashMap<>();
     private long lastUpdateNanos = System.nanoTime();
     private double lastDeltaTime;
     private double framesPerSecond;
@@ -87,11 +90,15 @@ public class GamePanel extends JPanel {
     }
 
     private BufferedImage loadGrassTile() {
-        return ResourceLoader.loadImage("/main/resources/grasstile.png");
+        return loadCachedImage("/main/resources/grasstile.png");
     }
 
     private BufferedImage loadLandscape() {
-        return ResourceLoader.loadImage("/main/resources/landscape.png");
+        return loadCachedImage("/main/resources/landscape.png");
+    }
+
+    private BufferedImage loadCachedImage(String path) {
+        return imageCache.computeIfAbsent(path, ResourceLoader::loadImage);
     }
 
     private void installKeyBindings() {
@@ -356,73 +363,93 @@ public class GamePanel extends JPanel {
     }
 
     private void drawCharacterSelection(Graphics2D graphics) {
-        graphics.drawImage(landscape, 0, 0, PANEL_WIDTH, PANEL_HEIGHT, null);
+        int panelWidth = getWidth();
+        int panelHeight = getHeight();
+        graphics.drawImage(landscape, 0, 0, panelWidth, panelHeight, null);
         drawVignette(graphics);
 
-        drawPanel(graphics, new Rectangle(70, 56, 660, 510), 24);
+        drawPanel(graphics, new Rectangle(28, 44, panelWidth - 56, panelHeight - 74), 24);
 
-        drawCenteredText(graphics, "Choose your hero", HEADER_FONT, GOLD_LIGHT, 0, 108);
+        drawCenteredString(graphics, "Choose your hero", HEADER_FONT, GOLD_LIGHT,
+                0, 108, panelWidth);
 
         List<String> names = gameLogic.getCharacterNames();
-        List<String> weapons = gameLogic.getCharacterWeapons();
-        int cardWidth = 120;
-        int gap = 18;
-        int totalCardWidth = 5 * cardWidth + 4 * gap;
-        int startX = (PANEL_WIDTH - totalCardWidth) / 2;
-        int startY = 150;
+        int characterCount = gameLogic.getCharacterCount();
 
-        for (int index = 0; index < 5; index++) {
-            int x = startX + index * (cardWidth + gap);
-            int y = startY;
-            boolean selectable = index == 0;
-
-            Rectangle card = new Rectangle(x, y, cardWidth, 230);
+        for (int index = 0; index < characterCount; index++) {
+            Rectangle card = getCharacterCardBounds(index);
+            int x = card.x;
+            int y = card.y;
+            int cardWidth = card.width;
+            boolean selectable = gameLogic.isCharacterSelectable(index);
+            boolean selected = gameLogic.getSelectedCharacterIndex() == index;
             boolean hovered = containsPoint(mouseX, mouseY, card);
-            graphics.setPaint(new GradientPaint(x, y,
-                    selectable ? new Color(55, 72, 92) : new Color(38, 38, 44),
-                    x, y + card.height, selectable ? new Color(23, 24, 34) : new Color(22, 22, 27)));
-            graphics.fillRoundRect(x, y, cardWidth, 230, 18, 18);
-            graphics.setColor(selectable ? (hovered ? GOLD_LIGHT : GOLD) : new Color(94, 91, 96));
-            graphics.drawRoundRect(x, y, cardWidth, 230, 18, 18);
 
-            try {
-                String portraitPath = index == 0 ? gameLogic.getPortraitPath() : "/main/resources/portrait_coming_soon.png";
-                BufferedImage portrait = ResourceLoader.loadImage(portraitPath);
-                graphics.drawImage(portrait, x + 20, y + 22, 80, 90, null);
-            } catch (IllegalStateException ignored) {
-                graphics.setColor(Color.WHITE);
-                graphics.fillRect(x + 20, y + 22, 80, 90);
+            if (selected) {
+                graphics.setColor(new Color(255, 220, 120, 52));
+                graphics.fillRoundRect(x - 4, y - 4, cardWidth + 8, card.height + 8, 20, 20);
             }
+
+            graphics.setPaint(new GradientPaint(x, y,
+                    selected ? new Color(65, 82, 104) : selectable ? new Color(55, 72, 92) : new Color(38, 38, 44),
+                    x, y + card.height, selected ? new Color(28, 31, 44) : selectable ? new Color(23, 24, 34) : new Color(22, 22, 27)));
+            graphics.fillRoundRect(x, y, cardWidth, card.height, 18, 18);
+            graphics.setColor(selectable ? (hovered || selected ? GOLD_LIGHT : GOLD) : new Color(94, 91, 96));
+            graphics.drawRoundRect(x, y, cardWidth, card.height, 18, 18);
+
+            drawCharacterPortrait(graphics, index, x + (cardWidth - 70) / 2, y + 14, 70, 78);
 
             graphics.setColor(TEXT_SOFT);
             graphics.setFont(LABEL_FONT);
             String name = names.get(index);
             if (selectable) {
-                graphics.drawString(name, x + 10, y + 140);
+                drawClippedString(graphics, name, x + 10, y + 112, cardWidth - 20);
+                graphics.setColor(GOLD_LIGHT);
+                graphics.setFont(new Font("Times New Roman", Font.BOLD, 11));
+                drawClippedString(graphics, gameLogic.getCharacterClassName(index), x + 10, y + 132, cardWidth - 20);
+                graphics.setColor(TEXT_SOFT);
+                graphics.setFont(new Font("Times New Roman", Font.PLAIN, 11));
+                drawClippedString(graphics, gameLogic.getCharacterRole(index), x + 10, y + 151, cardWidth - 20);
+                drawClippedString(graphics, gameLogic.getCharacterWeaponName(index), x + 10, y + 170, cardWidth - 20);
             } else {
                 graphics.setColor(new Color(255, 220, 120));
                 graphics.setFont(new Font("Times New Roman", Font.ITALIC, 12));
-                graphics.drawString("coming soon...", x + 18, y + 140);
+                drawCenteredString(graphics, "?", HEADER_FONT, new Color(170, 166, 176),
+                        x, y + 72, cardWidth);
+                drawClippedString(graphics, "coming soon...", x + 18, y + 132, cardWidth - 36);
             }
 
-            graphics.setFont(new Font("Times New Roman", Font.PLAIN, 12));
             if (selectable) {
-                graphics.setColor(Color.WHITE);
-                graphics.drawString(weapons.get(index), x + 10, y + 164);
-            } else {
-                graphics.drawString(" ", x + 10, y + 164);
-            }
-            graphics.drawString(" ", x + 10, y + 188);
-
-            if (selectable) {
-                graphics.setColor(new Color(140, 235, 160));
+                drawCharacterAbilityPreview(graphics, index);
+                graphics.setColor(selected ? new Color(140, 235, 160) : TEXT_MUTED);
                 graphics.setFont(LABEL_FONT);
-                graphics.drawString("Selected", x + 22, y + 212);
-                drawCharacterAbilityPreview(graphics, x + 12, y + 176);
+                drawCenteredString(graphics, selected ? "Selected" : "Available",
+                        x, y + card.height - 16, cardWidth);
             }
         }
 
-        drawMenuButton(graphics, new Rectangle(300, 450, 200, 48), "Start");
+        drawMenuButton(graphics, getCharacterStartButtonBounds(), "Start");
+        drawSelectionTooltip(graphics);
+    }
+
+    private void drawCharacterPortrait(Graphics2D graphics, int characterIndex,
+            int x, int y, int width, int height) {
+        try {
+            BufferedImage portrait = loadCachedImage(gameLogic.getPortraitPath(characterIndex));
+            if (gameLogic.isCharacterSelectable(characterIndex)) {
+                int frameWidth = portrait.getWidth() / 3;
+                int frameHeight = portrait.getHeight() / 4;
+                int sourceX = frameWidth;
+                int sourceY = frameHeight * 2;
+                graphics.drawImage(portrait, x, y, x + width, y + height,
+                        sourceX, sourceY, sourceX + frameWidth, sourceY + frameHeight, null);
+            } else {
+                graphics.drawImage(portrait, x, y, width, height, null);
+            }
+        } catch (IllegalStateException ignored) {
+            graphics.setColor(Color.WHITE);
+            graphics.fillRect(x, y, width, height);
+        }
     }
 
     private void drawExperienceBar(Graphics2D graphics) {
@@ -480,12 +507,138 @@ public class GamePanel extends JPanel {
         }
     }
 
-    private void drawCharacterAbilityPreview(Graphics2D graphics, int x, int y) {
-        List<RpgAbility> abilities = gameLogic.getAbilityManager().getAbilities(AbilityClass.ASSASSIN);
-        for (int index = 0; index < Math.min(4, abilities.size()); index++) {
-            Rectangle bounds = new Rectangle(x + index * 24, y, 20, 20);
+    private void drawCharacterAbilityPreview(Graphics2D graphics, int characterIndex) {
+        Rectangle card = getCharacterCardBounds(characterIndex);
+        List<RpgAbility> abilities = gameLogic.getCharacterActiveAbilities(characterIndex);
+        int iconSize = 22;
+        int gap = 5;
+        int totalWidth = AbilityManager.EQUIPPED_SLOT_COUNT * iconSize
+                + (AbilityManager.EQUIPPED_SLOT_COUNT - 1) * gap;
+        int x = card.x + (card.width - totalWidth) / 2;
+        int y = card.y + 190;
+
+        for (int index = 0; index < Math.min(AbilityManager.EQUIPPED_SLOT_COUNT, abilities.size()); index++) {
+            Rectangle bounds = new Rectangle(x + index * (iconSize + gap), y, iconSize, iconSize);
             drawAbilityIcon(graphics, bounds, abilities.get(index), true, gameLogic.getLevel());
+            graphics.setColor(new Color(255, 255, 255, 120));
+            graphics.setFont(new Font("Times New Roman", Font.BOLD, 10));
+            graphics.drawString(String.valueOf(index + 1), bounds.x + 2, bounds.y + 10);
         }
+
+        drawPassivePreview(graphics, characterIndex, card);
+    }
+
+    private void drawPassivePreview(Graphics2D graphics, int characterIndex, Rectangle card) {
+        RpgAbility passive = gameLogic.getCharacterPassiveAbility(characterIndex);
+        if (passive == null) {
+            return;
+        }
+
+        Rectangle bounds = getPassiveIconBounds(characterIndex);
+        graphics.setColor(new Color(255, 220, 120, 36));
+        graphics.fillRoundRect(bounds.x - 4, bounds.y - 4,
+                bounds.width + 8, bounds.height + 8, 10, 10);
+        graphics.setColor(new Color(255, 230, 145));
+        graphics.drawRoundRect(bounds.x - 3, bounds.y - 3,
+                bounds.width + 6, bounds.height + 6, 10, 10);
+        drawAbilityIcon(graphics, bounds, passive, true, gameLogic.getLevel());
+
+        graphics.setColor(GOLD_LIGHT);
+        graphics.setFont(new Font("Times New Roman", Font.BOLD, 9));
+        drawCenteredString(graphics, "PASSIVE", card.x, bounds.y + bounds.height + 13, card.width);
+    }
+
+    private Rectangle getActiveSkillIconBounds(int characterIndex, int skillIndex) {
+        Rectangle card = getCharacterCardBounds(characterIndex);
+        int iconSize = 22;
+        int gap = 5;
+        int totalWidth = AbilityManager.EQUIPPED_SLOT_COUNT * iconSize
+                + (AbilityManager.EQUIPPED_SLOT_COUNT - 1) * gap;
+        int x = card.x + (card.width - totalWidth) / 2;
+        return new Rectangle(x + skillIndex * (iconSize + gap), card.y + 190,
+                iconSize, iconSize);
+    }
+
+    private Rectangle getPassiveIconBounds(int characterIndex) {
+        Rectangle card = getCharacterCardBounds(characterIndex);
+        int iconSize = 28;
+        return new Rectangle(card.x + (card.width - iconSize) / 2, card.y + 230,
+                iconSize, iconSize);
+    }
+
+    private Rectangle getCharacterCardBounds(int index) {
+        int characterCount = gameLogic.getCharacterCount();
+        int gap = 10;
+        int panelWidth = Math.max(620, getWidth());
+        int availableWidth = Math.max(560, panelWidth - 80);
+        int cardWidth = Math.max(112, Math.min(136,
+                (availableWidth - gap * (characterCount - 1)) / characterCount));
+        int totalCardWidth = characterCount * cardWidth + (characterCount - 1) * gap;
+        int startX = Math.max(20, (panelWidth - totalCardWidth) / 2);
+        return new Rectangle(startX + index * (cardWidth + gap), 140, cardWidth, 318);
+    }
+
+    private Rectangle getCharacterStartButtonBounds() {
+        int panelWidth = Math.max(PANEL_WIDTH, getWidth());
+        return new Rectangle((panelWidth - 200) / 2, 506, 200, 48);
+    }
+
+    private void drawSelectionTooltip(Graphics2D graphics) {
+        RpgAbility hoveredAbility = hoveredSelectionAbility();
+        String passiveName = hoveredSelectionPassiveName();
+        if (hoveredAbility == null && passiveName.isEmpty()) {
+            return;
+        }
+
+        int x = Math.min(mouseX + 14, getWidth() - 230);
+        int y = Math.min(mouseY + 16, getHeight() - 96);
+        drawPanel(graphics, new Rectangle(x, y, 220, 86), 8);
+        graphics.setFont(LABEL_FONT);
+        graphics.setColor(GOLD_LIGHT);
+
+        if (hoveredAbility != null) {
+            AbilityDefinition definition = hoveredAbility.getDefinition();
+            graphics.drawString(definition.getName(), x + 10, y + 20);
+            graphics.setFont(new Font("Times New Roman", Font.PLAIN, 11));
+            graphics.setColor(TEXT_SOFT);
+            graphics.drawString(definition.getAbilityClass().getDisplayName(), x + 10, y + 36);
+            graphics.drawString("Mana " + (int) definition.getManaCost()
+                    + "  Cooldown " + (int) definition.getCooldownSeconds() + "s",
+                    x + 10, y + 52);
+            drawClippedString(graphics, definition.getDescription(), x + 10, y + 70, 196);
+            return;
+        }
+
+        graphics.drawString(passiveName, x + 10, y + 20);
+        graphics.setFont(new Font("Times New Roman", Font.PLAIN, 11));
+        graphics.setColor(TEXT_SOFT);
+        graphics.drawString("Passive", x + 10, y + 38);
+        drawClippedString(graphics, "Always-on trait for this hero.", x + 10, y + 58, 196);
+    }
+
+    private RpgAbility hoveredSelectionAbility() {
+        for (int characterIndex = 0; characterIndex < gameLogic.getCharacterCount(); characterIndex++) {
+            if (!gameLogic.isCharacterSelectable(characterIndex)) {
+                continue;
+            }
+            List<RpgAbility> abilities = gameLogic.getCharacterActiveAbilities(characterIndex);
+            for (int skillIndex = 0; skillIndex < Math.min(AbilityManager.EQUIPPED_SLOT_COUNT, abilities.size()); skillIndex++) {
+                if (containsPoint(mouseX, mouseY, getActiveSkillIconBounds(characterIndex, skillIndex))) {
+                    return abilities.get(skillIndex);
+                }
+            }
+        }
+        return null;
+    }
+
+    private String hoveredSelectionPassiveName() {
+        for (int characterIndex = 0; characterIndex < gameLogic.getCharacterCount(); characterIndex++) {
+            if (gameLogic.isCharacterSelectable(characterIndex)
+                    && containsPoint(mouseX, mouseY, getPassiveIconBounds(characterIndex))) {
+                return gameLogic.getCharacterPassiveName(characterIndex);
+            }
+        }
+        return "";
     }
 
     private void drawUpgradeMenu(Graphics2D graphics) {
@@ -672,11 +825,13 @@ public class GamePanel extends JPanel {
     }
 
     private void drawVignette(Graphics2D graphics) {
+        int panelWidth = getWidth();
+        int panelHeight = getHeight();
         graphics.setColor(new Color(0, 0, 0, 82));
-        graphics.fillRect(0, 0, PANEL_WIDTH, PANEL_HEIGHT);
+        graphics.fillRect(0, 0, panelWidth, panelHeight);
         graphics.setColor(new Color(0, 0, 0, 90));
-        graphics.fillRect(0, 0, PANEL_WIDTH, 74);
-        graphics.fillRect(0, PANEL_HEIGHT - 74, PANEL_WIDTH, 74);
+        graphics.fillRect(0, 0, panelWidth, 74);
+        graphics.fillRect(0, panelHeight - 74, panelWidth, 74);
     }
 
     private void drawPanel(Graphics2D graphics, Rectangle bounds, int arc) {
@@ -838,22 +993,18 @@ public class GamePanel extends JPanel {
     }
 
     private void handleCharacterSelectionClick(MouseEvent event) {
-        int cardWidth = 120;
-        int gap = 18;
-        int totalCardWidth = 5 * cardWidth + 4 * gap;
-        int startX = (PANEL_WIDTH - totalCardWidth) / 2;
-        int startY = 150;
+        int characterCount = gameLogic.getCharacterCount();
 
-        for (int index = 0; index < 5; index++) {
-            int x = startX + index * (cardWidth + gap);
-            Rectangle hitBox = new Rectangle(x, startY, cardWidth, 230);
-            if (contains(event, hitBox) && index == 0) {
-                gameLogic.startGame();
+        for (int index = 0; index < characterCount; index++) {
+            Rectangle hitBox = getCharacterCardBounds(index);
+            if (contains(event, hitBox) && gameLogic.isCharacterSelectable(index)) {
+                gameLogic.selectCharacter(index);
+                repaint();
                 return;
             }
         }
 
-        Rectangle startButton = new Rectangle(300, 450, 200, 48);
+        Rectangle startButton = getCharacterStartButtonBounds();
         if (contains(event, startButton)) {
             gameLogic.startGame();
         }

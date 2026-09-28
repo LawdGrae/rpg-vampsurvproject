@@ -110,12 +110,12 @@ public class AbilityDefinition {
     }
 
     private static void addBlackKnight(List<AbilityDefinition> abilities) {
-        add(abilities, "heavy_slash", "Heavy Slash", AbilityClass.BLACK_KNIGHT, AbilityEffectType.AREA_DAMAGE, "A broad close-range slash.", 1, 7, 16, 18, 125, 0);
+        add(abilities, "heavy_slash", "Flame Slash", AbilityClass.BLACK_KNIGHT, AbilityEffectType.AREA_DAMAGE, "A broad close-range slash.", 1, 7, 16, 18, 125, 0);
         add(abilities, "shield_bash", "Shield Bash", AbilityClass.BLACK_KNIGHT, AbilityEffectType.STUN, "Stun enemies in front of the hero.", 2, 10, 20, 10, 140, 1.5);
         add(abilities, "iron_guard", "Iron Guard", AbilityClass.BLACK_KNIGHT, AbilityEffectType.SHIELD, "Gain temporary armor.", 3, 14, 24, 0, 0, 5);
         add(abilities, "dark_taunt", "Dark Taunt", AbilityClass.BLACK_KNIGHT, AbilityEffectType.SLOW, "Slow enemies in a wide dark aura.", 4, 15, 28, 4, 230, 4);
         add(abilities, "shield_charge", "Shield Charge", AbilityClass.BLACK_KNIGHT, AbilityEffectType.DASH, "Charge forward and slam nearby enemies.", 5, 12, 30, 18, 150, 0.4);
-        add(abilities, "earth_shatter", "Earth Shatter", AbilityClass.BLACK_KNIGHT, AbilityEffectType.STUN, "Crack the ground and stun enemies.", 6, 20, 42, 22, 230, 1.8);
+        add(abilities, "earth_shatter", "Ground Slam", AbilityClass.BLACK_KNIGHT, AbilityEffectType.STUN, "Crack the ground and stun enemies.", 6, 20, 42, 22, 230, 1.8);
         add(abilities, "counter_strike", "Counter Strike", AbilityClass.BLACK_KNIGHT, AbilityEffectType.BUFF, "Prepare a damage-boosting counter stance.", 7, 18, 36, 0, 0, 6);
         add(abilities, "blood_armor", "Blood Armor", AbilityClass.BLACK_KNIGHT, AbilityEffectType.SHIELD, "Gain stronger armor and recover health.", 8, 24, 48, 12, 160, 7);
         add(abilities, "knights_wrath", "Knight's Wrath", AbilityClass.BLACK_KNIGHT, AbilityEffectType.AREA_DAMAGE, "Release a punishing wrath wave.", 9, 28, 58, 45, 270, 0);
@@ -125,7 +125,7 @@ public class AbilityDefinition {
     private static void addPriest(List<AbilityDefinition> abilities) {
         add(abilities, "holy_bolt", "Holy Bolt", AbilityClass.PRIEST, AbilityEffectType.SINGLE_TARGET, "Holy damage to the nearest enemy.", 1, 5, 12, 14, 280, 0);
         add(abilities, "heal", "Heal", AbilityClass.PRIEST, AbilityEffectType.HEAL, "Restore health.", 2, 10, 22, 20, 0, 0);
-        add(abilities, "blessing", "Blessing", AbilityClass.PRIEST, AbilityEffectType.BUFF, "Bless the hero with stronger damage.", 3, 16, 28, 0, 0, 7);
+        add(abilities, "blessing", "Divine Blessing", AbilityClass.PRIEST, AbilityEffectType.BUFF, "Bless the hero with stronger damage.", 3, 16, 28, 0, 0, 7);
         add(abilities, "holy_shield", "Holy Shield", AbilityClass.PRIEST, AbilityEffectType.SHIELD, "Gain a holy shield.", 4, 18, 34, 0, 0, 6);
         add(abilities, "purify", "Purify", AbilityClass.PRIEST, AbilityEffectType.AREA_DAMAGE, "Burn nearby enemies with cleansing light.", 5, 14, 30, 20, 180, 0);
         add(abilities, "divine_light", "Divine Light", AbilityClass.PRIEST, AbilityEffectType.HEAL, "Heal and damage nearby enemies.", 6, 22, 44, 28, 210, 0);
@@ -163,9 +163,9 @@ public class AbilityDefinition {
 
     private static void addElementalist(List<AbilityDefinition> abilities) {
         add(abilities, "fire_bolt", "Fire Bolt", AbilityClass.ELEMENTALIST, AbilityEffectType.SINGLE_TARGET, "Fire damage to the nearest enemy.", 1, 5, 12, 15, 300, 0);
-        add(abilities, "ice_shard", "Ice Shard", AbilityClass.ELEMENTALIST, AbilityEffectType.SLOW, "Shard of ice slows nearby enemies.", 2, 8, 18, 12, 170, 3);
+        add(abilities, "ice_shard", "Ice Spear", AbilityClass.ELEMENTALIST, AbilityEffectType.SLOW, "Shard of ice slows nearby enemies.", 2, 8, 18, 12, 170, 3);
         add(abilities, "lightning_strike", "Lightning Strike", AbilityClass.ELEMENTALIST, AbilityEffectType.STUN, "Lightning briefly stuns enemies.", 3, 12, 28, 22, 190, 1.2);
-        add(abilities, "flame_burst", "Flame Burst", AbilityClass.ELEMENTALIST, AbilityEffectType.AREA_DAMAGE, "Burst of flame around the hero.", 4, 13, 32, 26, 210, 0);
+        add(abilities, "flame_burst", "Fire Burst", AbilityClass.ELEMENTALIST, AbilityEffectType.AREA_DAMAGE, "Burst of flame around the hero.", 4, 13, 32, 26, 210, 0);
         add(abilities, "frost_nova", "Frost Nova", AbilityClass.ELEMENTALIST, AbilityEffectType.SLOW, "Freeze the ground in a circle.", 5, 16, 38, 16, 260, 5);
         add(abilities, "thunder_chain", "Thunder Chain", AbilityClass.ELEMENTALIST, AbilityEffectType.AREA_DAMAGE, "Chained thunder hits the pack.", 6, 18, 44, 34, 240, 0);
         add(abilities, "meteor", "Meteor", AbilityClass.ELEMENTALIST, AbilityEffectType.AREA_DAMAGE, "A meteor hits the nearest enemy.", 7, 25, 58, 48, 270, 0);

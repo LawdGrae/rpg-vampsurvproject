@@ -47,19 +47,69 @@ public class GameLogic {
     );
     private final List<String> upgradeChoices = new ArrayList<>();
     private final List<String> characterNames = Arrays.asList(
-            "placeholder girl",
-            "coming soon...",
-            "coming soon...",
-            "coming soon...",
+            "Eumann",
+            "Haze",
+            "Yuexin",
+            "Ziea",
             "coming soon..."
+    );
+    private final List<String> characterClassNames = Arrays.asList(
+            "BLACK KNIGHT",
+            "ASSASSIN",
+            "PRIEST",
+            "ELEMENTALIST",
+            ""
+    );
+    private final List<String> characterRoles = Arrays.asList(
+            "Melee / Tank",
+            "Melee / Burst",
+            "Support / Holy Magic",
+            "Magic / AoE",
+            ""
     );
     private final List<String> characterWeapons = Arrays.asList(
-            "Auto Fire",
-            "coming soon...",
-            "coming soon...",
-            "coming soon...",
+            "Long Sword + Shield",
+            "Twin Daggers",
+            "Holy Staff",
+            "Elemental Staff",
             "coming soon..."
     );
+    private final List<String> characterPortraitPaths = Arrays.asList(
+            "/main/resources/character/CharEumann.png",
+            "/main/resources/character/CharHaze.png",
+            "/main/resources/character/CharYuexin.png",
+            "/main/resources/character/CharacterZiea.png",
+            "/main/resources/portrait_coming_soon.png"
+    );
+    private final List<AbilityClass> characterAbilityClasses = Arrays.asList(
+            AbilityClass.BLACK_KNIGHT,
+            AbilityClass.ASSASSIN,
+            AbilityClass.PRIEST,
+            AbilityClass.ELEMENTALIST,
+            null
+    );
+    private final List<List<String>> characterActiveSkillIds = Arrays.asList(
+            Arrays.asList("heavy_slash", "shield_bash", "earth_shatter", "knights_wrath"),
+            Arrays.asList("shadow_strike", "twin_fang", "shadow_step", "silent_execution"),
+            Arrays.asList("holy_bolt", "heal", "holy_shield", "divine_light"),
+            Arrays.asList("flame_burst", "ice_shard", "lightning_strike", "elemental_storm"),
+            Arrays.asList()
+    );
+    private final List<String> characterPassiveSkillIds = Arrays.asList(
+            "iron_guard",
+            "shadow_assassin",
+            "blessing",
+            "cataclysm",
+            ""
+    );
+    private final List<String> characterPassiveNames = Arrays.asList(
+            "Iron Guard",
+            "Assassin's Instinct",
+            "Divine Blessing",
+            "Elemental Mastery",
+            ""
+    );
+    private int selectedCharacterIndex;
     private double whenToSpawn = INITIAL_SPAWN_DELAY;
     private double gameTimer;
     private double repositionTimer;
@@ -90,7 +140,7 @@ public class GameLogic {
     private final List<ExplosionParticle> explosionParticles = new ArrayList<>();
 
     public GameLogic() {
-        player = createDefaultPlayer();
+        player = createSelectedPlayer();
         refreshUpgradeChoices();
     }
 
@@ -695,7 +745,7 @@ public class GameLogic {
     }
 
     private void resetRunState() {
-        player = createDefaultPlayer();
+        player = createSelectedPlayer();
         gameOver = false;
         gameOverTimer = 0.0;
         explosionParticles.clear();
@@ -724,12 +774,17 @@ public class GameLogic {
         screenShakeStrength = 0.0;
         manaPulseTime = 0.0;
         abilityManager.resetRunState();
+        abilityManager.equipLoadout(getCharacterActiveSkillIds(selectedCharacterIndex));
         legacyAbility.reset();
     }
 
-    private Player createDefaultPlayer() {
-        return new Player("/main/resources/character/temp_sheet.png", null,
-                200.0, 5.0, 2, 16, 18, 100.0) {
+    private Player createSelectedPlayer() {
+        return switch (selectedCharacterIndex) {
+            case 0 -> new Character_Eumann();
+            case 1 -> new Character_Haze();
+            case 2 -> new Character_Yuexin();
+            case 3 -> new Character_Ziea();
+            default -> new Character_Eumann();
         };
     }
 
@@ -801,16 +856,102 @@ public class GameLogic {
         return characterWeapons;
     }
 
+    public String getCharacterClassName(int index) {
+        if (index < 0 || index >= characterClassNames.size()) {
+            return "";
+        }
+        return characterClassNames.get(index);
+    }
+
+    public String getCharacterRole(int index) {
+        if (index < 0 || index >= characterRoles.size()) {
+            return "";
+        }
+        return characterRoles.get(index);
+    }
+
+    public String getCharacterWeaponName(int index) {
+        if (index < 0 || index >= characterWeapons.size()) {
+            return "";
+        }
+        return characterWeapons.get(index);
+    }
+
+    public int getCharacterCount() {
+        return characterNames.size();
+    }
+
+    public int getSelectedCharacterIndex() {
+        return selectedCharacterIndex;
+    }
+
+    public boolean isCharacterSelectable(int index) {
+        return index >= 0 && index < characterNames.size()
+                && characterAbilityClasses.get(index) != null;
+    }
+
+    public void selectCharacter(int index) {
+        if (isCharacterSelectable(index)) {
+            selectedCharacterIndex = index;
+        }
+    }
+
     public String getSelectedCharacterName() {
-        return characterNames.getFirst();
+        return characterNames.get(selectedCharacterIndex);
     }
 
     public String getSelectedWeaponName() {
-        return characterWeapons.getFirst();
+        return characterWeapons.get(selectedCharacterIndex);
     }
 
     public String getPortraitPath() {
-        return "/main/resources/portrait_temp.png";
+        return getPortraitPath(selectedCharacterIndex);
+    }
+
+    public String getPortraitPath(int index) {
+        if (index < 0 || index >= characterPortraitPaths.size()) {
+            return "/main/resources/portrait_coming_soon.png";
+        }
+        return characterPortraitPaths.get(index);
+    }
+
+    public AbilityClass getCharacterAbilityClass(int index) {
+        if (index < 0 || index >= characterAbilityClasses.size()) {
+            return null;
+        }
+        return characterAbilityClasses.get(index);
+    }
+
+    public List<String> getCharacterActiveSkillIds(int index) {
+        if (index < 0 || index >= characterActiveSkillIds.size()) {
+            return Arrays.asList();
+        }
+        return characterActiveSkillIds.get(index);
+    }
+
+    public List<RpgAbility> getCharacterActiveAbilities(int index) {
+        List<RpgAbility> activeAbilities = new ArrayList<>();
+        for (String skillId : getCharacterActiveSkillIds(index)) {
+            RpgAbility ability = abilityManager.getAbilityById(skillId);
+            if (ability != null) {
+                activeAbilities.add(ability);
+            }
+        }
+        return activeAbilities;
+    }
+
+    public RpgAbility getCharacterPassiveAbility(int index) {
+        if (index < 0 || index >= characterPassiveSkillIds.size()) {
+            return null;
+        }
+        return abilityManager.getAbilityById(characterPassiveSkillIds.get(index));
+    }
+
+    public String getCharacterPassiveName(int index) {
+        if (index < 0 || index >= characterPassiveNames.size()) {
+            return "";
+        }
+        return characterPassiveNames.get(index);
     }
 
     public double getExpProgress() {

@@ -18,6 +18,7 @@ public abstract class Player {
     protected final int spriteHeight;
     protected final BufferedImage spriteSheet;
     protected final BufferedImage weaponSprite;
+    protected final String defaultWeaponStyle;
 
     private final Set<String> pressedKeys = new HashSet<>();
     private double worldOffsetX;
@@ -44,6 +45,13 @@ public abstract class Player {
 
     protected Player(String spritePath, String weaponPath, double speed, double animationSpeed,
             int spriteScale, int spriteWidth, int spriteHeight, double maxHealth) {
+        this(spritePath, weaponPath, "sword", speed, animationSpeed,
+                spriteScale, spriteWidth, spriteHeight, maxHealth);
+    }
+
+    protected Player(String spritePath, String weaponPath, String defaultWeaponStyle,
+            double speed, double animationSpeed, int spriteScale, int spriteWidth,
+            int spriteHeight, double maxHealth) {
         this.speed = speed;
         this.animationSpeed = animationSpeed;
         this.spriteScale = spriteScale;
@@ -54,6 +62,7 @@ public abstract class Player {
         this.pickupRadius = 50.0;
         this.spriteSheet = loadSpriteSheet(spritePath);
         this.weaponSprite = weaponPath == null ? null : ResourceLoader.loadImage(weaponPath);
+        this.defaultWeaponStyle = defaultWeaponStyle;
     }
 
     private BufferedImage loadSpriteSheet(String spritePath) {
@@ -207,11 +216,17 @@ public abstract class Player {
         int playerX = centerX - renderedWidth / 2;
         int playerY = centerY - renderedHeight / 2;
 
+        if (spriteRow == 0) {
+            drawWeapon(graphics, centerX, centerY, renderedWidth, renderedHeight);
+        }
+
         // Draw only one frame from the larger sprite sheet.
         graphics.drawImage(spriteSheet,
                 playerX, playerY, playerX + renderedWidth, playerY + renderedHeight,
                 sourceX, sourceY, sourceX + spriteWidth, sourceY + spriteHeight, null);
-        drawWeapon(graphics, centerX, centerY, renderedWidth, renderedHeight);
+        if (spriteRow != 0) {
+            drawWeapon(graphics, centerX, centerY, renderedWidth, renderedHeight);
+        }
 
         // Draw a black background, then cover part of it with the remaining red health.
         int healthBarY = playerY + renderedHeight + HEALTH_BAR_GAP;
@@ -227,30 +242,31 @@ public abstract class Player {
             int renderedWidth, int renderedHeight) {
         int facingX = getFacingX();
         int facingY = getFacingY();
-        int weaponSize = Math.max(44, Math.min(64, renderedHeight + 24));
-        double offsetX = renderedWidth * 0.62;
-        double offsetY = renderedHeight * 0.12;
+        int weaponSize = Math.max(38, Math.min(58, renderedHeight + 12));
+        double offsetX = renderedWidth * 0.34;
+        double offsetY = renderedHeight * 0.08;
         double angle = -Math.PI / 4.0;
         double attackProgress = attackAnimationDuration <= 0.0 ? 0.0
                 : attackAnimationTime / attackAnimationDuration;
         double swing = Math.sin((1.0 - attackProgress) * Math.PI);
 
         if (facingX < 0) {
-            offsetX = -renderedWidth * 0.62;
+            offsetX = -renderedWidth * 0.34;
+            offsetY = renderedHeight * 0.08;
             angle = -Math.PI * 3.0 / 4.0;
         } else if (facingY < 0) {
-            offsetX = renderedWidth * 0.25;
-            offsetY = -renderedHeight * 0.38;
+            offsetX = renderedWidth * 0.18;
+            offsetY = -renderedHeight * 0.26;
             angle = -Math.PI / 2.0;
         } else if (facingY > 0) {
-            offsetX = renderedWidth * 0.25;
-            offsetY = renderedHeight * 0.42;
+            offsetX = renderedWidth * 0.20;
+            offsetY = renderedHeight * 0.31;
             angle = Math.PI / 2.0;
         }
 
         if (attackAnimationTime > 0.0) {
-            offsetX += facingX * 13.0 * swing;
-            offsetY += facingY * 13.0 * swing;
+            offsetX += facingX * 9.0 * swing;
+            offsetY += facingY * 9.0 * swing;
             angle += (facingX < 0 ? -1.0 : 1.0) * (0.75 * swing - 0.35 * attackProgress);
         }
 
@@ -272,24 +288,34 @@ public abstract class Player {
 
     private String weaponStyleFor(AbilityDefinition definition) {
         if (definition == null) {
-            return "sword";
+            return defaultWeaponStyle;
         }
         String id = definition.getId();
+        if (definition.getAbilityClass() == AbilityClass.BLACK_KNIGHT) {
+            return "sword_shield";
+        }
+        if (definition.getAbilityClass() == AbilityClass.ASSASSIN) {
+            return "daggers";
+        }
         if (definition.getAbilityClass() == AbilityClass.RANGER) {
             return "bow";
         }
-        if (definition.getAbilityClass() == AbilityClass.PRIEST
-                || definition.getAbilityClass() == AbilityClass.WARLOCK
-                || definition.getAbilityClass() == AbilityClass.ELEMENTALIST) {
+        if (definition.getAbilityClass() == AbilityClass.PRIEST) {
+            return "holy_staff";
+        }
+        if (definition.getAbilityClass() == AbilityClass.WARLOCK) {
             return "staff";
         }
+        if (definition.getAbilityClass() == AbilityClass.ELEMENTALIST) {
+            return "elemental_staff";
+        }
         if (id.contains("shield") || id.contains("guard")) {
-            return "shield";
+            return "sword_shield";
         }
         if (id.contains("shatter") || id.contains("slam") || id.contains("heavy")) {
             return "axe";
         }
-        return "sword";
+        return defaultWeaponStyle;
     }
 
     private void drawProceduralWeapon(Graphics2D graphics, int size, boolean attacking) {
@@ -297,9 +323,13 @@ public abstract class Player {
                 BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
         switch (attackWeaponStyle) {
             case "axe" -> drawProceduralAxe(graphics, size);
-            case "staff" -> drawProceduralStaff(graphics, size, attacking);
+            case "staff" -> drawProceduralStaff(graphics, size, attacking, new Color(125, 170, 210));
+            case "holy_staff" -> drawProceduralStaff(graphics, size, attacking, new Color(255, 232, 130));
+            case "elemental_staff" -> drawProceduralStaff(graphics, size, attacking, new Color(100, 210, 255));
             case "bow" -> drawProceduralBow(graphics, size, attacking);
             case "shield" -> drawProceduralShield(graphics, size);
+            case "sword_shield" -> drawProceduralSwordAndShield(graphics, size);
+            case "daggers" -> drawProceduralDaggers(graphics, size);
             default -> drawProceduralSword(graphics, size);
         }
     }
@@ -321,10 +351,11 @@ public abstract class Player {
         graphics.fillArc(-size / 8, -size / 2, size / 2, size / 2, 95, 190);
     }
 
-    private void drawProceduralStaff(Graphics2D graphics, int size, boolean attacking) {
+    private void drawProceduralStaff(Graphics2D graphics, int size, boolean attacking,
+            Color orbColor) {
         graphics.setColor(new Color(100, 68, 44));
         graphics.drawLine(0, -size / 2, 0, size / 2);
-        graphics.setColor(attacking ? new Color(140, 225, 255) : new Color(125, 170, 210));
+        graphics.setColor(attacking ? orbColor.brighter() : orbColor);
         int orb = attacking ? size / 4 : size / 5;
         graphics.fillOval(-orb / 2, -size / 2 - orb / 2, orb, orb);
     }
@@ -346,6 +377,24 @@ public abstract class Player {
         graphics.fillRoundRect(-width / 2, -height / 2, width, height, 10, 10);
         graphics.setColor(new Color(198, 207, 220));
         graphics.drawRoundRect(-width / 2, -height / 2, width, height, 10, 10);
+    }
+
+    private void drawProceduralSwordAndShield(Graphics2D graphics, int size) {
+        drawProceduralSword(graphics, size);
+        int shieldSize = size / 3;
+        graphics.setColor(new Color(68, 82, 112));
+        graphics.fillRoundRect(-size / 3, size / 8, shieldSize, shieldSize, 8, 8);
+        graphics.setColor(new Color(220, 212, 170));
+        graphics.drawRoundRect(-size / 3, size / 8, shieldSize, shieldSize, 8, 8);
+    }
+
+    private void drawProceduralDaggers(Graphics2D graphics, int size) {
+        graphics.setColor(new Color(82, 54, 42));
+        graphics.drawLine(-size / 8, size / 4, -size / 8, size / 2);
+        graphics.drawLine(size / 8, size / 5, size / 8, size / 2);
+        graphics.setColor(new Color(225, 228, 218));
+        graphics.drawLine(-size / 8, -size / 3, -size / 8, size / 4);
+        graphics.drawLine(size / 8, -size / 2, size / 8, size / 5);
     }
 
     private int horizontalInput() {

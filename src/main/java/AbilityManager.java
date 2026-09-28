@@ -86,6 +86,38 @@ public class AbilityManager {
         return matching;
     }
 
+    public RpgAbility getAbilityById(String id) {
+        for (RpgAbility ability : abilities) {
+            if (ability.getDefinition().getId().equals(id)) {
+                return ability;
+            }
+        }
+        return null;
+    }
+
+    public void equipLoadout(List<String> abilityIds) {
+        for (int index = 0; index < equipped.length; index++) {
+            if (equipped[index] != null) {
+                equipped[index].setEquipped(false);
+                equipped[index] = null;
+            }
+        }
+
+        int slot = 0;
+        for (String abilityId : abilityIds) {
+            if (slot >= equipped.length) {
+                break;
+            }
+            RpgAbility ability = getAbilityById(abilityId);
+            if (ability != null) {
+                equipped[slot] = ability;
+                ability.setEquipped(true);
+                slot++;
+            }
+        }
+        selectedEquipSlot = 0;
+    }
+
     public Map<AbilityClass, List<RpgAbility>> getAbilitiesByClass() {
         Map<AbilityClass, List<RpgAbility>> grouped = new EnumMap<>(AbilityClass.class);
         for (AbilityClass abilityClass : AbilityClass.values()) {

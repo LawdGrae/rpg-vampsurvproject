@@ -8,7 +8,7 @@ public class Character_Haze extends Player {
     private static final double MAX_HEALTH = 100.0;
 
     public Character_Haze() {
-        super(SPRITE_PATH, SPEED, ANIMATION_SPEED,
+        super(SPRITE_PATH, null, "daggers", SPEED, ANIMATION_SPEED,
             SPRITE_SCALE, SPRITE_WIDTH, SPRITE_HEIGHT, MAX_HEALTH);
     }
 }
