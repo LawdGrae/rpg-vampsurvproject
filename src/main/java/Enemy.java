@@ -178,6 +178,10 @@ public abstract class Enemy {
         return maxHealth <= 0.0 ? 0.0 : health / maxHealth;
     }
 
+    public double getHealth() {
+        return health;
+    }
+
     public boolean isDead() {
         return health <= 0;
     }

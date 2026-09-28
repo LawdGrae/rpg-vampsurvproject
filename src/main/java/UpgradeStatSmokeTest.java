@@ -1,7 +1,9 @@
 public class UpgradeStatSmokeTest {
     public static void main(String[] args) {
-        TemplateCharacter player = new TemplateCharacter();
-        TemplateWeapon weapon = new TemplateWeapon();
+        Player player = new Player("/main/resources/character/temp_sheet.png", null,
+                200.0, 5.0, 2, 16, 18, 100.0) {
+        };
+        AutoFireWeapon weapon = new AutoFireWeapon();
 
         player.increaseMaxHealth(10.0);
         player.increaseSpeed(12.0);

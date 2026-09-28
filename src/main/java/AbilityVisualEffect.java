@@ -1,7 +1,5 @@
-import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
 import java.awt.Color;
-import java.awt.Composite;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.geom.Arc2D;
@@ -62,10 +60,7 @@ public class AbilityVisualEffect {
             double p, double a) {
         switch (definition.getId()) {
             case "shadow_strike" -> {
-                drawTrail(g, sx, sy, x, y, new Color(45, 20, 65), 30, a);
-                drawAfterimages(g, sx, sy, x, y, new Color(105, 55, 190), a, 4);
-                drawSlash(g, x, y, -45, radius * 0.9, new Color(190, 120, 255), a);
-                drawImpactBurst(g, x, y, new Color(55, 20, 85), p, a);
+                drawShadowTeleport(g, sx, sy, x, y, p, a);
             }
             case "twin_fang" -> {
                 drawSlash(g, x - 12, y, -34, radius * 0.8, new Color(230, 55, 70), a);
@@ -82,9 +77,8 @@ public class AbilityVisualEffect {
                 drawOrbit(g, sx, sy, radius * 0.55, new Color(85, 55, 120), p, a, 5);
             }
             case "shadow_step" -> {
-                drawTrail(g, sx, sy, x, y, new Color(25, 20, 35), 34, a);
-                drawSmoke(g, sx, sy, 75, new Color(35, 25, 45), p, a, 8);
-                drawImpactBurst(g, x, y, new Color(85, 45, 135), p, a);
+                drawDashStep(g, sx, sy, x, y, new Color(85, 45, 135), p, a);
+                drawShadowTeleport(g, sx, sy, x, y, p, a * 0.72);
             }
             case "venom_burst" -> {
                 drawToxicSplash(g, x, y, radius, p, a);
@@ -114,9 +108,11 @@ public class AbilityVisualEffect {
                 drawRing(g, sx, sy, radius * p, new Color(85, 45, 135), 22, a);
             }
             case "heavy_slash" -> {
-                drawSlash(g, sx, sy, 15, radius * 1.45, new Color(220, 35, 45), a);
+                drawWeaponSwing(g, sx, sy, directionAngle(sx, sy, x, y) + 0.35, "axe",
+                        new Color(195, 190, 175), p, a);
+                drawSlash(g, sx, sy, 15 + p * 70, radius * 1.45, new Color(255, 210, 115), a);
                 drawDust(g, x, y + 30, radius * 0.8, p, a);
-                drawShockwave(g, x, y, radius * 0.8, new Color(160, 45, 35), p, a);
+                drawPhysicalImpactLines(g, x, y, radius * 0.55, p, a);
             }
             case "shield_bash" -> {
                 drawShieldShape(g, x, y, 70, new Color(175, 185, 200), a);
@@ -132,14 +128,12 @@ public class AbilityVisualEffect {
                 drawAngerRunes(g, sx, sy, radius * 0.65, new Color(230, 60, 70), p, a);
             }
             case "shield_charge" -> {
-                drawTrail(g, sx, sy, x, y, new Color(110, 110, 120), 22, a);
-                drawShieldShape(g, x, y, 75, new Color(180, 185, 195), a);
+                drawDashStep(g, sx, sy, x, y, new Color(180, 185, 195), p, a);
+                drawGuardianBarrier(g, x, y, 95, new Color(180, 185, 195), p, a);
                 drawDust(g, sx, sy + 36, radius, p, a);
             }
             case "earth_shatter" -> {
-                drawCracks(g, x, y, radius, new Color(95, 65, 45), p, a);
-                drawRocks(g, x, y, radius * 0.75, p, a);
-                drawShockwave(g, x, y, radius, new Color(120, 80, 55), p, a);
+                drawGroundSlam(g, sx, sy, radius, p, a);
             }
             case "counter_strike" -> {
                 drawShieldShape(g, sx, sy, radius * 0.75, new Color(235, 240, 255), a);
@@ -151,14 +145,10 @@ public class AbilityVisualEffect {
                 drawDrops(g, sx, sy, radius * 0.75, new Color(200, 20, 45), p, a);
             }
             case "knights_wrath" -> {
-                drawAura(g, sx, sy, radius, new Color(145, 20, 35), p, a);
-                for (int i = 0; i < 5; i++) {
-                    drawSlash(g, sx, sy, -80 + i * 40, radius * 0.75, new Color(230, 50, 55), a);
-                }
-                drawShockwave(g, sx, sy, radius * 1.1, new Color(180, 45, 45), p, a);
+                drawWhirlwind(g, sx, sy, radius, new Color(230, 50, 55), p, a);
             }
             case "dark_fortress" -> {
-                drawShieldShape(g, sx, sy, radius, new Color(70, 35, 45), a);
+                drawGuardianBarrier(g, sx, sy, radius, new Color(95, 45, 65), p, a);
                 drawRing(g, sx, sy, radius * 0.9, new Color(170, 40, 60), 20, a);
                 drawOrbit(g, sx, sy, radius * 0.82, new Color(40, 25, 35), p, a, 10);
             }
@@ -168,15 +158,14 @@ public class AbilityVisualEffect {
                 drawParticles(g, x, y, new Color(255, 230, 120), 10, 75, p, a);
             }
             case "heal" -> {
-                drawHolyCircle(g, sx, sy, radius, new Color(255, 220, 100), p, a);
-                drawRising(g, sx, sy, radius * 0.65, new Color(120, 255, 150), p, a, 12);
+                drawHealingAura(g, sx, sy, radius, p, a);
             }
             case "blessing" -> {
                 drawHolyCircle(g, sx, sy, radius * 0.8, new Color(255, 225, 105), p, a);
                 drawOrbit(g, sx, sy, radius * 0.65, new Color(255, 250, 180), p, a, 7);
             }
             case "holy_shield" -> {
-                drawShieldShape(g, sx, sy, radius * 0.9, new Color(255, 245, 180), a);
+                drawGuardianBarrier(g, sx, sy, radius * 0.9, new Color(255, 245, 180), p, a);
                 drawHolyCircle(g, sx, sy, radius, new Color(255, 235, 135), p, a);
             }
             case "purify" -> {
@@ -185,8 +174,9 @@ public class AbilityVisualEffect {
                 drawRising(g, x, y, radius, new Color(255, 230, 100), p, a, 10);
             }
             case "divine_light" -> {
-                drawBeam(g, sx, sy, radius * 0.55, new Color(255, 250, 205), a);
+                drawHolyPillar(g, sx, sy, radius * 0.55, new Color(255, 250, 205), p, a);
                 drawHolyCircle(g, sx, sy, radius, new Color(255, 220, 90), p, a);
+                drawHealingAura(g, sx, sy, radius * 0.75, p, a * 0.85);
             }
             case "prayer" -> {
                 drawHolyCircle(g, sx, sy, radius * 0.75, new Color(255, 230, 140), p, a);
@@ -197,13 +187,13 @@ public class AbilityVisualEffect {
                 drawRing(g, sx, sy, radius * 0.75, new Color(255, 250, 180), 8, a);
             }
             case "resurrection" -> {
-                drawBeam(g, sx, sy, radius * 0.7, new Color(255, 235, 120), a);
+                drawHolyPillar(g, sx, sy, radius * 0.7, new Color(255, 235, 120), p, a);
                 drawHolyCircle(g, sx, sy, radius * 0.9, new Color(255, 245, 180), p, a);
                 drawRising(g, sx, sy, radius, Color.WHITE, p, a, 18);
             }
             case "divine_judgment" -> {
                 drawJudgmentSymbol(g, x, y - 150, radius * 0.7, new Color(255, 245, 170), a);
-                drawBeam(g, x, y, radius, new Color(255, 250, 210), a);
+                drawHolyPillar(g, x, y, radius, new Color(255, 250, 210), p, a);
                 drawImpactBurst(g, x, y, new Color(255, 225, 100), p, a);
             }
             case "quick_shot" -> {
@@ -224,7 +214,7 @@ public class AbilityVisualEffect {
                 drawClouds(g, x, y, radius * 0.55, new Color(80, 190, 55), p, a, 5);
             }
             case "backstep" -> {
-                drawAfterimages(g, x, y, sx, sy, new Color(160, 210, 210), a, 4);
+                drawDashStep(g, x, y, sx, sy, new Color(160, 210, 210), p, a);
                 drawDust(g, sx, sy + 32, radius * 0.75, p, a);
             }
             case "explosive_arrow" -> {
@@ -313,18 +303,13 @@ public class AbilityVisualEffect {
                 drawFireBurst(g, x, y, radius * 0.55, p, a);
             }
             case "ice_shard" -> {
-                drawTrail(g, sx, sy, x, y, new Color(120, 230, 255), 14, a);
-                drawIceSpear(g, sx, sy, x, y, radius * 0.55, new Color(170, 245, 255), a);
-                drawParticles(g, x, y, new Color(190, 245, 255), 12, 90, p, a);
+                drawIceSpearSequence(g, sx, sy, x, y, radius, p, a);
             }
             case "lightning_strike" -> {
-                drawLightning(g, x, y - 240, x, y, new Color(255, 245, 90), a);
-                drawFlash(g, x, y, radius * 0.75, new Color(255, 255, 180), a);
-                drawSparks(g, x, y, new Color(255, 240, 80), 14, p, a);
+                drawSkyLightningStrike(g, x, y, radius, p, a);
             }
             case "flame_burst" -> {
-                drawFireBurst(g, sx, sy, radius, p, a);
-                drawRing(g, sx, sy, radius * p, new Color(255, 120, 35), 22, a);
+                drawFireSwordSlash(g, sx, sy, x, y, radius, p, a);
             }
             case "frost_nova" -> {
                 drawIceWave(g, sx, sy, radius, p, a);
@@ -567,6 +552,25 @@ public class AbilityVisualEffect {
         }
     }
 
+    private void drawHolyPillar(Graphics2D g, int x, int y, double size, Color c,
+            double p, double a) {
+        int width = (int) Math.round(size * (0.28 + 0.08 * Math.sin(p * Math.PI)));
+        int height = (int) Math.round(size * 1.9);
+        Path2D pillar = new Path2D.Double();
+        pillar.moveTo(x - width, y);
+        pillar.curveTo(x - width * 0.65, y - height * 0.55,
+                x - width * 0.45, y - height, x, y - height);
+        pillar.curveTo(x + width * 0.45, y - height,
+                x + width * 0.65, y - height * 0.55, x + width, y);
+        pillar.closePath();
+        g.setColor(withAlpha(c, 76 * a));
+        g.fill(pillar);
+        g.setStroke(new BasicStroke(5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g.setColor(withAlpha(Color.WHITE, 150 * a));
+        g.drawLine(x, y - height, x, y);
+        drawRing(g, x, y, size * (0.22 + p * 0.38), c, 6, a);
+    }
+
     private void drawRising(Graphics2D g, int x, int y, double spread, Color c, double p, double a, int count) {
         g.setColor(withAlpha(c, 170 * a));
         for (int i = 0; i < count; i++) {
@@ -575,15 +579,6 @@ public class AbilityVisualEffect {
             int size = 5 + (variant + i) % 8;
             g.fillOval(x + ox, y + oy, size, size);
         }
-    }
-
-    private void drawBeam(Graphics2D g, int x, int y, double size, Color c, double a) {
-        Composite old = g.getComposite();
-        g.setComposite(AlphaComposite.SrcOver.derive((float) (0.28 * a)));
-        g.setColor(c);
-        g.fillRect((int) (x - size * 0.28), y - 320, (int) (size * 0.56), 360);
-        g.setComposite(old);
-        drawFlash(g, x, y, size * 0.5, c, a);
     }
 
     private void drawJudgmentSymbol(Graphics2D g, int x, int y, double size, Color c, double a) {
@@ -857,6 +852,229 @@ public class AbilityVisualEffect {
         g.fillOval(x - 32, y - 30, 64, 58);
         g.setColor(withAlpha(new Color(255, 230, 120), 180 * a));
         g.fillOval(x - 14, y - 12, 28, 24);
+    }
+
+    private double directionAngle(int sx, int sy, int x, int y) {
+        return Math.atan2(y - sy, x - sx);
+    }
+
+    private void drawWeaponSwing(Graphics2D g, int x, int y, double angle,
+            String weaponType, Color c, double p, double a) {
+        double windup = Math.sin(Math.min(1.0, p) * Math.PI);
+        int handle = weaponType.equals("axe") ? 72 : 60;
+        int blade = weaponType.equals("axe") ? 30 : 44;
+        double swingAngle = angle - 0.85 + windup * 1.7;
+        int hx = (int) Math.round(x + Math.cos(swingAngle) * 18);
+        int hy = (int) Math.round(y + Math.sin(swingAngle) * 18);
+        int tipX = (int) Math.round(hx + Math.cos(swingAngle) * handle);
+        int tipY = (int) Math.round(hy + Math.sin(swingAngle) * handle);
+
+        g.setStroke(new BasicStroke(8f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g.setColor(withAlpha(new Color(98, 65, 40), 210 * a));
+        g.drawLine(hx, hy, tipX, tipY);
+        g.setStroke(new BasicStroke(5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g.setColor(withAlpha(c, 235 * a));
+        if (weaponType.equals("axe")) {
+            int sideX = (int) Math.round(Math.cos(swingAngle + Math.PI / 2.0) * blade);
+            int sideY = (int) Math.round(Math.sin(swingAngle + Math.PI / 2.0) * blade);
+            g.drawLine(tipX - sideX, tipY - sideY, tipX + sideX, tipY + sideY);
+        } else {
+            g.drawLine(hx, hy, tipX, tipY);
+        }
+    }
+
+    private void drawFireSwordSlash(Graphics2D g, int sx, int sy, int x, int y,
+            double size, double p, double a) {
+        double angle = directionAngle(sx, sy, x, y);
+        int travelX = (int) Math.round(sx + Math.cos(angle) * size * (0.2 + p * 0.75));
+        int travelY = (int) Math.round(sy + Math.sin(angle) * size * (0.2 + p * 0.75));
+        drawWeaponSwing(g, sx, sy, angle, "sword", new Color(235, 235, 220), p, a);
+        drawSlash(g, travelX, travelY, Math.toDegrees(angle) + 30, size * 0.95,
+                new Color(255, 92, 28), a);
+        drawSlash(g, travelX + particleOffset(1, 0, 18), travelY + particleOffset(1, 1, 18),
+                Math.toDegrees(angle) + 5, size * 0.62, new Color(255, 190, 48), a * 0.8);
+        drawFlames(g, travelX, travelY, size * 0.42, new Color(255, 80, 28), p, a, 9);
+        drawSparks(g, travelX, travelY, new Color(255, 215, 80), 16, p, a);
+        if (p > 0.62) {
+            drawFlash(g, x, y, 50 + 28 * (p - 0.62), new Color(255, 88, 35), a);
+        }
+    }
+
+    private void drawShadowTeleport(Graphics2D g, int sx, int sy, int x, int y,
+            double p, double a) {
+        drawSmoke(g, sx, sy, 64, new Color(18, 14, 24), p, a, 7);
+        drawHumanoid(g, sx, sy, new Color(24, 18, 34), a * (1.0 - p * 0.65));
+        for (int i = 1; i <= 5; i++) {
+            double t = Math.min(1.0, p + i * 0.05);
+            int px = (int) Math.round(sx + (x - sx) * t);
+            int py = (int) Math.round(sy + (y - sy) * t);
+            drawHumanoid(g, px, py, new Color(42, 22, 65), a * (0.6 - i * 0.08));
+        }
+        drawSmoke(g, x, y, 70, new Color(32, 20, 45), p, a, 8);
+        drawSlash(g, x, y, -35 + p * 85, radius * 0.9, new Color(115, 55, 190), a);
+        drawParticles(g, x, y, new Color(34, 20, 48), 16, radius * 0.55, p, a);
+        if (p > 0.55) {
+            drawFlash(g, x, y, 42, new Color(45, 20, 65), a * 0.8);
+        }
+    }
+
+    private void drawSkyLightningStrike(Graphics2D g, int x, int y, double size,
+            double p, double a) {
+        int topY = y - (int) Math.round(size * 1.55);
+        drawBranchedLightning(g, x + particleOffset(0, 0, 36), topY, x, y,
+                new Color(105, 220, 255), a);
+        drawRing(g, x, y + 8, size * (0.2 + p * 0.38), new Color(105, 210, 255), 6, a);
+        drawFlash(g, x, y, 44, new Color(185, 240, 255), a);
+        drawParticles(g, x, y, new Color(135, 225, 255), 18, size * 0.5, p, a);
+    }
+
+    private void drawBranchedLightning(Graphics2D g, int sx, int sy, int x, int y,
+            Color c, double a) {
+        Path2D bolt = new Path2D.Double();
+        bolt.moveTo(sx, sy);
+        int lastX = sx;
+        int lastY = sy;
+        for (int i = 1; i <= 6; i++) {
+            double t = i / 7.0;
+            int px = (int) Math.round(sx + (x - sx) * t + particleOffset(i, 0, 34));
+            int py = (int) Math.round(sy + (y - sy) * t + particleOffset(i, 1, 18));
+            bolt.lineTo(px, py);
+            if (i > 1 && i < 6) {
+                int branchX = px + particleOffset(i, 2, 48);
+                int branchY = py + particleOffset(i, 3, 36);
+                g.setStroke(new BasicStroke(4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g.setColor(withAlpha(c, 155 * a));
+                g.drawLine(px, py, branchX, branchY);
+                g.setStroke(new BasicStroke(1.5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g.setColor(withAlpha(Color.WHITE, 170 * a));
+                g.drawLine(px, py, branchX, branchY);
+            }
+            lastX = px;
+            lastY = py;
+        }
+        bolt.lineTo(x, y);
+        g.setStroke(new BasicStroke(9f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g.setColor(withAlpha(c, 210 * a));
+        g.draw(bolt);
+        g.setStroke(new BasicStroke(3f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g.setColor(withAlpha(Color.WHITE, 235 * a));
+        g.draw(bolt);
+    }
+
+    private void drawWhirlwind(Graphics2D g, int x, int y, double size, Color c,
+            double p, double a) {
+        drawRing(g, x, y, size, new Color(180, 190, 185), 4, a * 0.7);
+        for (int i = 0; i < 5; i++) {
+            double angle = Math.PI * 2.0 * (p * 1.8 + i / 5.0);
+            int px = (int) Math.round(x + Math.cos(angle) * size * 0.42);
+            int py = (int) Math.round(y + Math.sin(angle) * size * 0.42);
+            drawSlash(g, px, py, Math.toDegrees(angle) + 80,
+                    size * (0.55 + i * 0.08), c, a * (0.88 - i * 0.08));
+        }
+        drawWeaponSwing(g, x, y, p * Math.PI * 4.0, "sword", Color.WHITE, p, a);
+        drawDust(g, x, y + 30, size * 0.75, p, a);
+    }
+
+    private void drawGroundSlam(Graphics2D g, int x, int y, double size, double p, double a) {
+        drawWeaponSwing(g, x, y - 20, Math.PI / 2.0, "axe", new Color(210, 205, 185), p, a);
+        drawRing(g, x, y, size * p, new Color(205, 155, 90), 10, a);
+        drawCracks(g, x, y, size, new Color(95, 68, 45), Math.min(1.0, p * 1.15), a);
+        drawRocks(g, x, y, size * 0.65, p, a);
+        drawDust(g, x, y + 24, size, p, a);
+        if (p < 0.28) {
+            drawFlash(g, x, y, 70, new Color(225, 180, 105), a);
+        }
+    }
+
+    private void drawPhysicalImpactLines(Graphics2D g, int x, int y, double size,
+            double p, double a) {
+        g.setStroke(new BasicStroke(5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        for (int i = 0; i < 7; i++) {
+            double angle = -0.95 + i * 0.32;
+            int inner = (int) Math.round(size * (0.1 + p * 0.15));
+            int outer = (int) Math.round(size * (0.45 + p * 0.55));
+            int x1 = (int) Math.round(x + Math.cos(angle) * inner);
+            int y1 = (int) Math.round(y + Math.sin(angle) * inner);
+            int x2 = (int) Math.round(x + Math.cos(angle) * outer);
+            int y2 = (int) Math.round(y + Math.sin(angle) * outer);
+            g.setColor(withAlpha(i % 2 == 0 ? new Color(255, 230, 135) : Color.WHITE,
+                    175 * a));
+            g.drawLine(x1, y1, x2, y2);
+        }
+    }
+
+    private void drawGuardianBarrier(Graphics2D g, int x, int y, double size,
+            Color c, double p, double a) {
+        double pulse = Math.sin(p * Math.PI * 6.0) * 6.0;
+        drawRing(g, x, y, size * 0.72 + pulse, c, 9, a);
+        drawRing(g, x, y, size * 0.52 - pulse * 0.4, Color.WHITE, 3, a * 0.75);
+        g.setStroke(new BasicStroke(8f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g.setColor(withAlpha(c, 90 * a));
+        g.drawArc((int) (x - size * 0.72), (int) (y - size * 0.88),
+                (int) (size * 1.44), (int) (size * 1.5), 20, 140);
+        g.drawArc((int) (x - size * 0.72), (int) (y - size * 0.42),
+                (int) (size * 1.44), (int) (size * 1.05), 200, 140);
+        drawOrbit(g, x, y, size * 0.65, c, p, a, 8);
+        if (p < 0.22 || p > 0.78) {
+            drawRing(g, x + particleOffset(2, 0, 24), y + particleOffset(2, 1, 24),
+                    size * 0.26 + p * 18, Color.WHITE, 4, a * 0.8);
+        }
+    }
+
+    private void drawDashStep(Graphics2D g, int sx, int sy, int x, int y, Color c,
+            double p, double a) {
+        drawAfterimages(g, sx, sy, x, y, c, a, 6);
+        g.setStroke(new BasicStroke(4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g.setColor(withAlpha(c, 160 * a));
+        for (int i = 0; i < 6; i++) {
+            double t = i / 6.0;
+            int px = (int) Math.round(sx + (x - sx) * t);
+            int py = (int) Math.round(sy + (y - sy) * t);
+            int backX = (int) Math.round(px - (x - sx) * 0.16);
+            int backY = (int) Math.round(py - (y - sy) * 0.16 + particleOffset(i, 1, 12));
+            g.drawLine(backX, backY, px + particleOffset(i, 0, 8), py);
+        }
+        drawDust(g, sx, sy + 28, 58, p, a * 0.85);
+        drawParticles(g, x, y, c, 10, 45, p, a);
+    }
+
+    private void drawHealingAura(Graphics2D g, int x, int y, double size, double p, double a) {
+        drawRing(g, x, y + 18, size * 0.42 + Math.sin(p * Math.PI) * 10,
+                new Color(105, 255, 150), 7, a);
+        drawRising(g, x, y + 20, size * 0.65, new Color(120, 255, 155), p, a, 18);
+        drawRising(g, x, y + 10, size * 0.45, Color.WHITE, p + 0.2, a * 0.8, 8);
+        for (int i = 0; i < 6; i++) {
+            int px = x + particleOffset(i, 0, (int) (size * 0.45));
+            int py = y + particleOffset(i, 1, (int) (size * 0.35)) - (int) (70 * p);
+            drawCross(g, px, py, 8 + i % 3 * 2, new Color(180, 255, 190), a * 0.85);
+        }
+        if (p < 0.3) {
+            drawFlash(g, x, y, 46 + 26 * p, new Color(145, 255, 165), a);
+        }
+    }
+
+    private void drawIceSpearSequence(Graphics2D g, int sx, int sy, int x, int y,
+            double size, double p, double a) {
+        double eased = Math.min(1.0, p * 1.25);
+        int px = (int) Math.round(sx + (x - sx) * eased);
+        int py = (int) Math.round(sy + (y - sy) * eased);
+        drawIceSpear(g, sx, sy, px, py, Math.max(54, size * 0.42),
+                new Color(170, 240, 255), a);
+        drawTrail(g, sx, sy, px, py, new Color(105, 210, 255), 10, a * 0.75);
+        for (int i = 0; i < 9; i++) {
+            double t = i / 9.0;
+            int fx = (int) Math.round(sx + (px - sx) * t + particleOffset(i, 0, 16));
+            int fy = (int) Math.round(sy + (py - sy) * t + particleOffset(i, 1, 16));
+            drawIceCrystal(g, fx, fy, 7 + i % 5, new Color(210, 250, 255), a * 0.8);
+        }
+        if (p > 0.7) {
+            drawFlash(g, x, y, 42, new Color(205, 250, 255), a);
+            for (int i = 0; i < 8; i++) {
+                drawIceCrystal(g, x + particleOffset(i, 0, 42),
+                        y + particleOffset(i, 1, 34), 14 + i % 6,
+                        new Color(180, 245, 255), a);
+            }
+        }
     }
 
     private int particleOffset(int index, int salt, int spread) {
