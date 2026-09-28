@@ -7,6 +7,15 @@ public class TestEnemy3Behavior {
         if (boss.getReflectEveryHits() != 4) {
             throw new AssertionError("Boss reflection interval should be four hits");
         }
+
+        TemplateEnemyMinion minion = new TemplateEnemyMinion(90, 100);
+        if (minion.getExplosionDamage() <= 0) {
+            throw new AssertionError("Summon explosion should deal damage");
+        }
+        if (!minion.shouldExplodeOnContact(100, 100, 30)) {
+            throw new AssertionError("Summon should explode when it touches the player");
+        }
+
         System.out.println("Enemy3 behavior checks passed");
     }
 }

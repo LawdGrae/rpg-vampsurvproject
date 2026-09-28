@@ -9,6 +9,7 @@ public class TemplateEnemyMinion extends Enemy {
     private static final double COLLISION_RADIUS = RENDER_SIZE / 2.0;
     private static final double DAMAGE = 10.0;
     private static final double MAX_HEALTH = 3.0;
+    private static final double EXPLOSION_DAMAGE = 18.0;
     public static final double SLOW_DURATION = 2.2;
     public static final double SLOW_MULTIPLIER = 0.6;
     private static final BufferedImage SPRITE_SHEET = loadSpriteSheet();
@@ -17,6 +18,14 @@ public class TemplateEnemyMinion extends Enemy {
     public TemplateEnemyMinion(double worldX, double worldY) {
         super(worldX, worldY, SPRITE_SHEET, DEATH_SHEET, SPEED, ANIMATION_SPEED,
             FRAME_WIDTH, FRAME_HEIGHT, RENDER_SIZE, COLLISION_RADIUS, DAMAGE, MAX_HEALTH);
+    }
+
+    public double getExplosionDamage() {
+        return EXPLOSION_DAMAGE;
+    }
+
+    public boolean shouldExplodeOnContact(double targetX, double targetY, double targetCollisionRadius) {
+        return isCollidingWith(targetX, targetY, targetCollisionRadius);
     }
 
     private static BufferedImage loadSpriteSheet() {

@@ -1,6 +1,7 @@
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -22,11 +23,18 @@ public class GameLogic {
     private static final double GEM_COLLECTION_RADIUS = 18.0;
     private static final double GEM_ACCELERATION = 340.0;
     private static final double GEM_MAX_SPEED = 260.0;
+    private static final int MAX_SECRET_JPGS = 3;
+    private static final double SECRET_SPAWN_INTERVAL = 12.0;
+    private static final double FIRST_BOSS_SPAWN_TIME = 200.0;
+    private static final double ELITE_BOSS_DELAY_AFTER_BOSS = 180.0;
     private static final int LEVEL_UP_EXP_BONUS = 6;
 
     private Player player;
     private final List<Enemy> enemies = new ArrayList<>();
     private final List<Gem> gems = new ArrayList<>();
+    private final List<SecretJpg> secretJpgs = new ArrayList<>();
+    private int secretCycleIndex;
+    private double secretCycleTimer;
     private final Weapon weapon = new AutoFireWeapon();
     private final Ability legacyAbility = new TemplateAbility();
     private final AbilityManager abilityManager = new AbilityManager();
@@ -120,6 +128,16 @@ public class GameLogic {
     private double whenToSpawn = INITIAL_SPAWN_DELAY;
     private double gameTimer;
     private double repositionTimer;
+    private double secretSpawnTimer;
+    private boolean bossSpawned;
+    private boolean bossDefeated;
+    private boolean eliteBossSpawned;
+    private double eliteBossSpawnTime;
+    private boolean finalBossSpawned;
+    private double finalBossSpawnTime;
+    private double finalBossPulseTimer;
+    private double finalBossLaserTimer;
+    private double finalBossWallTimer;
     private int level = 1;
     private int exp = 0;
     private int expToNextLevel = 10;
@@ -182,20 +200,29 @@ public class GameLogic {
         updateAbilityVisualEffects(deltaTime);
         updateFloatingTexts(deltaTime);
         updateFeedback(deltaTime);
+        updateSecretJpgs(deltaTime);
+
+        gameTimer += deltaTime;
+        checkBossSpawns();
+        updateFinalBossScript(deltaTime);
 
         // Start small and ramp up the wave size over time instead of instantly
         // surrounding the player with a full ring at startup.
-        gameTimer += deltaTime;
-        while (gameTimer >= whenToSpawn) {
-            int enemiesToSpawn = getSpawnBatchSize();
-            spawnFixed(enemiesToSpawn);
-            whenToSpawn += getSpawnInterval();
-        }
-        if (!spawnQueue.isEmpty()) {
-            spawnQueue.sort(Double::compareTo);
-            while (gameTimer >= spawnQueue.getFirst()) {
-                spawnQueue.removeFirst();
-                spawnOne();
+        boolean bossWaveActive = (bossSpawned && !bossDefeated) ||
+                (eliteBossSpawned && hasEliteBossAlive()) ||
+                (finalBossSpawned && hasFinalBossAlive());
+        if (!bossWaveActive) {
+            while (gameTimer >= whenToSpawn) {
+                int enemiesToSpawn = getSpawnBatchSize();
+                spawnFixed(enemiesToSpawn);
+                whenToSpawn += getSpawnInterval();
+            }
+            if (!spawnQueue.isEmpty()) {
+                spawnQueue.sort(Double::compareTo);
+                while (gameTimer >= spawnQueue.getFirst()) {
+                    spawnQueue.removeFirst();
+                    spawnOne();
+                }
             }
         }
 
@@ -210,12 +237,32 @@ public class GameLogic {
             enemy.update(deltaTime, player.getWorldX(), player.getWorldY(),
                     player.getCollisionRadius());
 
+            if (enemy instanceof BossEnemy boss && boss.shouldSummon()) {
+                enemies.addAll(boss.createSummons(boss.getWorldX(), boss.getWorldY(), random));
+                boss.resetSummonCooldown();
+            }
+
+            if (enemy instanceof FinalBossEnemy finalBoss && finalBoss.shouldSummon()) {
+                enemies.addAll(finalBoss.createMinions(random, player.getWorldX(), player.getWorldY()));
+                finalBoss.resetSummonCooldown();
+            }
+
+            if (enemy instanceof EliteBossEnemy eliteBoss && eliteBoss.shouldApplyDebuff()) {
+                eliteBoss.applyBreakEffects(player, abilityManager);
+            }
+
             // Damage is time-based, so the amount does not depend on frame rate.
             if (enemy.isCollidingWith(player.getWorldX(), player.getWorldY(),
                     player.getCollisionRadius())) {
-                if (enemy instanceof TemplateEnemyMinion) {
+                if (enemy instanceof TemplateEnemyMinion minion) {
+                    player.takeDamage(minion.getDamage() * deltaTime * damageReductionMultiplier);
                     player.applySlow(TemplateEnemyMinion.SLOW_DURATION,
                             TemplateEnemyMinion.SLOW_MULTIPLIER);
+                    if (minion.shouldExplodeOnContact(player.getWorldX(), player.getWorldY(),
+                            player.getCollisionRadius())) {
+                        triggerMinionExplosion(minion);
+                        continue;
+                    }
                 } else {
                     player.takeDamage(enemy.getDamage() * deltaTime * damageReductionMultiplier);
                 }
@@ -234,9 +281,12 @@ public class GameLogic {
         if (target == null) {
             target = findNearestLivingEnemyInRange(SHOOT_RANGE);
         }
-        Projectile projectile = weapon.update(deltaTime, player.getWorldX(),
-                player.getWorldY(), target,
-                player.getRecentMoveX(), player.getRecentMoveY());
+        Projectile projectile = null;
+        if (!player.isAimLocked()) {
+            projectile = weapon.update(deltaTime, player.getWorldX(),
+                    player.getWorldY(), target,
+                    player.getRecentMoveX(), player.getRecentMoveY());
+        }
         if (projectile != null) {
             projectiles.add(projectile);
         }
@@ -274,6 +324,24 @@ public class GameLogic {
                     10.0 + random.nextDouble() * 20.0,
                     0.8 + random.nextDouble() * 0.8));
         }
+    }
+
+    private void triggerMinionExplosion(TemplateEnemyMinion minion) {
+        double explosionX = minion.getWorldX();
+        double explosionY = minion.getWorldY();
+        for (int index = 0; index < 18; index++) {
+            double angle = (Math.PI * 2.0 * index) / 18.0 + random.nextDouble() * 0.8;
+            double speed = 60.0 + random.nextDouble() * 120.0;
+            explosionParticles.add(new ExplosionParticle(
+                    explosionX,
+                    explosionY,
+                    Math.cos(angle) * speed,
+                    Math.sin(angle) * speed,
+                    8.0 + random.nextDouble() * 12.0,
+                    0.5 + random.nextDouble() * 0.6));
+        }
+        player.takeDamage(minion.getExplosionDamage());
+        minion.takeDamage(Double.MAX_VALUE);
     }
 
     private void updateGameOver(double deltaTime) {
@@ -571,6 +639,191 @@ public class GameLogic {
         }
     }
 
+    private void updateSecretJpgs(double deltaTime) {
+        if (isBossWaveActive()) {
+            secretJpgs.clear();
+            secretCycleTimer = 0.0;
+            return;
+        }
+
+        for (Iterator<SecretJpg> iterator = secretJpgs.iterator(); iterator.hasNext();) {
+            SecretJpg secretJpg = iterator.next();
+            secretJpg.update(deltaTime);
+            if (!secretJpg.isVisible()) {
+                iterator.remove();
+                secretCycleTimer = 0.0;
+            }
+        }
+
+        if (!secretJpgs.isEmpty()) {
+            return;
+        }
+
+        secretCycleTimer += deltaTime;
+        if (secretCycleTimer < 2.0) {
+            return;
+        }
+
+        secretCycleTimer = 0.0;
+        double angle = random.nextDouble() * Math.PI * 2.0;
+        double offsetX = Math.cos(angle) * 6.0;
+        double offsetY = Math.sin(angle) * 6.0;
+        double secretX = player.getWorldX() + offsetX;
+        double secretY = player.getWorldY() + offsetY;
+
+        SecretJpg secret = (secretCycleIndex % 2 == 0)
+                ? new SecretJpg(secretX, secretY)
+                : new SecretJpg2(secretX, secretY);
+        secretJpgs.add(secret);
+        secretCycleIndex++;
+    }
+
+    private boolean isBossWaveActive() {
+        return (bossSpawned && !bossDefeated)
+                || (eliteBossSpawned && hasEliteBossAlive())
+                || (finalBossSpawned && hasFinalBossAlive());
+    }
+
+    private void updateFinalBossScript(double deltaTime) {
+        FinalBossEnemy finalBoss = getAliveFinalBoss();
+        if (finalBoss == null) {
+            return;
+        }
+
+        if (finalBoss.isSplitState()) {
+            finalBossPulseTimer += deltaTime;
+            finalBossLaserTimer += deltaTime;
+            finalBossWallTimer += deltaTime;
+
+            if (finalBossPulseTimer >= 1.4) {
+                finalBossPulseTimer = 0.0;
+                spawnFinalBossSplitBurst(finalBoss);
+            }
+            if (finalBossLaserTimer >= 3.0) {
+                finalBossLaserTimer = 0.0;
+                spawnThinRealLaser(finalBoss);
+            }
+            if (finalBossWallTimer >= 8.0) {
+                finalBossWallTimer = 0.0;
+                triggerFinalBossWallLock(finalBoss);
+            }
+            return;
+        }
+
+        finalBossPulseTimer += deltaTime;
+        finalBossLaserTimer += deltaTime;
+        finalBossWallTimer += deltaTime;
+
+        if (finalBossPulseTimer >= 3.2) {
+            finalBossPulseTimer = 0.0;
+            spawnFinalBossBurst(finalBoss);
+        }
+        if (finalBossLaserTimer >= 6.4) {
+            finalBossLaserTimer = 0.0;
+            spawnFinalBossLaser(finalBoss);
+        }
+        if (finalBossWallTimer >= 11.5) {
+            finalBossWallTimer = 0.0;
+            triggerFinalBossWallLock(finalBoss);
+        }
+    }
+
+    private FinalBossEnemy getAliveFinalBoss() {
+        for (Enemy enemy : enemies) {
+            if (enemy instanceof FinalBossEnemy finalBoss && !finalBoss.isDead()) {
+                return finalBoss;
+            }
+        }
+        return null;
+    }
+
+    private void spawnFinalBossBurst(FinalBossEnemy boss) {
+        double bossX = boss.getWorldX();
+        double bossY = boss.getWorldY();
+        BufferedImage projectileSprite = ResourceLoader.loadImage("/main/resources/projectiles/LASER.png");
+
+        for (int index = 0; index < 12; index++) {
+            double angle = (Math.PI * 2.0 * index / 12.0) + random.nextDouble() * 0.32;
+            double targetX = player.getWorldX() + Math.cos(angle) * 220.0;
+            double targetY = player.getWorldY() + Math.sin(angle) * 220.0;
+            Projectile shot = new Projectile(bossX, bossY, targetX, targetY,
+                    220.0, 14.0, 12.0, projectileSprite, 10.0);
+            shot.setOwner(boss);
+            enemyProjectiles.add(shot);
+        }
+    }
+
+    private void spawnFinalBossLaser(FinalBossEnemy boss) {
+        double targetX = player.getWorldX();
+        double targetY = player.getWorldY();
+        BufferedImage projectileSprite = ResourceLoader.loadImage("/main/resources/projectiles/LASER.png");
+        Projectile laser = new Projectile(boss.getWorldX(), boss.getWorldY(), targetX, targetY,
+                310.0, 22.0, 14.0, projectileSprite, 14.0);
+        laser.setOwner(boss);
+        enemyProjectiles.add(laser);
+    }
+
+    private void spawnFinalBossSplitBurst(FinalBossEnemy boss) {
+        BufferedImage projectileSprite = ResourceLoader.loadImage("/main/resources/projectiles/LASER.png");
+        double[][] clones = {
+                {boss.getWorldX(), boss.getWorldY()},
+                {boss.getWorldX() - 100.0, boss.getWorldY() - 20.0},
+                {boss.getWorldX() + 110.0, boss.getWorldY() + 18.0}
+        };
+
+        for (double[] clone : clones) {
+            for (int index = 0; index < 8; index++) {
+                double angle = (Math.PI * 2.0 * index / 8.0) + random.nextDouble() * 0.25;
+                double targetX = clone[0] + Math.cos(angle) * 180.0;
+                double targetY = clone[1] + Math.sin(angle) * 180.0;
+                Projectile fakeShot = new Projectile(clone[0], clone[1], targetX, targetY,
+                        210.0, 0.0, 8.0, projectileSprite, 12.0);
+                fakeShot.setOwner(boss);
+                enemyProjectiles.add(fakeShot);
+            }
+        }
+    }
+
+    private void spawnThinRealLaser(FinalBossEnemy boss) {
+        double targetX = player.getWorldX();
+        double targetY = player.getWorldY();
+        BufferedImage projectileSprite = ResourceLoader.loadImage("/main/resources/projectiles/LASER.png");
+        Projectile laser = new Projectile(boss.getWorldX(), boss.getWorldY(), targetX, targetY,
+                340.0, 16.0, 5.0, projectileSprite, 18.0);
+        laser.setOwner(boss);
+        enemyProjectiles.add(laser);
+    }
+
+    private void triggerFinalBossWallLock(FinalBossEnemy boss) {
+        player.applyMovementLock(2.2);
+        player.applyAimLock(2.2);
+        double baseX = player.getWorldX();
+        double baseY = player.getWorldY();
+        BufferedImage projectileSprite = ResourceLoader.loadImage("/main/resources/projectiles/LASER.png");
+        for (int index = 0; index < 14; index++) {
+            double angle = (Math.PI * 2.0 * index / 14.0);
+            double targetX = baseX + Math.cos(angle) * 180.0;
+            double targetY = baseY + Math.sin(angle) * 180.0;
+            Projectile wallShot = new Projectile(boss.getWorldX(), boss.getWorldY(), targetX, targetY,
+                    190.0, 18.0, 10.0, projectileSprite, 12.0);
+            wallShot.setOwner(boss);
+            enemyProjectiles.add(wallShot);
+        }
+    }
+
+    private Enemy getRandomEnemyNearPlayer() {
+        List<Enemy> candidates = new ArrayList<>();
+        for (Enemy enemy : enemies) {
+            if (!enemy.isDead() && enemy.distanceSquaredTo(player.getWorldX(), player.getWorldY()) < 700.0 * 700.0) {
+                candidates.add(enemy);
+            }
+        }
+        if (candidates.isEmpty()) {
+            return null;
+        }
+        return candidates.get(random.nextInt(candidates.size()));
+    }
+
     private void refreshUpgradeChoices() {
         upgradeChoices.clear();
         List<String> remainingUpgrades = new ArrayList<>(GENERIC_UPGRADE_NAMES);
@@ -614,6 +867,104 @@ public class GameLogic {
             refreshUpgradeChoices();
             upgradeMenuOpen = true;
         }
+    }
+
+    private void checkBossSpawns() {
+        if (!bossSpawned && gameTimer >= FIRST_BOSS_SPAWN_TIME) {
+            bossSpawned = true;
+            bossDefeated = false;
+            resetSpawnCadence();
+            clearEnemiesForBossWave();
+            spawnBoss(new BossEnemy(player.getWorldX() + SPAWN_RADIUS * 0.85,
+                    player.getWorldY() + SPAWN_RADIUS * 0.35));
+            return;
+        }
+
+        if (bossSpawned && !bossDefeated && !hasBossAlive()) {
+            bossDefeated = true;
+            player.heal(player.getMaxHealth() - player.getHealth());
+            resetSpawnCadence();
+            eliteBossSpawnTime = gameTimer + ELITE_BOSS_DELAY_AFTER_BOSS;
+        }
+
+        if (bossSpawned && bossDefeated && !eliteBossSpawned) {
+            if (player.getHealth() < player.getMaxHealth()) {
+                player.heal(player.getMaxHealth() - player.getHealth());
+            }
+            if (gameTimer >= eliteBossSpawnTime) {
+                eliteBossSpawned = true;
+                resetSpawnCadence();
+                clearEnemiesForBossWave();
+                spawnBoss(new EliteBossEnemy(player.getWorldX() - SPAWN_RADIUS * 0.75,
+                        player.getWorldY() - SPAWN_RADIUS * 0.25));
+            }
+        }
+
+        if (eliteBossSpawned && !hasEliteBossAlive() && !finalBossSpawned
+                && gameTimer >= eliteBossSpawnTime + 180.0) {
+            finalBossSpawned = true;
+            finalBossSpawnTime = gameTimer;
+            resetSpawnCadence();
+            clearEnemiesForBossWave();
+            spawnBoss(new FinalBossEnemy(player.getWorldX(), player.getWorldY()));
+        }
+    }
+
+    private void resetSpawnCadence() {
+        whenToSpawn = gameTimer + INITIAL_SPAWN_DELAY;
+        spawnQueue.clear();
+    }
+
+    private boolean hasBossAlive() {
+        for (Enemy enemy : enemies) {
+            if (enemy instanceof BossEnemy && !enemy.isDead()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean hasEliteBossAlive() {
+        for (Enemy enemy : enemies) {
+            if (enemy instanceof EliteBossEnemy && !enemy.isDead()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean hasFinalBossAlive() {
+        for (Enemy enemy : enemies) {
+            if (enemy instanceof FinalBossEnemy && !enemy.isDead()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void clearEnemiesForBossWave() {
+        Iterator<Enemy> enemyIterator = enemies.iterator();
+        while (enemyIterator.hasNext()) {
+            Enemy enemy = enemyIterator.next();
+            if (!(enemy instanceof BossEnemy)
+                    && !(enemy instanceof EliteBossEnemy)
+                    && !(enemy instanceof FinalBossEnemy)
+                    && !(enemy instanceof TemplateEnemyMinion)
+                    && !(enemy instanceof BlueFinalMinion)
+                    && !(enemy instanceof GreenFinalMinion)
+                    && !(enemy instanceof RedFinalMinion)) {
+                enemyIterator.remove();
+            }
+        }
+        projectiles.clear();
+        enemyProjectiles.clear();
+    }
+
+    private void spawnBoss(Enemy boss) {
+        if (boss == null || boss.isDead()) {
+            return;
+        }
+        enemies.add(boss);
     }
 
     public boolean isUpgradeMenuOpen() {
@@ -758,6 +1109,7 @@ public class GameLogic {
         explosionParticles.clear();
         enemies.clear();
         gems.clear();
+        secretJpgs.clear();
         projectiles.clear();
         enemyProjectiles.clear();
         abilityVisualEffects.clear();
@@ -765,6 +1117,16 @@ public class GameLogic {
         floatingTexts.clear();
         spawnQueue.clear();
         whenToSpawn = INITIAL_SPAWN_DELAY;
+        secretCycleIndex = 0;
+        bossSpawned = false;
+        bossDefeated = false;
+        eliteBossSpawned = false;
+        eliteBossSpawnTime = 0.0;
+        finalBossSpawned = false;
+        finalBossSpawnTime = 0.0;
+        finalBossPulseTimer = 0.0;
+        finalBossLaserTimer = 0.0;
+        finalBossWallTimer = 0.0;
         gameTimer = 0.0;
         repositionTimer = 0.0;
         level = 1;
@@ -1153,6 +1515,10 @@ public class GameLogic {
         }
         for (Gem gem : gems) {
             gem.draw(graphics, centerX, centerY,
+                    getWorldOffsetX(), getWorldOffsetY());
+        }
+        for (SecretJpg secretJpg : secretJpgs) {
+            secretJpg.draw(graphics, centerX, centerY,
                     getWorldOffsetX(), getWorldOffsetY());
         }
         graphics.setColor(java.awt.Color.WHITE);

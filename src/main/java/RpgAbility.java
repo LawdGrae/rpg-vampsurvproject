@@ -38,6 +38,7 @@ public class RpgAbility extends Ability {
 
     public boolean canTrigger(AbilityManager manager, int playerLevel) {
         return isReady()
+                && !manager.isManaLocked()
                 && definition.isUnlockedAt(playerLevel)
                 && manager.getMana() >= definition.getManaCost();
     }
