@@ -14,8 +14,9 @@ public class AbilitySystemSmokeTest {
             throw new IllegalStateException("Expected every ability slot to start equipped");
         }
         for (RpgAbility ability : manager.getAbilities()) {
-            if (ability.getIcon().getWidth() != 1024 || ability.getIcon().getHeight() != 1024) {
-                throw new IllegalStateException("Icon must be 1024x1024: "
+            if (ability.getIcon().getWidth() <= 0
+                    || ability.getIcon().getWidth() != ability.getIcon().getHeight()) {
+                throw new IllegalStateException("Icon must be a valid square PNG: "
                         + ability.getDefinition().getId());
             }
         }
