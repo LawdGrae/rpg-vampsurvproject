@@ -6,7 +6,7 @@ public class GameFrame {
         frame.add(new GamePanel());
         frame.setTitle("RPG");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setResizable(false);
+        frame.setResizable(true);
         frame.pack();
         frame.setLocationRelativeTo(null);
         frame.setVisible(true);

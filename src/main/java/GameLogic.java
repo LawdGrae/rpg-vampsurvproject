@@ -81,6 +81,13 @@ public class GameLogic {
             "/main/resources/character/CharacterZiea.png",
             "/main/resources/portrait_coming_soon.png"
     );
+    private final List<List<String>> characterWeaponImagePaths = Arrays.asList(
+            Arrays.asList("/main/resources/weapons/long_sword.png", "/main/resources/weapons/shield.png"),
+            Arrays.asList("/main/resources/weapons/twin_daggers.png"),
+            Arrays.asList("/main/resources/weapons/holy_staff.png"),
+            Arrays.asList("/main/resources/weapons/elemental_staff.png"),
+            Arrays.asList()
+    );
     private final List<AbilityClass> characterAbilityClasses = Arrays.asList(
             AbilityClass.BLACK_KNIGHT,
             AbilityClass.ASSASSIN,
@@ -875,6 +882,13 @@ public class GameLogic {
             return "";
         }
         return characterWeapons.get(index);
+    }
+
+    public List<String> getCharacterWeaponImagePaths(int index) {
+        if (index < 0 || index >= characterWeaponImagePaths.size()) {
+            return Arrays.asList();
+        }
+        return characterWeaponImagePaths.get(index);
     }
 
     public int getCharacterCount() {

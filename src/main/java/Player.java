@@ -1,6 +1,7 @@
 import java.awt.Color;
 import java.awt.BasicStroke;
 import java.awt.Graphics2D;
+import java.awt.RenderingHints;
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.util.HashSet;
@@ -18,6 +19,7 @@ public abstract class Player {
     protected final int spriteHeight;
     protected final BufferedImage spriteSheet;
     protected final BufferedImage weaponSprite;
+    protected final BufferedImage offhandWeaponSprite;
     protected final String defaultWeaponStyle;
 
     private final Set<String> pressedKeys = new HashSet<>();
@@ -45,13 +47,20 @@ public abstract class Player {
 
     protected Player(String spritePath, String weaponPath, double speed, double animationSpeed,
             int spriteScale, int spriteWidth, int spriteHeight, double maxHealth) {
-        this(spritePath, weaponPath, "sword", speed, animationSpeed,
+        this(spritePath, weaponPath, null, "sword", speed, animationSpeed,
                 spriteScale, spriteWidth, spriteHeight, maxHealth);
     }
 
     protected Player(String spritePath, String weaponPath, String defaultWeaponStyle,
             double speed, double animationSpeed, int spriteScale, int spriteWidth,
             int spriteHeight, double maxHealth) {
+        this(spritePath, weaponPath, null, defaultWeaponStyle, speed, animationSpeed,
+                spriteScale, spriteWidth, spriteHeight, maxHealth);
+    }
+
+    protected Player(String spritePath, String weaponPath, String offhandWeaponPath,
+            String defaultWeaponStyle, double speed, double animationSpeed,
+            int spriteScale, int spriteWidth, int spriteHeight, double maxHealth) {
         this.speed = speed;
         this.animationSpeed = animationSpeed;
         this.spriteScale = spriteScale;
@@ -62,7 +71,9 @@ public abstract class Player {
         this.pickupRadius = 50.0;
         this.spriteSheet = loadSpriteSheet(spritePath);
         this.weaponSprite = weaponPath == null ? null : ResourceLoader.loadImage(weaponPath);
+        this.offhandWeaponSprite = offhandWeaponPath == null ? null : ResourceLoader.loadImage(offhandWeaponPath);
         this.defaultWeaponStyle = defaultWeaponStyle;
+        this.attackWeaponStyle = defaultWeaponStyle;
     }
 
     private BufferedImage loadSpriteSheet(String spritePath) {
@@ -216,16 +227,22 @@ public abstract class Player {
         int playerX = centerX - renderedWidth / 2;
         int playerY = centerY - renderedHeight / 2;
 
-        if (spriteRow == 0) {
-            drawWeapon(graphics, centerX, centerY, renderedWidth, renderedHeight);
-        }
+        Object previousInterpolation = graphics.getRenderingHint(RenderingHints.KEY_INTERPOLATION);
+        graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+                RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+
+        drawWeapons(graphics, centerX, centerY, renderedWidth, renderedHeight, true);
 
         // Draw only one frame from the larger sprite sheet.
         graphics.drawImage(spriteSheet,
                 playerX, playerY, playerX + renderedWidth, playerY + renderedHeight,
                 sourceX, sourceY, sourceX + spriteWidth, sourceY + spriteHeight, null);
-        if (spriteRow != 0) {
-            drawWeapon(graphics, centerX, centerY, renderedWidth, renderedHeight);
+        drawWeapons(graphics, centerX, centerY, renderedWidth, renderedHeight, false);
+        if (previousInterpolation == null) {
+            graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+                    RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        } else {
+            graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, previousInterpolation);
         }
 
         // Draw a black background, then cover part of it with the remaining red health.
@@ -238,52 +255,139 @@ public abstract class Player {
         graphics.fillRect(playerX, healthBarY, currentHealthWidth, HEALTH_BAR_HEIGHT);
     }
 
-    private void drawWeapon(Graphics2D graphics, int centerX, int centerY,
-            int renderedWidth, int renderedHeight) {
-        int facingX = getFacingX();
-        int facingY = getFacingY();
-        int weaponSize = Math.max(38, Math.min(58, renderedHeight + 12));
-        double offsetX = renderedWidth * 0.34;
-        double offsetY = renderedHeight * 0.08;
-        double angle = -Math.PI / 4.0;
+    private void drawWeapons(Graphics2D graphics, int centerX, int centerY,
+            int renderedWidth, int renderedHeight, boolean behindCharacter) {
+        drawAttachedWeapon(graphics, centerX, centerY, renderedWidth, renderedHeight,
+                weaponSprite, false, behindCharacter);
+        drawAttachedWeapon(graphics, centerX, centerY, renderedWidth, renderedHeight,
+                offhandWeaponSprite, true, behindCharacter);
+    }
+
+    private void drawAttachedWeapon(Graphics2D graphics, int centerX, int centerY,
+            int renderedWidth, int renderedHeight, BufferedImage image,
+            boolean offhand, boolean behindCharacter) {
+        WeaponPose pose = getWeaponPose(offhand, renderedWidth, renderedHeight);
+        if (pose.behindCharacter != behindCharacter) {
+            return;
+        }
+
         double attackProgress = attackAnimationDuration <= 0.0 ? 0.0
                 : attackAnimationTime / attackAnimationDuration;
         double swing = Math.sin((1.0 - attackProgress) * Math.PI);
 
-        if (facingX < 0) {
-            offsetX = -renderedWidth * 0.34;
-            offsetY = renderedHeight * 0.08;
-            angle = -Math.PI * 3.0 / 4.0;
-        } else if (facingY < 0) {
-            offsetX = renderedWidth * 0.18;
-            offsetY = -renderedHeight * 0.26;
-            angle = -Math.PI / 2.0;
-        } else if (facingY > 0) {
-            offsetX = renderedWidth * 0.20;
-            offsetY = renderedHeight * 0.31;
-            angle = Math.PI / 2.0;
-        }
-
         if (attackAnimationTime > 0.0) {
-            offsetX += facingX * 9.0 * swing;
-            offsetY += facingY * 9.0 * swing;
-            angle += (facingX < 0 ? -1.0 : 1.0) * (0.75 * swing - 0.35 * attackProgress);
+            pose.offsetX += getFacingX() * pose.attackReach * swing;
+            pose.offsetY += getFacingY() * pose.attackReach * swing;
+            pose.angle += pose.attackArc * swing - 0.25 * attackProgress;
         }
 
         Graphics2D weaponGraphics = (Graphics2D) graphics.create();
         AffineTransform transform = new AffineTransform();
-        transform.translate(centerX + offsetX, centerY + offsetY);
-        transform.rotate(angle);
-        if (weaponSprite == null) {
+        transform.translate(centerX + pose.offsetX, centerY + pose.offsetY);
+        transform.rotate(pose.angle);
+        if (image == null) {
             weaponGraphics.transform(transform);
-            drawProceduralWeapon(weaponGraphics, weaponSize, attackAnimationTime > 0.0);
+            if (!offhand) {
+                drawProceduralWeapon(weaponGraphics, pose.drawHeight, attackAnimationTime > 0.0);
+            }
         } else {
-            transform.scale(weaponSize / (double) weaponSprite.getWidth(),
-                    weaponSize / (double) weaponSprite.getHeight());
-            transform.translate(-weaponSprite.getWidth() / 2.0, -weaponSprite.getHeight() / 2.0);
-            weaponGraphics.drawImage(weaponSprite, transform, null);
+            double scale = pose.drawHeight / (double) image.getHeight();
+            transform.scale(pose.flipX ? -scale : scale, scale);
+            transform.translate(-image.getWidth() * pose.pivotX, -image.getHeight() * pose.pivotY);
+            weaponGraphics.drawImage(image, transform, null);
         }
         weaponGraphics.dispose();
+    }
+
+    private WeaponPose getWeaponPose(boolean offhand, int renderedWidth, int renderedHeight) {
+        int facingX = getFacingX();
+        int facingY = getFacingY();
+        boolean left = facingX < 0;
+        boolean up = facingY < 0;
+        boolean down = facingY > 0;
+
+        if ("sword_shield".equals(attackWeaponStyle)) {
+            if (offhand) {
+                double x = left ? -renderedWidth * 0.20 : renderedWidth * 0.20;
+                double y = up ? -renderedHeight * 0.04 : renderedHeight * 0.08;
+                if (down) {
+                    x = renderedWidth * 0.20;
+                    y = renderedHeight * 0.13;
+                }
+                return new WeaponPose(x, y, left ? -0.08 : 0.08, 32,
+                        0.50, 0.50, false, up);
+            }
+            double x = left ? -renderedWidth * 0.30 : renderedWidth * 0.30;
+            double y = down ? renderedHeight * 0.15 : up ? -renderedHeight * 0.14 : renderedHeight * 0.04;
+            double angle = left ? Math.toRadians(18) : Math.toRadians(-18);
+            if (up) {
+                angle = Math.toRadians(-55);
+                x = renderedWidth * 0.10;
+            } else if (down) {
+                angle = Math.toRadians(0);
+                x = -renderedWidth * 0.18;
+            }
+            return new WeaponPose(x, y, angle, 44, 0.67, 0.22, left, up, 5.0, left ? -0.35 : 0.35);
+        }
+
+        if ("daggers".equals(attackWeaponStyle)) {
+            double x = left ? -renderedWidth * 0.10 : renderedWidth * 0.10;
+            double y = up ? -renderedHeight * 0.06 : renderedHeight * 0.11;
+            return new WeaponPose(x, y, left ? Math.toRadians(8) : Math.toRadians(-8),
+                    42, 0.50, 0.48, left, up, 4.0, left ? -0.28 : 0.28);
+        }
+
+        if ("holy_staff".equals(attackWeaponStyle) || "elemental_staff".equals(attackWeaponStyle)
+                || "staff".equals(attackWeaponStyle)) {
+            double x = left ? -renderedWidth * 0.25 : renderedWidth * 0.25;
+            double y = up ? -renderedHeight * 0.10 : renderedHeight * 0.05;
+            double angle = left ? Math.toRadians(-10) : Math.toRadians(10);
+            if (down) {
+                y = renderedHeight * 0.12;
+                x = renderedWidth * 0.20;
+                angle = Math.toRadians(8);
+            }
+            return new WeaponPose(x, y, angle, 50, 0.50, 0.66, left, up, 4.0, left ? -0.20 : 0.20);
+        }
+
+        double x = left ? -renderedWidth * 0.34 : renderedWidth * 0.34;
+        double y = renderedHeight * 0.08;
+        return new WeaponPose(x, y, left ? -Math.PI * 3.0 / 4.0 : -Math.PI / 4.0,
+                50, 0.50, 0.65, left, up);
+    }
+
+    private static class WeaponPose {
+        private double offsetX;
+        private double offsetY;
+        private double angle;
+        private final int drawHeight;
+        private final double pivotX;
+        private final double pivotY;
+        private final boolean flipX;
+        private final boolean behindCharacter;
+        private final double attackReach;
+        private final double attackArc;
+
+        private WeaponPose(double offsetX, double offsetY, double angle, int drawHeight,
+                double pivotX, double pivotY, boolean flipX, boolean behindCharacter) {
+            this(offsetX, offsetY, angle, drawHeight, pivotX, pivotY, flipX,
+                    behindCharacter, 0.0, 0.0);
+        }
+
+        private WeaponPose(double offsetX, double offsetY, double angle, int drawHeight,
+                double pivotX, double pivotY, boolean flipX, boolean behindCharacter,
+                double attackReach, double attackArc) {
+            this.offsetX = offsetX;
+            this.offsetY = offsetY;
+            this.angle = angle;
+            this.drawHeight = drawHeight;
+            this.pivotX = pivotX;
+            this.pivotY = pivotY;
+            this.flipX = flipX;
+            this.behindCharacter = behindCharacter;
+            this.attackReach = attackReach;
+            this.attackArc = attackArc;
+        }
     }
 
     private String weaponStyleFor(AbilityDefinition definition) {

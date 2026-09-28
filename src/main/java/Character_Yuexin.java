@@ -1,5 +1,6 @@
 public class Character_Yuexin extends Player {
     private static final String SPRITE_PATH = "/main/resources/character/CharYuexin.png";
+    private static final String WEAPON_PATH = "/main/resources/weapons/holy_staff.png";
     private static final double SPEED = 200.0;
     private static final double ANIMATION_SPEED = 5.0;
     private static final int SPRITE_SCALE = 1;
@@ -8,7 +9,7 @@ public class Character_Yuexin extends Player {
     private static final double MAX_HEALTH = 100.0;
 
     public Character_Yuexin() {
-        super(SPRITE_PATH, null, "holy_staff", SPEED, ANIMATION_SPEED,
+        super(SPRITE_PATH, WEAPON_PATH, "holy_staff", SPEED, ANIMATION_SPEED,
             SPRITE_SCALE, SPRITE_WIDTH, SPRITE_HEIGHT, MAX_HEALTH);
     }
 }
