@@ -12,31 +12,44 @@ public class GreenFinalMinion extends Enemy {
     private static final double MAX_HEALTH = 30.0;
     private static final BufferedImage SPRITE_SHEET = loadSpriteSheet();
     private static final BufferedImage DEATH_SHEET = loadDeathSheet();
+    private static final double HEAL_INTERVAL = 4.0;
+    private double healCooldown = HEAL_INTERVAL;
 
     public GreenFinalMinion(double worldX, double worldY) {
         super(worldX, worldY, SPRITE_SHEET, DEATH_SHEET, SPEED, ANIMATION_SPEED,
-                FRAME_WIDTH, FRAME_HEIGHT, RENDER_SIZE, COLLISION_RADIUS, DAMAGE, MAX_HEALTH);
+            SPRITE_SHEET.getWidth(), SPRITE_SHEET.getHeight(), RENDER_SIZE,
+            COLLISION_RADIUS, DAMAGE, MAX_HEALTH);
     }
 
     public double getHealAmount() {
         return getDamage();
     }
 
+    public boolean canHeal() {
+        return !isDead() && healCooldown <= 0.0;
+    }
+
+    public void resetHealCooldown() {
+        healCooldown = HEAL_INTERVAL;
+    }
+
     @Override
     public void update(double deltaTime, double targetWorldX, double targetWorldY,
             double targetCollisionRadius) {
         if (isDead()) {
+            super.update(deltaTime, targetWorldX, targetWorldY, targetCollisionRadius);
             return;
         }
+        healCooldown = Math.max(0.0, healCooldown - deltaTime);
         super.update(deltaTime, targetWorldX, targetWorldY, targetCollisionRadius);
     }
 
     private static BufferedImage loadSpriteSheet() {
-        return ResourceLoader.loadImage("/main/resources/enemy/GREENMINION.png");
+        return prepareMinionSprite(ResourceLoader.loadImage("/main/resources/enemy/GREENMINION.png"));
     }
 
     private static BufferedImage loadDeathSheet() {
-        return ResourceLoader.loadImage("/main/resources/enemy/GREENMINION.png");
+        return SPRITE_SHEET;
     }
 
     @Override

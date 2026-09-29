@@ -39,6 +39,7 @@ public abstract class Player {
     private boolean aimLocked;
     private double movementLockTime;
     private double aimLockTime;
+    private double damageFlashTime;
     private double attackAnimationTime;
     private double attackAnimationDuration = 0.34;
     private String attackWeaponStyle = "sword";
@@ -95,6 +96,7 @@ public abstract class Player {
 
     public void update(double deltaTime) {
         attackAnimationTime = Math.max(0.0, attackAnimationTime - deltaTime);
+        damageFlashTime = Math.max(0.0, damageFlashTime - deltaTime);
         slowTime = Math.max(0.0, slowTime - deltaTime);
         if (slowTime <= 0) {
             slowMultiplier = 1.0;
@@ -172,6 +174,10 @@ public abstract class Player {
         return aimLocked || aimLockTime > 0.0;
     }
 
+    public boolean isPetrified() {
+        return isMovementLocked() && isAimLocked();
+    }
+
     public double getWorldOffsetX() {
         return worldOffsetX;
     }
@@ -235,7 +241,11 @@ public abstract class Player {
     }
 
     public void takeDamage(double damage) {
+        double previousHealth = health;
         health = Math.max(0, health - damage);
+        if (health < previousHealth) {
+            damageFlashTime = 0.3;
+        }
     }
 
     public void heal(double amount) {
@@ -292,6 +302,36 @@ public abstract class Player {
         graphics.fillRect(playerX, healthBarY, healthBarWidth, HEALTH_BAR_HEIGHT);
         graphics.setColor(Color.RED);
         graphics.fillRect(playerX, healthBarY, currentHealthWidth, HEALTH_BAR_HEIGHT);
+
+        if (damageFlashTime > 0.0) {
+            int alpha = (int) Math.round(210.0 * damageFlashTime / 0.3);
+            graphics.setColor(new Color(255, 55, 55, alpha));
+            graphics.setStroke(new BasicStroke(4f));
+            graphics.drawOval(playerX - 8, playerY - 8,
+                renderedWidth + 16, renderedHeight + 16);
+        }
+
+        if (isPetrified()) {
+            String status = "PETRIFIED";
+            graphics.setFont(new java.awt.Font("Times New Roman", java.awt.Font.BOLD, 16));
+            int textWidth = graphics.getFontMetrics().stringWidth(status);
+            int textX = centerX - textWidth / 2;
+            int textY = playerY - 12;
+            graphics.setColor(new Color(0, 0, 0, 190));
+            graphics.fillRoundRect(textX - 9, textY - 19, textWidth + 18, 25, 10, 10);
+            graphics.setColor(new Color(225, 235, 245));
+            graphics.drawString(status, textX, textY);
+        } else if (damageFlashTime > 0.0) {
+            String status = "HIT";
+            graphics.setFont(new java.awt.Font("Times New Roman", java.awt.Font.BOLD, 15));
+            int textWidth = graphics.getFontMetrics().stringWidth(status);
+            int textX = centerX - textWidth / 2;
+            int textY = playerY - 12;
+            graphics.setColor(new Color(0, 0, 0, 190));
+            graphics.fillRoundRect(textX - 8, textY - 18, textWidth + 16, 24, 10, 10);
+            graphics.setColor(new Color(255, 125, 110));
+            graphics.drawString(status, textX, textY);
+        }
     }
 
     private void drawWeapons(Graphics2D graphics, int centerX, int centerY,

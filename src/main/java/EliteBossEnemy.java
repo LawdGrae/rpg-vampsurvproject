@@ -3,6 +3,7 @@ import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
 public class EliteBossEnemy extends Enemy {
@@ -15,31 +16,35 @@ public class EliteBossEnemy extends Enemy {
     private static final double DAMAGE = 26.0;
     private static final double MAX_HEALTH = 600.0;
     private static final double MAX_SHIELD = 50.0;
-    private static final double SHIELD_REGEN_INTERVAL = 60.0;
-    private static final double BEAM_COOLDOWN = 2.4;
-    private static final double SHIELD_SUMMON_COOLDOWN = 60.0;
+    private static final double SHIELD_SUMMON_COOLDOWN = 12.0;
+    private static final int ORBITING_PROJECTILE_COUNT = 6;
+    private static final double ATTACK_INTERVAL = 0.72;
+    private static final double PROJECTILE_REPLENISH_INTERVAL = 0.85;
     private static final double MIN_DISTANCE = 220.0;
     private static final double MAX_DISTANCE = 340.0;
     private static final BufferedImage SPRITE_SHEET = loadSpriteSheet();
     private static final BufferedImage DEATH_SHEET = loadDeathSheet();
+    private static final BufferedImage ATTACK_SPRITE = loadAttackSprite();
 
     private final List<EliteBossProjectile> shieldProjectiles = new ArrayList<>();
     private double shieldHealth = MAX_SHIELD;
-    private double beamCooldown;
     private double shieldCooldown;
     private boolean shieldDown;
     private double manaLockTimer;
     private double moveLockTimer;
     private double aimLockTimer;
-    private double nextShieldRegen;
     private boolean debuffTriggered;
+    private double attackCooldown = 0.5;
+    private double projectileReplenishCooldown;
+    private double nextProjectileAngle;
+    private double pendingAttackDamage;
+    private double attackAnimationTimer;
+    private boolean breakEffectsApplied;
 
     public EliteBossEnemy(double worldX, double worldY) {
         super(worldX, worldY, SPRITE_SHEET, DEATH_SHEET, SPEED, ANIMATION_SPEED,
                 FRAME_WIDTH, FRAME_HEIGHT, RENDER_SIZE, COLLISION_RADIUS, DAMAGE, MAX_HEALTH);
-        beamCooldown = 0.8;
         shieldCooldown = SHIELD_SUMMON_COOLDOWN;
-        nextShieldRegen = SHIELD_REGEN_INTERVAL;
         respawnShield();
     }
 
@@ -64,9 +69,10 @@ public class EliteBossEnemy extends Enemy {
         shieldHealth = MAX_SHIELD;
         shieldDown = false;
         debuffTriggered = false;
-        for (int index = 0; index < 6; index++) {
-            double angle = (Math.PI * 2.0 * index / 6.0) + 0.35;
-            shieldProjectiles.add(new EliteBossProjectile(this, angle, 126.0 + index * 4.0));
+        breakEffectsApplied = false;
+        nextProjectileAngle = 0.35;
+        for (int index = 0; index < ORBITING_PROJECTILE_COUNT; index++) {
+            addOrbitingProjectile(index);
         }
     }
 
@@ -74,20 +80,17 @@ public class EliteBossEnemy extends Enemy {
     public void update(double deltaTime, double targetWorldX, double targetWorldY,
             double targetCollisionRadius) {
         if (isDead()) {
+            super.update(deltaTime, targetWorldX, targetWorldY, targetCollisionRadius);
             return;
         }
 
-        if (shieldDown) {
-            shieldHealth = Math.max(0.0, shieldHealth - deltaTime * 0.6);
-        } else if (shieldProjectiles.size() == 0) {
-            respawnShield();
+        super.update(deltaTime, targetWorldX, targetWorldY, targetCollisionRadius);
+        if (isDead()) {
+            return;
         }
 
-        if (!shieldDown && shieldHealth <= 0.0) {
-            shieldDown = true;
-            shieldCooldown = SHIELD_SUMMON_COOLDOWN;
-            nextShieldRegen = SHIELD_REGEN_INTERVAL;
-        }
+        updateShieldProjectiles(deltaTime, targetWorldX, targetWorldY, targetCollisionRadius);
+        attackAnimationTimer = Math.max(0.0, attackAnimationTimer - deltaTime);
 
         if (shieldDown) {
             shieldCooldown -= deltaTime;
@@ -120,22 +123,97 @@ public class EliteBossEnemy extends Enemy {
             teleportTo(getWorldX() + moveX * deltaTime, getWorldY() + moveY * deltaTime);
         }
 
-        beamCooldown -= deltaTime;
-        if (beamCooldown <= 0.0) {
-            beamCooldown = BEAM_COOLDOWN;
-            if (distance <= 600.0) {
-                attackPlayer(targetWorldX, targetWorldY);
+        attackCooldown -= deltaTime;
+        if (attackCooldown <= 0.0 && distance <= 700.0) {
+            fireOrbitingProjectile(targetWorldX, targetWorldY);
+            attackCooldown = ATTACK_INTERVAL;
+            attackAnimationTimer = 0.28;
+        }
+    }
+
+    private void updateShieldProjectiles(double deltaTime, double playerX, double playerY,
+            double playerCollisionRadius) {
+        Iterator<EliteBossProjectile> iterator = shieldProjectiles.iterator();
+        while (iterator.hasNext()) {
+            EliteBossProjectile projectile = iterator.next();
+            projectile.update(deltaTime, playerX, playerY);
+
+            if (projectile.isLaunched() && projectile.hitsPlayer(
+                    playerX, playerY, playerCollisionRadius)) {
+                if (projectile.markSpent()) {
+                    pendingAttackDamage += projectile.getAttackDamage();
+                }
+            } else if (projectile.isBroken() && projectile.hitsPlayer(
+                    playerX, playerY, playerCollisionRadius)) {
+                triggerShieldBreakDebuff();
+                projectile.markSpent();
+            }
+
+            if (projectile.isExpired() || projectile.isSpent()) {
+                iterator.remove();
             }
         }
 
+        projectileReplenishCooldown = Math.max(0.0, projectileReplenishCooldown - deltaTime);
+        if (shieldProjectiles.size() < ORBITING_PROJECTILE_COUNT
+                && projectileReplenishCooldown <= 0.0) {
+            addOrbitingProjectile(shieldProjectiles.size());
+            projectileReplenishCooldown = PROJECTILE_REPLENISH_INTERVAL;
+        }
+    }
+
+    private void fireOrbitingProjectile(double playerX, double playerY) {
         for (EliteBossProjectile projectile : shieldProjectiles) {
-            projectile.update(deltaTime, targetWorldX, targetWorldY);
-            if (projectile.isBroken()) {
-                if (projectile.hitsPlayer(targetWorldX, targetWorldY, 32.0)) {
-                    triggerShieldBreakDebuff();
-                }
+            if (projectile.isOrbiting()) {
+                projectile.launchAt(playerX, playerY);
+                attackAnimationTimer = 0.28;
+                return;
             }
         }
+        if (shieldProjectiles.size() < ORBITING_PROJECTILE_COUNT) {
+            addOrbitingProjectile(shieldProjectiles.size());
+            shieldProjectiles.getLast().launchAt(playerX, playerY);
+            attackAnimationTimer = 0.28;
+        }
+    }
+
+    private void addOrbitingProjectile(int index) {
+        double angle = nextProjectileAngle;
+        nextProjectileAngle += (Math.PI * 2.0 / ORBITING_PROJECTILE_COUNT);
+        shieldProjectiles.add(new EliteBossProjectile(this, angle, 126.0 + index % 3 * 4.0));
+    }
+
+    public double consumePendingAttackDamage() {
+        double damage = pendingAttackDamage;
+        pendingAttackDamage = 0.0;
+        return damage;
+    }
+
+    public boolean damageShieldProjectileAt(double worldX, double worldY, double damage,
+            double playerX, double playerY) {
+        if (shieldDown || damage <= 0.0) {
+            return false;
+        }
+        double hitDistance = 18.0 + 10.0;
+        double hitDistanceSquared = hitDistance * hitDistance;
+        for (EliteBossProjectile projectile : shieldProjectiles) {
+            if (!projectile.isOrbiting()) {
+                continue;
+            }
+            double differenceX = projectile.getWorldX() - worldX;
+            double differenceY = projectile.getWorldY() - worldY;
+            if (differenceX * differenceX + differenceY * differenceY <= hitDistanceSquared) {
+                int damageAmount = Math.max(1, (int) Math.ceil(damage));
+                projectile.damage(damageAmount, playerX, playerY);
+                shieldHealth = Math.max(0.0, shieldHealth - damage);
+                if (shieldHealth <= 0.0) {
+                    shieldDown = true;
+                    shieldCooldown = SHIELD_SUMMON_COOLDOWN;
+                }
+                return true;
+            }
+        }
+        return false;
     }
 
     public void triggerShieldBreakDebuff() {
@@ -144,6 +222,7 @@ public class EliteBossEnemy extends Enemy {
         }
         shieldDown = true;
         debuffTriggered = true;
+        breakEffectsApplied = false;
         manaLockTimer = 10.0;
         moveLockTimer = 10.0;
         aimLockTimer = 10.0;
@@ -151,7 +230,8 @@ public class EliteBossEnemy extends Enemy {
     }
 
     public boolean shouldApplyDebuff() {
-        return shieldDown && debuffTriggered && (moveLockTimer > 0.0 || aimLockTimer > 0.0 || manaLockTimer > 0.0);
+        return shieldDown && debuffTriggered && !breakEffectsApplied
+            && (moveLockTimer > 0.0 || aimLockTimer > 0.0 || manaLockTimer > 0.0);
     }
 
     public void applyBreakEffects(Player player, AbilityManager abilityManager) {
@@ -159,6 +239,7 @@ public class EliteBossEnemy extends Enemy {
         player.applyAimLock(10.0);
         abilityManager.lockMana(10.0);
         debuffTriggered = true;
+        breakEffectsApplied = true;
     }
 
     public boolean isMovementLocked() {
@@ -178,14 +259,7 @@ public class EliteBossEnemy extends Enemy {
             return;
         }
 
-        double damageMultiplier = shieldDown ? 2.5 : 1.0;
-        double beamDamage = (DAMAGE * damageMultiplier);
-        double dx = playerX - getWorldX();
-        double dy = playerY - getWorldY();
-        double dist = Math.hypot(dx, dy);
-        if (dist > 0.0001) {
-            // This is a visual beam source; actual damage is processed by GameLogic.
-        }
+        fireOrbitingProjectile(playerX, playerY);
     }
 
     public List<EliteBossProjectile> getShieldProjectiles() {
@@ -194,16 +268,34 @@ public class EliteBossEnemy extends Enemy {
 
     @Override
     public void takeDamage(double damage, DamageElement element, double originX, double originY) {
-        super.takeDamage(damage * (shieldDown ? 2.0 : 1.0), element, originX, originY);
+        double adjustedDamage = damage * (shieldDown ? 2.0 : 1.0);
+        if (!shieldDown && shieldHealth > 0.0) {
+            double absorbed = Math.min(shieldHealth, adjustedDamage * 0.5);
+            shieldHealth -= absorbed;
+            adjustedDamage -= absorbed;
+            if (shieldHealth <= 0.0) {
+                shieldDown = true;
+                shieldCooldown = SHIELD_SUMMON_COOLDOWN;
+            }
+        }
+        super.takeDamage(adjustedDamage, element, originX, originY);
     }
 
     @Override
     public void draw(Graphics2D graphics, int centerX, int centerY,
             double cameraX, double cameraY) {
-        super.draw(graphics, centerX, centerY, cameraX, cameraY);
+        if (!isDead() && attackAnimationTimer > 0.0) {
+            int screenX = (int) (centerX + getWorldX() + cameraX - RENDER_SIZE / 2.0);
+            int screenY = (int) (centerY + getWorldY() + cameraY - RENDER_SIZE / 2.0);
+            graphics.drawImage(ATTACK_SPRITE, screenX, screenY, RENDER_SIZE, RENDER_SIZE, null);
+        } else {
+            super.draw(graphics, centerX, centerY, cameraX, cameraY);
+        }
         drawBossBar(graphics, centerX, centerY, cameraX, cameraY);
-        for (EliteBossProjectile projectile : shieldProjectiles) {
-            projectile.draw(graphics, centerX, centerY, cameraX, cameraY);
+        if (!isDead()) {
+            for (EliteBossProjectile projectile : shieldProjectiles) {
+                projectile.draw(graphics, centerX, centerY, cameraX, cameraY);
+            }
         }
     }
 
@@ -248,5 +340,9 @@ public class EliteBossEnemy extends Enemy {
 
     private static BufferedImage loadDeathSheet() {
         return ResourceLoader.loadImage("/main/resources/enemy/ELITEBOSS.png");
+    }
+
+    private static BufferedImage loadAttackSprite() {
+        return ResourceLoader.loadImage("/main/resources/enemy/ELITEBOSSATK.png");
     }
 }

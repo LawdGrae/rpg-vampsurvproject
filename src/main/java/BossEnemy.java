@@ -44,6 +44,7 @@ public class BossEnemy extends Enemy {
     public void update(double deltaTime, double targetWorldX, double targetWorldY,
             double targetCollisionRadius) {
         if (isDead()) {
+            super.update(deltaTime, targetWorldX, targetWorldY, targetCollisionRadius);
             return;
         }
 
@@ -58,7 +59,7 @@ public class BossEnemy extends Enemy {
             double angle = (Math.PI * 2.0 * index / summonCount) + random.nextDouble() * 0.8;
             double summonX = worldX + Math.cos(angle) * 42.0;
             double summonY = worldY + Math.sin(angle) * 42.0;
-            summoned.add(new TemplateEnemyMinion(summonX, summonY));
+            summoned.add(new TemplateEnemy2(summonX, summonY));
         }
         return summoned;
     }

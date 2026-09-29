@@ -9,8 +9,8 @@ import java.util.Random;
 public class FinalBossEnemy extends Enemy {
     private static final double SPEED = 0.0;
     private static final double ANIMATION_SPEED = 0.0;
-    private static final int FRAME_WIDTH = 128;
-    private static final int FRAME_HEIGHT = 128;
+    private static final int FRAME_WIDTH = 112;
+    private static final int FRAME_HEIGHT = 144;
     private static final int RENDER_SIZE = 200;
     private static final double COLLISION_RADIUS = RENDER_SIZE / 2.0;
     private static final double DAMAGE = 28.0;
@@ -20,9 +20,10 @@ public class FinalBossEnemy extends Enemy {
     private static final double BLUE_REGEN_INTERVAL = 5.0;
     private static final double LASER_COOLDOWN = 4.0;
     private static final double WALL_COOLDOWN = 12.0;
-    private static final double SPLIT_DURATION = 60.0;
+    private static final double SPLIT_DURATION = 10.0;
     private static final BufferedImage SPRITE_SHEET = loadSpriteSheet();
     private static final BufferedImage DEATH_SHEET = loadDeathSheet();
+    private static final BufferedImage SPLIT_SPRITE = desaturateSprite(SPRITE_SHEET);
 
     private double shieldHealth = MAX_SHIELD;
     private double summonCooldown;
@@ -32,6 +33,7 @@ public class FinalBossEnemy extends Enemy {
     private double arenaPulse;
     private boolean arenaLocked;
     private boolean splitState;
+    private boolean blueMinionsNearby;
     private double splitTimer;
 
     public FinalBossEnemy(double worldX, double worldY) {
@@ -99,61 +101,66 @@ public class FinalBossEnemy extends Enemy {
     public void update(double deltaTime, double targetWorldX, double targetWorldY,
             double targetCollisionRadius) {
         if (isDead()) {
+            super.update(deltaTime, targetWorldX, targetWorldY, targetCollisionRadius);
+            return;
+        }
+
+        super.update(deltaTime, targetWorldX, targetWorldY, targetCollisionRadius);
+        if (isDead()) {
             return;
         }
 
         updateSplitState(deltaTime);
-        summitShieldRegeneration(deltaTime);
         summonCooldown -= deltaTime;
         laserCooldown -= deltaTime;
         wallCooldown -= deltaTime;
         arenaPulse = Math.max(0.0, arenaPulse - deltaTime);
 
-        if (blueRegenCooldown <= 0.0 && !hasBlueMinionsNearby()) {
-            shieldHealth = Math.min(MAX_SHIELD, shieldHealth + 10.0);
-            blueRegenCooldown = BLUE_REGEN_INTERVAL;
-        }
         blueRegenCooldown -= deltaTime;
         if (blueRegenCooldown <= 0.0) {
             blueRegenCooldown = BLUE_REGEN_INTERVAL;
-        }
-
-        if (wallCooldown <= 0.0) {
-            arenaLocked = true;
-            wallCooldown = WALL_COOLDOWN;
-        } else {
-            arenaLocked = false;
-        }
-
-        if (laserCooldown <= 0.0) {
-            laserCooldown = LASER_COOLDOWN;
-        }
-    }
-
-    private void summitShieldRegeneration(double deltaTime) {
-        if (shieldHealth < MAX_SHIELD && !hasBlueMinionsNearby()) {
-            blueRegenCooldown -= deltaTime;
-            if (blueRegenCooldown <= 0.0) {
+            if (!hasBlueMinionsNearby()) {
                 shieldHealth = Math.min(MAX_SHIELD, shieldHealth + 10.0);
-                blueRegenCooldown = BLUE_REGEN_INTERVAL;
             }
         }
+
+        arenaLocked = wallCooldown <= 0.0;
+
     }
 
     private boolean hasBlueMinionsNearby() {
-        return false;
+        return blueMinionsNearby;
     }
 
     public boolean shouldFireLaser() {
-        return laserCooldown <= 0.0 && !isDead();
+        if (laserCooldown > 0.0 || isDead()) {
+            return false;
+        }
+        laserCooldown = LASER_COOLDOWN;
+        return true;
     }
 
     public boolean shouldThrowWalls() {
-        return wallCooldown <= 0.0 && !isDead();
+        if (wallCooldown > 0.0 || isDead()) {
+            return false;
+        }
+        wallCooldown = WALL_COOLDOWN;
+        arenaLocked = false;
+        return true;
     }
 
     public boolean isArenaLocked() {
         return arenaLocked;
+    }
+
+    public void setBlueMinionsNearby(boolean blueMinionsNearby) {
+        this.blueMinionsNearby = blueMinionsNearby;
+    }
+
+    public void restoreShield(double amount) {
+        if (!isDead() && amount > 0.0) {
+            shieldHealth = Math.min(MAX_SHIELD, shieldHealth + amount);
+        }
     }
 
     public List<Enemy> createMinions(Random random, double playerX, double playerY) {
@@ -182,11 +189,15 @@ public class FinalBossEnemy extends Enemy {
     @Override
     public void draw(Graphics2D graphics, int centerX, int centerY,
             double cameraX, double cameraY) {
-        if (splitState) {
+        if (isDead()) {
+            super.draw(graphics, centerX, centerY, cameraX, cameraY);
+            return;
+        }
+        if (splitState && !isDead()) {
             drawSplitBoss(graphics, centerX, centerY, cameraX, cameraY);
             return;
         }
-        super.draw(graphics, centerX, centerY, cameraX, cameraY);
+        drawBossSprite(graphics, getWorldX(), getWorldY(), centerX, centerY, cameraX, cameraY);
         drawBossBar(graphics, centerX, centerY, cameraX, cameraY);
         if (arenaPulse > 0.0) {
             graphics.setColor(new Color(80, 160, 255, 80));
@@ -209,10 +220,8 @@ public class FinalBossEnemy extends Enemy {
         };
 
         for (double[] offset : offsets) {
-            int screenX = (int) (centerX + baseX + offset[0] + cameraX - RENDER_SIZE / 2.0);
-            int screenY = (int) (centerY + baseY + offset[1] + cameraY - RENDER_SIZE / 2.0);
-            BufferedImage fakeSprite = desaturateSprite(SPRITE_SHEET);
-            graphics.drawImage(fakeSprite, screenX, screenY, RENDER_SIZE, RENDER_SIZE, null);
+            drawBossSprite(graphics, baseX + offset[0], baseY + offset[1],
+                    centerX, centerY, cameraX, cameraY);
         }
 
         int barX = (int) (centerX + baseX + cameraX - 90);
@@ -223,7 +232,16 @@ public class FinalBossEnemy extends Enemy {
         graphics.fillRoundRect(barX, barY, (int) (180 * getHealthRatio()), 10, 8, 8);
     }
 
-    private BufferedImage desaturateSprite(BufferedImage source) {
+    private void drawBossSprite(Graphics2D graphics, double worldX, double worldY,
+            int centerX, int centerY, double cameraX, double cameraY) {
+        int drawWidth = RENDER_SIZE * FRAME_WIDTH / FRAME_HEIGHT;
+        int screenX = (int) (centerX + worldX + cameraX - drawWidth / 2.0);
+        int screenY = (int) (centerY + worldY + cameraY - RENDER_SIZE / 2.0);
+        graphics.drawImage(splitState ? SPLIT_SPRITE : SPRITE_SHEET,
+                screenX, screenY, drawWidth, RENDER_SIZE, null);
+    }
+
+    private static BufferedImage desaturateSprite(BufferedImage source) {
         BufferedImage result = new BufferedImage(source.getWidth(), source.getHeight(), BufferedImage.TYPE_INT_ARGB);
         for (int y = 0; y < source.getHeight(); y++) {
             for (int x = 0; x < source.getWidth(); x++) {

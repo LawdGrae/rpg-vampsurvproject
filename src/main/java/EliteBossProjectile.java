@@ -12,11 +12,13 @@ public class EliteBossProjectile {
     private double orbitRadius;
     private double worldX;
     private double worldY;
-    private double homeTargetX;
-    private double homeTargetY;
+    private double velocityX;
+    private double velocityY;
+    private double lifetime;
     private int shieldHealth = 50;
     private boolean homingMode;
-    private double stunTimer;
+    private boolean launched;
+    private boolean spent;
 
     public EliteBossProjectile(EliteBossEnemy owner, double angle, double orbitRadius) {
         this.owner = owner;
@@ -24,8 +26,6 @@ public class EliteBossProjectile {
         this.orbitRadius = orbitRadius;
         this.worldX = owner.getWorldX() + Math.cos(angle) * orbitRadius;
         this.worldY = owner.getWorldY() + Math.sin(angle) * orbitRadius;
-        this.homeTargetX = owner.getWorldX();
-        this.homeTargetY = owner.getWorldY();
     }
 
     public int getShieldHealth() {
@@ -44,10 +44,16 @@ public class EliteBossProjectile {
         if (owner == null || owner.isDead()) {
             return;
         }
+        if (launched) {
+            lifetime += deltaTime;
+            worldX += velocityX * 310.0 * deltaTime;
+            worldY += velocityY * 310.0 * deltaTime;
+            return;
+        }
 
         if (shieldHealth <= 0) {
+            lifetime += deltaTime;
             homingMode = true;
-            stunTimer = Math.max(0.0, stunTimer - deltaTime);
             double differenceX = playerX - worldX;
             double differenceY = playerY - worldY;
             double length = Math.hypot(differenceX, differenceY);
@@ -55,8 +61,6 @@ public class EliteBossProjectile {
                 worldX += (differenceX / length) * 140.0 * deltaTime;
                 worldY += (differenceY / length) * 140.0 * deltaTime;
             }
-            homeTargetX = playerX;
-            homeTargetY = playerY;
             return;
         }
 
@@ -68,12 +72,58 @@ public class EliteBossProjectile {
     }
 
     public void damage(int amount, double playerX, double playerY) {
+        if (launched || spent) {
+            return;
+        }
         shieldHealth = Math.max(0, shieldHealth - amount);
         if (shieldHealth <= 0) {
             homingMode = true;
-            homeTargetX = playerX;
-            homeTargetY = playerY;
+            lifetime = 0.0;
         }
+    }
+
+    public void launchAt(double targetX, double targetY) {
+        if (launched || isBroken() || spent) {
+            return;
+        }
+        double differenceX = targetX - worldX;
+        double differenceY = targetY - worldY;
+        double distance = Math.hypot(differenceX, differenceY);
+        if (distance <= 0.0001) {
+            return;
+        }
+        velocityX = differenceX / distance;
+        velocityY = differenceY / distance;
+        launched = true;
+        lifetime = 0.0;
+    }
+
+    public boolean isOrbiting() {
+        return !launched && !isBroken() && !spent;
+    }
+
+    public boolean isLaunched() {
+        return launched && !spent;
+    }
+
+    public boolean isExpired() {
+        return lifetime >= 5.0;
+    }
+
+    public boolean isSpent() {
+        return spent;
+    }
+
+    public boolean markSpent() {
+        if (spent) {
+            return false;
+        }
+        spent = true;
+        return true;
+    }
+
+    public double getAttackDamage() {
+        return launched ? 18.0 : 12.0;
     }
 
     public boolean hitsPlayer(double playerX, double playerY, double playerCollisionRadius) {

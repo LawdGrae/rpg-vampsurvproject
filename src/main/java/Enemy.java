@@ -22,6 +22,7 @@ public abstract class Enemy {
     private double animationTime;
     private boolean facingLeft;
     private double health;
+    private int playerHitCount;
     private double deathTime;
     private boolean lootDropped;
     private double poisonTimer;
@@ -128,6 +129,52 @@ public abstract class Enemy {
         }
     }
 
+    public void heal(double amount) {
+        if (!isDead() && amount > 0.0) {
+            health = Math.min(maxHealth, health + amount);
+        }
+    }
+
+    protected static BufferedImage prepareMinionSprite(BufferedImage source) {
+        int minX = source.getWidth();
+        int minY = source.getHeight();
+        int maxX = -1;
+        int maxY = -1;
+
+        for (int y = 0; y < source.getHeight(); y++) {
+            for (int x = 0; x < source.getWidth(); x++) {
+                int rgb = source.getRGB(x, y);
+                int red = (rgb >>> 16) & 0xFF;
+                int green = (rgb >>> 8) & 0xFF;
+                int blue = rgb & 0xFF;
+                if (Math.max(red, Math.max(green, blue)) > 18) {
+                    minX = Math.min(minX, x);
+                    minY = Math.min(minY, y);
+                    maxX = Math.max(maxX, x);
+                    maxY = Math.max(maxY, y);
+                }
+            }
+        }
+
+        if (maxX < minX || maxY < minY) {
+            return source;
+        }
+
+        BufferedImage sprite = new BufferedImage(maxX - minX + 1, maxY - minY + 1,
+                BufferedImage.TYPE_INT_ARGB);
+        for (int y = minY; y <= maxY; y++) {
+            for (int x = minX; x <= maxX; x++) {
+                int argb = source.getRGB(x, y);
+                int red = (argb >>> 16) & 0xFF;
+                int green = (argb >>> 8) & 0xFF;
+                int blue = argb & 0xFF;
+                int alpha = Math.max(red, Math.max(green, blue)) <= 18 ? 0 : 255;
+                sprite.setRGB(x - minX, y - minY, (argb & 0x00FFFFFF) | (alpha << 24));
+            }
+        }
+        return sprite;
+    }
+
     public void applyPoison(double damagePerSecond, double duration) {
         if (isDead()) {
             return;
@@ -180,6 +227,22 @@ public abstract class Enemy {
 
     public double getHealth() {
         return health;
+    }
+
+    public double getMaxHealth() {
+        return maxHealth;
+    }
+
+    public boolean registerPlayerHit() {
+        if (isDead()) {
+            return false;
+        }
+        playerHitCount++;
+        if (playerHitCount >= 6) {
+            playerHitCount = 0;
+            return true;
+        }
+        return false;
     }
 
     public boolean isDead() {

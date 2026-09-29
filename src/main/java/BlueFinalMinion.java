@@ -12,23 +12,35 @@ public class BlueFinalMinion extends Enemy {
     private static final double MAX_HEALTH = 25.0;
     private static final BufferedImage SPRITE_SHEET = loadSpriteSheet();
     private static final BufferedImage DEATH_SHEET = loadDeathSheet();
+    private double shieldPulseCooldown = 5.0;
 
     public BlueFinalMinion(double worldX, double worldY) {
         super(worldX, worldY, SPRITE_SHEET, DEATH_SHEET, SPEED, ANIMATION_SPEED,
-                FRAME_WIDTH, FRAME_HEIGHT, RENDER_SIZE, COLLISION_RADIUS, DAMAGE, MAX_HEALTH);
+            SPRITE_SHEET.getWidth(), SPRITE_SHEET.getHeight(), RENDER_SIZE,
+            COLLISION_RADIUS, DAMAGE, MAX_HEALTH);
     }
 
     @Override
     public void update(double deltaTime, double targetWorldX, double targetWorldY,
             double targetCollisionRadius) {
         if (isDead()) {
+            super.update(deltaTime, targetWorldX, targetWorldY, targetCollisionRadius);
             return;
         }
+        shieldPulseCooldown = Math.max(0.0, shieldPulseCooldown - deltaTime);
         super.update(deltaTime, targetWorldX, targetWorldY, targetCollisionRadius);
     }
 
     public double getShieldValue() {
         return 12.0;
+    }
+
+    public boolean canRestoreShield() {
+        return !isDead() && shieldPulseCooldown <= 0.0;
+    }
+
+    public void resetShieldPulseCooldown() {
+        shieldPulseCooldown = 5.0;
     }
 
     public void explodeOnDeath() {
@@ -38,11 +50,11 @@ public class BlueFinalMinion extends Enemy {
     }
 
     private static BufferedImage loadSpriteSheet() {
-        return ResourceLoader.loadImage("/main/resources/enemy/BLUEMINION.png");
+        return prepareMinionSprite(ResourceLoader.loadImage("/main/resources/enemy/BLUEMINION.png"));
     }
 
     private static BufferedImage loadDeathSheet() {
-        return ResourceLoader.loadImage("/main/resources/enemy/BLUEMINION.png");
+        return SPRITE_SHEET;
     }
 
     @Override

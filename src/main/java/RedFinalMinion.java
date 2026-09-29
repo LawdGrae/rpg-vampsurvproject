@@ -21,7 +21,8 @@ public class RedFinalMinion extends Enemy {
 
     public RedFinalMinion(double worldX, double worldY) {
         super(worldX, worldY, SPRITE_SHEET, DEATH_SHEET, SPEED, ANIMATION_SPEED,
-                FRAME_WIDTH, FRAME_HEIGHT, RENDER_SIZE, COLLISION_RADIUS, DAMAGE, MAX_HEALTH);
+            SPRITE_SHEET.getWidth(), SPRITE_SHEET.getHeight(), RENDER_SIZE,
+            COLLISION_RADIUS, DAMAGE, MAX_HEALTH);
         fireCooldown = 0.6;
     }
 
@@ -51,6 +52,7 @@ public class RedFinalMinion extends Enemy {
     public void update(double deltaTime, double targetWorldX, double targetWorldY,
             double targetCollisionRadius) {
         if (isDead()) {
+            super.update(deltaTime, targetWorldX, targetWorldY, targetCollisionRadius);
             return;
         }
         fireCooldown = Math.max(0.0, fireCooldown - deltaTime);
@@ -58,11 +60,11 @@ public class RedFinalMinion extends Enemy {
     }
 
     private static BufferedImage loadSpriteSheet() {
-        return ResourceLoader.loadImage("/main/resources/enemy/REDMINION.png");
+        return prepareMinionSprite(ResourceLoader.loadImage("/main/resources/enemy/REDMINION.png"));
     }
 
     private static BufferedImage loadDeathSheet() {
-        return ResourceLoader.loadImage("/main/resources/enemy/REDMINION.png");
+        return SPRITE_SHEET;
     }
 
     private static BufferedImage loadProjectileSprite() {
