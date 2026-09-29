@@ -6,6 +6,11 @@ import java.awt.geom.Arc2D;
 import java.awt.geom.Path2D;
 
 public class AbilityVisualEffect {
+    public enum Layer {
+        GROUND,
+        FRONT
+    }
+
     private final AbilityDefinition definition;
     private final double startX;
     private final double startY;
@@ -16,6 +21,7 @@ public class AbilityVisualEffect {
     private final double maxLife;
     private final int variant;
     private final SkillEffectAtlas.SkillAnimation spriteAnimation;
+    private final Layer layer;
     private double life;
 
     public AbilityVisualEffect(AbilityDefinition definition, double startX,
@@ -32,6 +38,7 @@ public class AbilityVisualEffect {
         this.life = maxLife;
         this.variant = Math.abs(definition.getId().hashCode());
         this.spriteAnimation = SkillEffectAtlas.getAnimation(definition.getId());
+        this.layer = layerFor(definition);
     }
 
     public void update(double deltaTime) {
@@ -40,6 +47,10 @@ public class AbilityVisualEffect {
 
     public boolean isExpired() {
         return life <= 0.0;
+    }
+
+    public Layer getLayer() {
+        return layer;
     }
 
     public void draw(Graphics2D graphics, int centerX, int centerY,
@@ -62,6 +73,15 @@ public class AbilityVisualEffect {
             drawByAbility(effectGraphics, sx, sy, x, y, progress, alpha);
         }
         effectGraphics.dispose();
+    }
+
+    private Layer layerFor(AbilityDefinition definition) {
+        return switch (definition.getId()) {
+            case "earth_shatter", "lightning_strike", "divine_light",
+                    "heal", "holy_shield", "blessing", "elemental_storm",
+                    "flame_burst" -> Layer.GROUND;
+            default -> Layer.FRONT;
+        };
     }
 
     private void drawByAbility(Graphics2D g, int sx, int sy, int x, int y,
@@ -1056,7 +1076,10 @@ public class AbilityVisualEffect {
         double angle = directionAngle(sx, sy, x, y);
         double sideX = Math.cos(angle + Math.PI / 2.0);
         double sideY = Math.sin(angle + Math.PI / 2.0);
-        double reach = Math.min(1.0, p * 1.25);
+        boolean firstStrike = p < 0.52;
+        double local = firstStrike ? Math.min(1.0, p / 0.52)
+                : Math.min(1.0, (p - 0.52) / 0.48);
+        double reach = local * local * (3.0 - 2.0 * local);
         int leftStartX = (int) Math.round(sx + sideX * 20);
         int leftStartY = (int) Math.round(sy + sideY * 12);
         int rightStartX = (int) Math.round(sx - sideX * 20);
@@ -1067,14 +1090,19 @@ public class AbilityVisualEffect {
         int rightTipY = (int) Math.round(rightStartY + (y - rightStartY) * reach + sideY * 10);
 
         drawAfterimages(g, sx, sy, x, y, new Color(28, 18, 40), a * 0.55, 3);
-        drawDaggerStrike(g, leftStartX, leftStartY, leftTipX, leftTipY,
-                new Color(230, 55, 80), a, 1.05);
-        drawDaggerStrike(g, rightStartX, rightStartY, rightTipX, rightTipY,
-                new Color(160, 70, 230), a, 1.05);
-        drawSlash(g, x - (int) (sideX * 14), y - (int) (sideY * 10),
-                Math.toDegrees(angle) - 38, size * 0.55, new Color(235, 60, 95), a * 0.82);
-        drawSlash(g, x + (int) (sideX * 14), y + (int) (sideY * 10),
-                Math.toDegrees(angle) + 38, size * 0.55, new Color(175, 85, 240), a * 0.82);
+        if (firstStrike) {
+            drawDaggerStrike(g, leftStartX, leftStartY, leftTipX, leftTipY,
+                    new Color(230, 55, 80), a, 1.05);
+            drawSlash(g, x - (int) (sideX * 14), y - (int) (sideY * 10),
+                    Math.toDegrees(angle) - 38, size * 0.55,
+                    new Color(235, 60, 95), a * 0.82);
+        } else {
+            drawDaggerStrike(g, rightStartX, rightStartY, rightTipX, rightTipY,
+                    new Color(160, 70, 230), a, 1.05);
+            drawSlash(g, x + (int) (sideX * 14), y + (int) (sideY * 10),
+                    Math.toDegrees(angle) + 38, size * 0.55,
+                    new Color(175, 85, 240), a * 0.82);
+        }
         if (p > 0.58) {
             drawPhysicalImpactLines(g, x, y, size * 0.42, p, a * 0.72);
         }
@@ -1085,16 +1113,22 @@ public class AbilityVisualEffect {
         double angle = directionAngle(sx, sy, x, y);
         drawAfterimages(g, sx, sy, x, y, new Color(18, 12, 25), a * 0.9, 7);
         drawSmoke(g, x, y, size * 0.34, new Color(16, 10, 22), p, a * 0.65, 6);
-        drawDaggerStrike(g,
-                (int) Math.round(x - Math.cos(angle) * size * 0.28),
-                (int) Math.round(y - Math.sin(angle) * size * 0.18),
-                (int) Math.round(x + Math.cos(angle) * size * 0.28),
-                (int) Math.round(y + Math.sin(angle) * size * 0.18),
-                Color.WHITE, a, 1.18);
-        drawSlash(g, x, y, Math.toDegrees(angle) - 72,
-                size * 0.74, new Color(235, 235, 255), a * 0.9);
-        drawSlash(g, x, y, Math.toDegrees(angle) + 72,
-                size * 0.64, new Color(210, 45, 95), a * 0.78);
+        int stage = Math.min(3, (int) Math.floor(p * 4.0));
+        double stageProgress = Math.min(1.0, Math.max(0.0, p * 4.0 - stage));
+        double slashAngle = Math.toDegrees(angle) + switch (stage) {
+            case 0 -> -72.0;
+            case 1 -> 58.0;
+            case 2 -> -24.0;
+            default -> 18.0;
+        };
+        Color slashColor = stage == 3 ? new Color(255, 245, 245)
+                : stage % 2 == 0 ? new Color(235, 235, 255) : new Color(210, 45, 95);
+        int startX = (int) Math.round(x - Math.cos(angle) * size * (0.22 + stage * 0.04));
+        int startY = (int) Math.round(y - Math.sin(angle) * size * 0.16);
+        int endX = (int) Math.round(startX + Math.cos(angle) * size * 0.5 * stageProgress);
+        int endY = (int) Math.round(startY + Math.sin(angle) * size * 0.32 * stageProgress);
+        drawDaggerStrike(g, startX, startY, endX, endY, slashColor, a, 1.18);
+        drawSlash(g, x, y, slashAngle, size * (0.54 + stage * 0.07), slashColor, a * 0.9);
         if (p > 0.65) {
             drawFlash(g, x, y, size * 0.28, new Color(255, 245, 245), a * 0.78);
         }
@@ -1145,13 +1179,14 @@ public class AbilityVisualEffect {
         drawClouds(g, x, y, size * 0.42, new Color(95, 18, 24), p, a * 0.62, 7);
         drawShockwaveSpikes(g, x, y + 18, size * 0.48, new Color(160, 28, 30), p, a * 0.55);
         drawCracks(g, x, y + 24, size * 0.8, new Color(90, 45, 36), Math.min(1.0, p * 1.2), a);
-        for (int i = 0; i < 4; i++) {
-            double angle = -0.85 + i * 0.55 + p * 0.42;
-            int slashX = (int) Math.round(x + Math.cos(angle) * size * 0.18);
-            int slashY = (int) Math.round(y + Math.sin(angle) * size * 0.13);
-            drawSlash(g, slashX, slashY, Math.toDegrees(angle) + 65,
-                    size * (0.72 + i * 0.08), new Color(255, 92, 30), a * (0.96 - i * 0.1));
-        }
+        int slashIndex = Math.min(3, (int) Math.floor(p * 4.0));
+        double local = Math.min(1.0, Math.max(0.0, p * 4.0 - slashIndex));
+        double angle = -0.85 + slashIndex * 0.55 + local * 0.42;
+        int slashX = (int) Math.round(x + Math.cos(angle) * size * 0.18);
+        int slashY = (int) Math.round(y + Math.sin(angle) * size * 0.13);
+        drawSlash(g, slashX, slashY, Math.toDegrees(angle) + 65,
+                size * (0.72 + slashIndex * 0.08),
+                new Color(255, 92, 30), a * (0.96 - slashIndex * 0.1));
         drawWeaponSwing(g, x, y, p * Math.PI * 2.8, "sword", Color.WHITE, p, a);
         drawRocks(g, x, y + 26, size * 0.65, p, a);
         drawSparks(g, x, y, new Color(255, 185, 70), 18, p, a);
@@ -1191,23 +1226,29 @@ public class AbilityVisualEffect {
 
     private void drawElementalStorm(Graphics2D g, int x, int y, double size, double p, double a) {
         drawMagicCircle(g, x, y + 18, size * 0.5, new Color(120, 70, 210), p, a * 0.55);
-        for (int i = 0; i < 4; i++) {
-            double angle = Math.PI * 2.0 * (p + i / 4.0);
+        int visibleElements = p < 0.22 ? 0 : p < 0.42 ? 1 : p < 0.62 ? 2 : 3;
+        for (int i = 0; i < visibleElements; i++) {
+            double angle = Math.PI * 2.0 * (p + i / 3.0);
             int px = (int) Math.round(x + Math.cos(angle) * size * 0.36);
             int py = (int) Math.round(y + Math.sin(angle) * size * 0.24);
-            if (i % 3 == 0) {
+            if (i == 0) {
                 drawFireBurst(g, px, py, size * 0.28, p, a * 0.85);
-            } else if (i % 3 == 1) {
+            } else if (i == 1) {
                 drawIceCrystal(g, px, py, 34, new Color(175, 240, 255), a);
                 drawIceCrystal(g, px + 18, py - 8, 18, new Color(220, 255, 255), a * 0.8);
             } else {
                 drawSkyLightningStrike(g, px, py, size * 0.35, p, a * 0.85);
             }
         }
-        drawBranchedLightning(g, x - (int) (size * 0.45), y - (int) (size * 0.55),
-                x + (int) (size * 0.32), y + (int) (size * 0.2),
-                new Color(120, 220, 255), a * 0.8);
-        drawShockwaveSpikes(g, x, y + 14, size * 0.42, new Color(205, 220, 255), p, a * 0.42);
+        if (p > 0.62) {
+            drawBranchedLightning(g, x - (int) (size * 0.45), y - (int) (size * 0.55),
+                    x + (int) (size * 0.32), y + (int) (size * 0.2),
+                    new Color(120, 220, 255), a * 0.8);
+        }
+        if (p > 0.78) {
+            drawShockwaveSpikes(g, x, y + 14, size * 0.42,
+                    new Color(205, 220, 255), p, a * 0.42);
+        }
     }
 
     private void drawWhirlwind(Graphics2D g, int x, int y, double size, Color c,

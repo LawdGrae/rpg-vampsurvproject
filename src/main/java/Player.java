@@ -234,6 +234,24 @@ public abstract class Player {
         return recentMoveY;
     }
 
+    public void faceToward(double targetWorldX, double targetWorldY) {
+        double differenceX = targetWorldX - getWorldX();
+        double differenceY = targetWorldY - getWorldY();
+        double length = Math.hypot(differenceX, differenceY);
+        if (length <= 0.0001) {
+            return;
+        }
+
+        recentMoveX = differenceX / length;
+        recentMoveY = differenceY / length;
+        hasRecentMove = true;
+        if (Math.abs(differenceX) >= Math.abs(differenceY)) {
+            spriteRow = differenceX >= 0.0 ? 1 : 3;
+        } else {
+            spriteRow = differenceY >= 0.0 ? 2 : 0;
+        }
+    }
+
     public void takeDamage(double damage) {
         health = Math.max(0, health - damage);
     }
@@ -249,7 +267,34 @@ public abstract class Player {
         worldOffsetY -= differenceY;
     }
 
+    public BufferedImage getPrimaryWeaponSprite() {
+        return weaponSprite;
+    }
+
+    public String getDefaultWeaponStyle() {
+        return defaultWeaponStyle;
+    }
+
+    public double getWeaponCastWorldX() {
+        double side = getFacingX();
+        if (Math.abs(side) <= 0.001) {
+            side = recentMoveX >= 0.0 ? 1.0 : -1.0;
+        }
+        return getWorldX() + side * spriteWidth * spriteScale * 0.32;
+    }
+
+    public double getWeaponCastWorldY() {
+        double verticalOffset = getFacingY() < 0 ? -spriteHeight * spriteScale * 0.18
+                : spriteHeight * spriteScale * 0.02;
+        return getWorldY() + verticalOffset;
+    }
+
     public void playAttackAnimation(AbilityDefinition definition) {
+        playAttackAnimation(definition, attackAnimationDuration);
+    }
+
+    public void playAttackAnimation(AbilityDefinition definition, double duration) {
+        attackAnimationDuration = Math.max(0.12, duration);
         attackAnimationTime = attackAnimationDuration;
         attackWeaponStyle = weaponStyleFor(definition);
     }
@@ -310,29 +355,27 @@ public abstract class Player {
             return;
         }
 
-        double attackProgress = attackAnimationDuration <= 0.0 ? 0.0
-                : attackAnimationTime / attackAnimationDuration;
-        double swing = Math.sin((1.0 - attackProgress) * Math.PI);
-
         if (attackAnimationTime > 0.0) {
-            pose.offsetX += getFacingX() * pose.attackReach * swing;
-            pose.offsetY += getFacingY() * pose.attackReach * swing;
-            pose.angle += pose.attackArc * swing - 0.25 * attackProgress;
+            double attackProgress = attackAnimationDuration <= 0.0 ? 0.0
+                    : 1.0 - attackAnimationTime / attackAnimationDuration;
+            pose.applyAttackProgress(attackProgress, getFacingX(), getFacingY());
         }
 
         Graphics2D weaponGraphics = (Graphics2D) graphics.create();
         AffineTransform transform = new AffineTransform();
-        transform.translate(centerX + pose.offsetX, centerY + pose.offsetY);
-        transform.rotate(pose.angle);
+        transform.translate(centerX + pose.weaponX, centerY + pose.weaponY);
+        transform.rotate(pose.weaponRotation);
         if (image == null) {
             weaponGraphics.transform(transform);
             if (!offhand) {
                 drawProceduralWeapon(weaponGraphics, pose.drawHeight, attackAnimationTime > 0.0);
             }
         } else {
-            double scale = pose.drawHeight / (double) image.getHeight();
-            transform.scale(pose.flipX ? -scale : scale, scale);
-            transform.translate(-image.getWidth() * pose.pivotX, -image.getHeight() * pose.pivotY);
+            pose.weaponScale = pose.drawHeight / (double) image.getHeight();
+            transform.scale(pose.flipX ? -pose.weaponScale : pose.weaponScale,
+                    pose.weaponScale);
+            transform.translate(-image.getWidth() * pose.weaponPivotX,
+                    -image.getHeight() * pose.weaponPivotY);
             weaponGraphics.drawImage(image, transform, null);
         }
         weaponGraphics.dispose();
@@ -347,46 +390,52 @@ public abstract class Player {
 
         if ("sword_shield".equals(attackWeaponStyle)) {
             if (offhand) {
-                double x = left ? -renderedWidth * 0.20 : renderedWidth * 0.20;
-                double y = up ? -renderedHeight * 0.04 : renderedHeight * 0.08;
+                double x = left ? -renderedWidth * 0.24 : renderedWidth * 0.24;
+                double y = up ? -renderedHeight * 0.02 : renderedHeight * 0.06;
                 if (down) {
-                    x = renderedWidth * 0.20;
-                    y = renderedHeight * 0.13;
+                    x = renderedWidth * 0.17;
+                    y = renderedHeight * 0.12;
                 }
-                return new WeaponPose(x, y, left ? -0.08 : 0.08, 32,
-                        0.50, 0.50, false, up);
+                return new WeaponPose(x, y, left ? -0.12 : 0.12, 34,
+                        0.50, 0.54, false, up);
             }
-            double x = left ? -renderedWidth * 0.30 : renderedWidth * 0.30;
-            double y = down ? renderedHeight * 0.15 : up ? -renderedHeight * 0.14 : renderedHeight * 0.04;
-            double angle = left ? Math.toRadians(18) : Math.toRadians(-18);
+            double x = left ? -renderedWidth * 0.23 : renderedWidth * 0.23;
+            double y = down ? renderedHeight * 0.1 : up ? -renderedHeight * 0.08 : renderedHeight * 0.02;
+            double angle = left ? Math.toRadians(28) : Math.toRadians(-28);
             if (up) {
-                angle = Math.toRadians(-55);
-                x = renderedWidth * 0.10;
+                angle = left ? Math.toRadians(-36) : Math.toRadians(36);
+                x = left ? -renderedWidth * 0.16 : renderedWidth * 0.16;
             } else if (down) {
-                angle = Math.toRadians(0);
-                x = -renderedWidth * 0.18;
+                angle = left ? Math.toRadians(12) : Math.toRadians(-12);
+                x = left ? -renderedWidth * 0.18 : renderedWidth * 0.18;
             }
-            return new WeaponPose(x, y, angle, 44, 0.67, 0.22, left, up, 5.0, left ? -0.35 : 0.35);
+            return new WeaponPose(x, y, angle, 46, 0.55, 0.18, left, up,
+                    11.0, left ? -0.95 : 0.95);
         }
 
         if ("daggers".equals(attackWeaponStyle)) {
-            double x = left ? -renderedWidth * 0.10 : renderedWidth * 0.10;
-            double y = up ? -renderedHeight * 0.06 : renderedHeight * 0.11;
-            return new WeaponPose(x, y, left ? Math.toRadians(8) : Math.toRadians(-8),
-                    42, 0.50, 0.48, left, up, 4.0, left ? -0.28 : 0.28);
+            double x = left ? -renderedWidth * 0.2 : renderedWidth * 0.2;
+            double y = up ? -renderedHeight * 0.05 : renderedHeight * 0.08;
+            double angle = left ? Math.toRadians(18) : Math.toRadians(-18);
+            if (down) {
+                angle = left ? Math.toRadians(8) : Math.toRadians(-8);
+            }
+            return new WeaponPose(x, y, angle, 38, 0.50, 0.46, left, up,
+                    9.0, left ? -0.78 : 0.78);
         }
 
         if ("holy_staff".equals(attackWeaponStyle) || "elemental_staff".equals(attackWeaponStyle)
                 || "staff".equals(attackWeaponStyle)) {
-            double x = left ? -renderedWidth * 0.25 : renderedWidth * 0.25;
-            double y = up ? -renderedHeight * 0.10 : renderedHeight * 0.05;
-            double angle = left ? Math.toRadians(-10) : Math.toRadians(10);
+            double x = left ? -renderedWidth * 0.2 : renderedWidth * 0.2;
+            double y = up ? -renderedHeight * 0.09 : renderedHeight * 0.05;
+            double angle = left ? Math.toRadians(-14) : Math.toRadians(14);
             if (down) {
-                y = renderedHeight * 0.12;
-                x = renderedWidth * 0.20;
-                angle = Math.toRadians(8);
+                y = renderedHeight * 0.1;
+                x = left ? -renderedWidth * 0.14 : renderedWidth * 0.14;
+                angle = left ? Math.toRadians(-6) : Math.toRadians(6);
             }
-            return new WeaponPose(x, y, angle, 50, 0.50, 0.66, left, up, 4.0, left ? -0.20 : 0.20);
+            return new WeaponPose(x, y, angle, 50, 0.50, 0.66, left, up,
+                    7.0, left ? -0.42 : 0.42);
         }
 
         double x = left ? -renderedWidth * 0.34 : renderedWidth * 0.34;
@@ -396,12 +445,15 @@ public abstract class Player {
     }
 
     private static class WeaponPose {
-        private double offsetX;
-        private double offsetY;
-        private double angle;
+        private final double handAnchorX;
+        private final double handAnchorY;
+        private double weaponX;
+        private double weaponY;
+        private double weaponRotation;
+        private double weaponScale = 1.0;
         private final int drawHeight;
-        private final double pivotX;
-        private final double pivotY;
+        private final double weaponPivotX;
+        private final double weaponPivotY;
         private final boolean flipX;
         private final boolean behindCharacter;
         private final double attackReach;
@@ -416,16 +468,56 @@ public abstract class Player {
         private WeaponPose(double offsetX, double offsetY, double angle, int drawHeight,
                 double pivotX, double pivotY, boolean flipX, boolean behindCharacter,
                 double attackReach, double attackArc) {
-            this.offsetX = offsetX;
-            this.offsetY = offsetY;
-            this.angle = angle;
+            this.handAnchorX = offsetX;
+            this.handAnchorY = offsetY;
+            this.weaponX = offsetX;
+            this.weaponY = offsetY;
+            this.weaponRotation = angle;
             this.drawHeight = drawHeight;
-            this.pivotX = pivotX;
-            this.pivotY = pivotY;
+            this.weaponPivotX = pivotX;
+            this.weaponPivotY = pivotY;
             this.flipX = flipX;
             this.behindCharacter = behindCharacter;
             this.attackReach = attackReach;
             this.attackArc = attackArc;
+        }
+
+        private void applyAttackProgress(double progress, int facingX, int facingY) {
+            if (attackArc == 0.0) {
+                return;
+            }
+
+            double clamped = Math.max(0.0, Math.min(1.0, progress));
+            double rotationOffset;
+            if (clamped < 0.18) {
+                rotationOffset = lerp(0.0, -0.48 * attackArc, clamped / 0.18);
+            } else if (clamped < 0.35) {
+                rotationOffset = lerp(-0.48 * attackArc, -1.08 * attackArc,
+                        (clamped - 0.18) / 0.17);
+            } else if (clamped < 0.58) {
+                rotationOffset = lerp(-1.08 * attackArc, 1.18 * attackArc,
+                        smooth((clamped - 0.35) / 0.23));
+            } else if (clamped < 0.78) {
+                rotationOffset = lerp(1.18 * attackArc, 0.48 * attackArc,
+                        (clamped - 0.58) / 0.2);
+            } else {
+                rotationOffset = lerp(0.48 * attackArc, 0.0, (clamped - 0.78) / 0.22);
+            }
+
+            double handNudge = Math.sin(clamped * Math.PI) * Math.min(4.0, attackReach * 0.35);
+            weaponRotation += rotationOffset;
+            weaponX = handAnchorX + facingX * handNudge;
+            weaponY = handAnchorY + facingY * handNudge - Math.sin(clamped * Math.PI) * 3.0;
+        }
+
+        private static double lerp(double start, double end, double ratio) {
+            double clampedRatio = Math.max(0.0, Math.min(1.0, ratio));
+            return start + (end - start) * clampedRatio;
+        }
+
+        private static double smooth(double value) {
+            double clampedValue = Math.max(0.0, Math.min(1.0, value));
+            return clampedValue * clampedValue * (3.0 - 2.0 * clampedValue);
         }
     }
 

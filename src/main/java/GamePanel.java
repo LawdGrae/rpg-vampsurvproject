@@ -306,6 +306,11 @@ public class GamePanel extends JPanel {
 
         Graphics2D worldGraphics = (Graphics2D) graphics2D.create();
         worldGraphics.translate(gameLogic.getScreenShakeOffsetX(), gameLogic.getScreenShakeOffsetY());
+        worldGraphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
+        worldGraphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+                RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+        worldGraphics.setRenderingHint(RenderingHints.KEY_RENDERING,
+                RenderingHints.VALUE_RENDER_SPEED);
 
         int tileWidth = grassTile.getWidth();
         int tileHeight = grassTile.getHeight();
@@ -318,6 +323,7 @@ public class GamePanel extends JPanel {
             }
         }
 
+        gameLogic.drawAbilityGroundEffects(worldGraphics, PANEL_WIDTH / 2, PANEL_HEIGHT / 2);
         gameLogic.drawEntities(worldGraphics, PANEL_WIDTH / 2, PANEL_HEIGHT / 2);
         gameLogic.drawAbilityBursts(worldGraphics, PANEL_WIDTH / 2, PANEL_HEIGHT / 2);
         worldGraphics.dispose();

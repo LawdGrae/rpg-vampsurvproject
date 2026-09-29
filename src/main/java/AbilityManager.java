@@ -8,12 +8,13 @@ public class AbilityManager {
     public static final int EQUIPPED_SLOT_COUNT = 4;
 
     private static final double MAX_MANA = 100.0;
-    private static final double MANA_REGEN_PER_SECOND = 7.5;
+    private static final double MANA_REGEN_PER_SECOND = 8.5;
 
     private final List<RpgAbility> abilities = new ArrayList<>();
     private final RpgAbility[] equipped = new RpgAbility[EQUIPPED_SLOT_COUNT];
     private double mana = MAX_MANA;
     private double manaRegenMultiplier = 1.0;
+    private double passiveManaRegenMultiplier = 1.0;
     private double manaRegenBoostTime;
     private double manaLockTimer;
     private int selectedEquipSlot;
@@ -37,7 +38,8 @@ public class AbilityManager {
                 }
             }
             mana = Math.min(MAX_MANA,
-                    mana + MANA_REGEN_PER_SECOND * manaRegenMultiplier * deltaTime);
+                    mana + MANA_REGEN_PER_SECOND * manaRegenMultiplier
+                            * passiveManaRegenMultiplier * deltaTime);
         }
         for (RpgAbility ability : abilities) {
             ability.update(deltaTime);
@@ -118,6 +120,7 @@ public class AbilityManager {
             if (ability != null) {
                 equipped[slot] = ability;
                 ability.setEquipped(true);
+                ability.cooldownRemaining = 0.0;
                 slot++;
             }
         }
@@ -171,10 +174,16 @@ public class AbilityManager {
         manaRegenMultiplier = Math.max(manaRegenMultiplier, multiplier);
     }
 
+    public void setPassiveManaRegenMultiplier(double multiplier) {
+        passiveManaRegenMultiplier = Math.max(0.1, multiplier);
+    }
+
     public void resetRunState() {
         mana = MAX_MANA;
         manaRegenMultiplier = 1.0;
+        passiveManaRegenMultiplier = 1.0;
         manaRegenBoostTime = 0.0;
+        manaLockTimer = 0.0;
         for (RpgAbility ability : abilities) {
             ability.reset();
             ability.cooldownRemaining = 0.0;

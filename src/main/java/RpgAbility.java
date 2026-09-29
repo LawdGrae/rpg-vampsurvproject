@@ -44,8 +44,12 @@ public class RpgAbility extends Ability {
     }
 
     public boolean trigger(GameLogic gameLogic, AbilityManager manager, int playerLevel) {
-        if (!canTrigger(manager, playerLevel)) {
+        if (!definition.isUnlockedAt(playerLevel) || !isReady()) {
             gameLogic.showAbilityDenied(definition);
+            return false;
+        }
+        if (manager.isManaLocked() || manager.getMana() < definition.getManaCost()) {
+            gameLogic.showInsufficientMana(definition);
             return false;
         }
         manager.spendMana(definition.getManaCost());

@@ -1,4 +1,5 @@
 import java.awt.Graphics2D;
+import java.awt.RenderingHints;
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 
@@ -11,6 +12,8 @@ public class Projectile {
     private final int frameCount;
     private final int frameWidth;
     private final double animationSpeed;
+    private final double maxDrawSize;
+    private final DamageElement damageElement;
     private double worldX;
     private double worldY;
     private final double velocityX;
@@ -27,6 +30,20 @@ public class Projectile {
     public Projectile(double worldX, double worldY, double targetX, double targetY,
             double speed, double damage, double radius, BufferedImage sprite,
             double animationSpeed) {
+        this(worldX, worldY, targetX, targetY, speed, damage, radius, sprite,
+                animationSpeed, 0.0);
+    }
+
+    public Projectile(double worldX, double worldY, double targetX, double targetY,
+            double speed, double damage, double radius, BufferedImage sprite,
+            double animationSpeed, double maxDrawSize) {
+        this(worldX, worldY, targetX, targetY, speed, damage, radius, sprite,
+                animationSpeed, maxDrawSize, DamageElement.PHYSICAL);
+    }
+
+    public Projectile(double worldX, double worldY, double targetX, double targetY,
+            double speed, double damage, double radius, BufferedImage sprite,
+            double animationSpeed, double maxDrawSize, DamageElement damageElement) {
         this.worldX = worldX;
         this.worldY = worldY;
         this.speed = speed;
@@ -34,6 +51,8 @@ public class Projectile {
         this.radius = radius;
         this.sprite = sprite;
         this.animationSpeed = animationSpeed;
+        this.maxDrawSize = maxDrawSize;
+        this.damageElement = damageElement;
 
         int calculatedFrameWidth = sprite.getWidth();
         if (sprite.getWidth() > sprite.getHeight()) {
@@ -94,23 +113,37 @@ public class Projectile {
             drawWidth = frameWidth;
         }
 
+        int renderWidth = drawWidth;
+        int renderHeight = drawHeight;
+        if (maxDrawSize > 0.0 && Math.max(renderWidth, renderHeight) > maxDrawSize) {
+            double scale = maxDrawSize / Math.max(renderWidth, renderHeight);
+            renderWidth = Math.max(1, (int) Math.round(renderWidth * scale));
+            renderHeight = Math.max(1, (int) Math.round(renderHeight * scale));
+        }
+
         Graphics2D rotatedGraphics = (Graphics2D) graphics.create();
+        rotatedGraphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+                RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
         rotatedGraphics.translate(screenCenterX, screenCenterY);
         rotatedGraphics.rotate(angle);
-        rotatedGraphics.translate(-drawWidth / 2.0, -drawHeight / 2.0);
+        rotatedGraphics.translate(-renderWidth / 2.0, -renderHeight / 2.0);
 
         if (frameCount > 1) {
             rotatedGraphics.drawImage(sprite,
-                    0, 0, drawWidth, drawHeight,
+                    0, 0, renderWidth, renderHeight,
                     sourceX, 0, sourceX + drawWidth, drawHeight, null);
         } else {
-            rotatedGraphics.drawImage(sprite, 0, 0, drawWidth, drawHeight, null);
+            rotatedGraphics.drawImage(sprite, 0, 0, renderWidth, renderHeight, null);
         }
         rotatedGraphics.dispose();
     }
 
     public double getDamage() {
         return damage;
+    }
+
+    public DamageElement getDamageElement() {
+        return damageElement;
     }
 
     public Enemy getOwner() {

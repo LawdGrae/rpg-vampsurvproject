@@ -12,10 +12,10 @@ public class WeaponDirectionSmokeTest {
         }
 
         AutoFireWeapon weapon = new AutoFireWeapon();
-        Projectile projectile = weapon.update(0.1, 0.0, 0.0,
-                player.getRecentMoveX(), player.getRecentMoveY());
-        if (projectile == null) {
-            throw new IllegalStateException("Weapon should continue firing in the recent movement direction");
+        Enemy enemy = new TemplateEnemy(64.0, 0.0);
+        Enemy hitEnemy = weapon.updateMeleeAttack(0.1, 0.0, 0.0, enemy);
+        if (hitEnemy != enemy) {
+            throw new IllegalStateException("Weapon should resolve a melee hit inside swing range");
         }
     }
 

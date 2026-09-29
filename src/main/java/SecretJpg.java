@@ -95,6 +95,10 @@ public class SecretJpg {
     }
 
     private static BufferedImage loadSprite() {
-        return ResourceLoader.loadImage("/main/resources/enemy/SECRET.jpg");
+        try {
+            return ResourceLoader.loadImage("/main/resources/enemy/SECRET.jpg");
+        } catch (IllegalStateException exception) {
+            return new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
+        }
     }
 }
