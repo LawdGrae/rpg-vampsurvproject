@@ -146,7 +146,7 @@ public class AutoFireWeapon extends Weapon {
     public void setAttackSprite(BufferedImage sprite, String weaponStyle) {
         this.weaponStyle = weaponStyle == null ? "sword_shield" : weaponStyle;
         if ("daggers".equals(this.weaponStyle)) {
-            attackRange = 88.0;
+            attackRange = 62.0;
             attackSprite = PROJECTILE_SPRITE;
             maxDrawSize = 42.0;
             damageElement = DamageElement.PHYSICAL;
@@ -161,7 +161,7 @@ public class AutoFireWeapon extends Weapon {
             maxDrawSize = 38.0;
             damageElement = DamageElement.FIRE;
         } else {
-            attackRange = 118.0;
+            attackRange = 78.0;
             attackSprite = PROJECTILE_SPRITE;
             maxDrawSize = 42.0;
             damageElement = DamageElement.PHYSICAL;
@@ -174,13 +174,13 @@ public class AutoFireWeapon extends Weapon {
 
     public double getSwingDuration() {
         if ("daggers".equals(weaponStyle)) {
-            return 0.24;
+            return 0.30;
         }
         if ("holy_staff".equals(weaponStyle) || "elemental_staff".equals(weaponStyle)
                 || "staff".equals(weaponStyle)) {
-            return 0.34;
+            return 0.38;
         }
-        return 0.32;
+        return 0.42;
     }
 
     private static BufferedImage loadProjectileSprite() {

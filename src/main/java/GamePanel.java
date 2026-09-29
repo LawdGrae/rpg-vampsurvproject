@@ -413,7 +413,7 @@ public class GamePanel extends JPanel {
 
         drawPanel(graphics, new Rectangle(28, 36, panelWidth - 56, panelHeight - 62), 24);
 
-        drawCenteredString(graphics, "Choose your hero", HEADER_FONT, GOLD_LIGHT,
+        drawCenteredString(graphics, "Choose your hero", HEADER_FONT.deriveFont(28f), GOLD_LIGHT,
                 0, getSelectionTitleY(), panelWidth);
 
         List<String> names = gameLogic.getCharacterNames();
@@ -449,15 +449,15 @@ public class GamePanel extends JPanel {
                 drawCharacterPortrait(graphics, index, getPortraitBounds(card));
 
                 graphics.setColor(TEXT_SOFT);
-                graphics.setFont(scaledFont(LABEL_FONT, card, 1.12));
+                graphics.setFont(scaledFont(LABEL_FONT, card, 0.92));
                 drawCenteredClippedString(graphics, name.toUpperCase(), x + 10,
                         getNameY(card), cardWidth - 20);
                 graphics.setColor(accent.brighter());
-                graphics.setFont(scaledFont(new Font("Times New Roman", Font.BOLD, 11), card, 1.0));
+                graphics.setFont(scaledFont(new Font("Times New Roman", Font.BOLD, 11), card, 0.74));
                 drawCenteredClippedString(graphics, gameLogic.getCharacterClassName(index),
                         x + 10, getClassY(card), cardWidth - 20);
                 graphics.setColor(TEXT_SOFT);
-                graphics.setFont(scaledFont(new Font("Times New Roman", Font.PLAIN, 11), card, 1.0));
+                graphics.setFont(scaledFont(new Font("Times New Roman", Font.PLAIN, 11), card, 0.72));
                 drawCenteredClippedString(graphics, gameLogic.getCharacterRole(index),
                         x + 10, getRoleY(card), cardWidth - 20);
                 drawCenteredClippedString(graphics, gameLogic.getCharacterWeaponName(index),
@@ -507,13 +507,17 @@ public class GamePanel extends JPanel {
     }
 
     private void drawCharacterPortrait(Graphics2D graphics, int characterIndex, Rectangle bounds) {
+        if (gameLogic.isCharacterSelectable(characterIndex)) {
+            drawSelectionWeapons(graphics, characterIndex, bounds, true);
+        }
         drawCharacterPortrait(graphics, characterIndex, bounds.x, bounds.y, bounds.width, bounds.height);
         if (gameLogic.isCharacterSelectable(characterIndex)) {
-            drawSelectionWeapons(graphics, characterIndex, bounds);
+            drawSelectionWeapons(graphics, characterIndex, bounds, false);
         }
     }
 
-    private void drawSelectionWeapons(Graphics2D graphics, int characterIndex, Rectangle bounds) {
+    private void drawSelectionWeapons(Graphics2D graphics, int characterIndex, Rectangle bounds,
+            boolean behindCharacter) {
         List<String> weaponPaths = gameLogic.getCharacterWeaponImagePaths(characterIndex);
         if (weaponPaths.isEmpty()) {
             return;
@@ -521,12 +525,12 @@ public class GamePanel extends JPanel {
 
         for (int index = 0; index < weaponPaths.size(); index++) {
             BufferedImage image = loadCachedImage(weaponPaths.get(index));
-            drawSelectionWeapon(graphics, image, characterIndex, index, bounds);
+            drawSelectionWeapon(graphics, image, characterIndex, index, bounds, behindCharacter);
         }
     }
 
     private void drawSelectionWeapon(Graphics2D graphics, BufferedImage image,
-            int characterIndex, int weaponIndex, Rectangle bounds) {
+            int characterIndex, int weaponIndex, Rectangle bounds, boolean behindCharacter) {
         double centerX = bounds.x + bounds.width / 2.0;
         double centerY = bounds.y + bounds.height / 2.0;
         double scaleBase = bounds.height / 64.0;
@@ -536,50 +540,64 @@ public class GamePanel extends JPanel {
         double height = bounds.height * 0.74;
         double pivotX = 0.5;
         double pivotY = 0.68;
+        boolean drawBehind = true;
 
         switch (characterIndex) {
             case 0 -> {
                 if (weaponIndex == 0) {
-                    offsetX = -16.0 * scaleBase;
-                    offsetY = 22.0 * scaleBase;
-                    angle = Math.toRadians(-18);
-                    height = bounds.height * 0.62;
-                    pivotY = 0.72;
-                } else {
-                    offsetX = 16.0 * scaleBase;
-                    offsetY = 11.0 * scaleBase;
-                    angle = Math.toRadians(7);
+                    offsetX = 8.0 * scaleBase;
+                    offsetY = 5.0 * scaleBase;
+                    angle = Math.toRadians(170);
                     height = bounds.height * 0.52;
-                    pivotY = 0.52;
+                    pivotX = 0.82;
+                    pivotY = 0.17;
+                    drawBehind = false;
+                } else {
+                    offsetX = 14.0 * scaleBase;
+                    offsetY = 12.0 * scaleBase;
+                    angle = Math.toRadians(2);
+                    height = bounds.height * 0.42;
+                    pivotY = 0.56;
+                    drawBehind = false;
                 }
             }
             case 1 -> {
-                offsetX = 0.0;
-                offsetY = 15.0 * scaleBase;
-                angle = 0.0;
-                height = bounds.height * 0.58;
-                pivotY = 0.54;
+                offsetX = 3.0 * scaleBase;
+                offsetY = 4.0 * scaleBase;
+                angle = Math.toRadians(-4);
+                height = bounds.height * 0.42;
+                pivotY = 0.20;
+                drawBehind = false;
             }
             case 2 -> {
-                offsetX = 17.0 * scaleBase;
+                offsetX = 14.0 * scaleBase;
                 offsetY = 4.0 * scaleBase;
-                angle = Math.toRadians(13);
-                height = bounds.height * 0.82;
-                pivotY = 0.72;
+                angle = Math.toRadians(5);
+                height = bounds.height * 0.62;
+                pivotY = 0.78;
+                drawBehind = true;
             }
             case 3 -> {
-                offsetX = -17.0 * scaleBase;
+                offsetX = -13.0 * scaleBase;
                 offsetY = 3.0 * scaleBase;
-                angle = Math.toRadians(-16);
-                height = bounds.height * 0.84;
-                pivotY = 0.72;
+                angle = Math.toRadians(-5);
+                height = bounds.height * 0.61;
+                pivotY = 0.78;
+                drawBehind = true;
             }
             default -> {
             }
         }
 
-        drawTransformedImage(graphics, image, centerX + offsetX, centerY + offsetY,
+        if (drawBehind != behindCharacter) {
+            return;
+        }
+
+        Graphics2D weaponGraphics = (Graphics2D) graphics.create();
+        weaponGraphics.setComposite(AlphaComposite.SrcOver.derive(0.92f));
+        drawTransformedImage(weaponGraphics, image, centerX + offsetX, centerY + offsetY,
                 height, pivotX, pivotY, angle, false);
+        weaponGraphics.dispose();
     }
 
     private void drawExperienceBar(Graphics2D graphics) {
@@ -738,19 +756,19 @@ public class GamePanel extends JPanel {
     }
 
     private Rectangle getPortraitBounds(Rectangle card) {
-        int portraitHeight = clamp((int) (card.height * 0.26), 84, 172);
-        int portraitWidth = Math.min(card.width - 28, (int) (portraitHeight * 1.08));
+        int portraitHeight = clamp((int) (card.height * 0.22), 72, 126);
+        int portraitWidth = Math.min(card.width - 34, (int) (portraitHeight * 1.02));
         return new Rectangle(card.x + (card.width - portraitWidth) / 2,
-                card.y + clamp(card.height / 34, 10, 18), portraitWidth, portraitHeight);
+                card.y + clamp(card.height / 30, 12, 20), portraitWidth, portraitHeight);
     }
 
     private int getNameY(Rectangle card) {
         Rectangle portrait = getPortraitBounds(card);
-        return portrait.y + portrait.height + clamp(card.height / 22, 16, 26);
+        return portrait.y + portrait.height + clamp(card.height / 26, 12, 20);
     }
 
     private int getClassY(Rectangle card) {
-        return getNameY(card) + clamp(card.height / 26, 14, 22);
+        return getNameY(card) + clamp(card.height / 24, 15, 23);
     }
 
     private int getRoleY(Rectangle card) {
@@ -758,7 +776,7 @@ public class GamePanel extends JPanel {
     }
 
     private int getWeaponNameY(Rectangle card) {
-        return getRoleY(card) + clamp(card.height / 30, 13, 20);
+        return getRoleY(card) + clamp(card.height / 32, 12, 18);
     }
 
     private int getActiveSkillIconSize(Rectangle card) {
@@ -770,7 +788,7 @@ public class GamePanel extends JPanel {
     }
 
     private int getActiveSkillIconY(Rectangle card) {
-        return getWeaponNameY(card) + clamp(card.height / 16, 22, 42);
+        return getWeaponNameY(card) + clamp(card.height / 20, 18, 32);
     }
 
     private int getPassiveIconSize(Rectangle card) {
@@ -779,7 +797,7 @@ public class GamePanel extends JPanel {
 
     private int getPassiveIconY(Rectangle card) {
         return getActiveSkillIconY(card) + getActiveSkillIconSize(card)
-                + clamp(card.height / 15, 24, 48);
+                + clamp(card.height / 18, 18, 34);
     }
 
     private Color getCharacterAccentColor(int index) {
@@ -1325,13 +1343,14 @@ public class GamePanel extends JPanel {
     }
 
     private Rectangle getHotbarSlotBounds(int index) {
-        int slotSize = 46;
-        int gap = 10;
-        int totalWidth = AbilityManager.EQUIPPED_SLOT_COUNT * slotSize
+        int slotWidth = 132;
+        int slotHeight = 54;
+        int gap = 12;
+        int totalWidth = AbilityManager.EQUIPPED_SLOT_COUNT * slotWidth
                 + (AbilityManager.EQUIPPED_SLOT_COUNT - 1) * gap;
         int startX = (PANEL_WIDTH - totalWidth) / 2;
-        return new Rectangle(startX + index * (slotSize + gap), PANEL_HEIGHT - 66,
-                slotSize, slotSize);
+        return new Rectangle(startX + index * (slotWidth + gap), PANEL_HEIGHT - 70,
+                slotWidth, slotHeight);
     }
 
     private Rectangle getSkillMenuSlotBounds(int index) {
@@ -1350,20 +1369,63 @@ public class GamePanel extends JPanel {
         graphics.drawRoundRect(bounds.x, bounds.y, bounds.width, bounds.height, 8, 8);
 
         if (ability != null) {
-            drawAbilityIcon(graphics, bounds, ability,
-                    ability.getDefinition().isUnlockedAt(playerLevel), playerLevel);
-            if (showCooldown) {
-                drawCooldownOverlay(graphics, bounds, ability);
+            if (bounds.width > bounds.height + 18) {
+                drawWideAbilitySlot(graphics, bounds, ability, showCooldown, playerLevel);
+            } else {
+                drawAbilityIcon(graphics, bounds, ability,
+                        ability.getDefinition().isUnlockedAt(playerLevel), playerLevel);
+                if (showCooldown) {
+                    drawCooldownOverlay(graphics, bounds, ability);
+                }
+                graphics.setColor(TEXT_SOFT);
+                graphics.setFont(new Font("Times New Roman", Font.BOLD, 11));
+                graphics.drawString(String.valueOf((int) ability.getDefinition().getManaCost()),
+                        bounds.x + 3, bounds.y + bounds.height - 4);
             }
-            graphics.setColor(TEXT_SOFT);
-            graphics.setFont(new Font("Times New Roman", Font.BOLD, 11));
-            graphics.drawString(String.valueOf((int) ability.getDefinition().getManaCost()),
-                    bounds.x + 3, bounds.y + bounds.height - 4);
         }
 
         graphics.setColor(GOLD_LIGHT);
         graphics.setFont(new Font("Times New Roman", Font.BOLD, 12));
         graphics.drawString(String.valueOf(shortcut), bounds.x + bounds.width - 10, bounds.y + 13);
+    }
+
+    private void drawWideAbilitySlot(Graphics2D graphics, Rectangle bounds,
+            RpgAbility ability, boolean showCooldown, int playerLevel) {
+        Rectangle iconBounds = new Rectangle(bounds.x + 5, bounds.y + 6,
+                bounds.height - 12, bounds.height - 12);
+        AbilityDefinition definition = ability.getDefinition();
+        boolean unlocked = definition.isUnlockedAt(playerLevel);
+        drawAbilityIcon(graphics, iconBounds, ability, unlocked, playerLevel);
+        if (showCooldown) {
+            drawCooldownOverlay(graphics, iconBounds, ability);
+        }
+
+        int textX = iconBounds.x + iconBounds.width + 6;
+        int textWidth = bounds.x + bounds.width - textX - 16;
+        graphics.setFont(new Font("Times New Roman", Font.BOLD, 10));
+        graphics.setColor(unlocked ? TEXT_SOFT : TEXT_MUTED);
+        drawClippedString(graphics, definition.getName(), textX, bounds.y + 18, textWidth);
+
+        graphics.setFont(new Font("Times New Roman", Font.PLAIN, 10));
+        graphics.setColor(ability.getCooldownRatio() > 0.0 ? GOLD_LIGHT : MANA_BLUE);
+        drawClippedString(graphics, ability.getCooldownRatio() > 0.0
+                ? "CD " + formatCooldown(ability.getCooldownRemaining())
+                : "Ready", textX, bounds.y + 34, textWidth);
+
+        graphics.setColor(TEXT_MUTED);
+        graphics.setFont(new Font("Times New Roman", Font.BOLD, 10));
+        graphics.drawString((int) definition.getManaCost() + " MP",
+                textX, bounds.y + bounds.height - 7);
+    }
+
+    private String formatCooldown(double seconds) {
+        if (seconds <= 0.0) {
+            return "0s";
+        }
+        if (seconds < 10.0) {
+            return String.format("%.1fs", seconds);
+        }
+        return (int) Math.ceil(seconds) + "s";
     }
 
     private void drawAbilityIcon(Graphics2D graphics, Rectangle bounds,

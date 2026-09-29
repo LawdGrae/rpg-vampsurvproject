@@ -142,6 +142,8 @@ public class GameLogic {
     private double finalBossPulseTimer;
     private double finalBossLaserTimer;
     private double finalBossWallTimer;
+    private int regionalBossIndex;
+    private double nextRegionalBossSpawnTime = FIRST_BOSS_SPAWN_TIME;
     private int level = 1;
     private int exp = 0;
     private int expToNextLevel = 10;
@@ -253,6 +255,20 @@ public class GameLogic {
                 boss.resetSummonCooldown();
             }
 
+            if (enemy instanceof RegionalEnemy regionalEnemy) {
+                if (regionalEnemy.phaseChangedThisFrame()) {
+                    addFloatingText("PHASE " + regionalEnemy.getBossPhase(),
+                            regionalEnemy.getWorldX(),
+                            regionalEnemy.getWorldY() - regionalEnemy.getCollisionRadius() * 1.4,
+                            new Color(255, 190, 90));
+                    triggerScreenShake(0.16, 5.0);
+                }
+                if (regionalEnemy.shouldSummon()) {
+                    pendingSummons.addAll(regionalEnemy.createSummons(random));
+                    regionalEnemy.resetSummonCooldown();
+                }
+            }
+
             if (enemy instanceof FinalBossEnemy finalBoss && finalBoss.shouldSummon()) {
                 pendingSummons.addAll(finalBoss.createMinions(random, player.getWorldX(), player.getWorldY()));
                 finalBoss.resetSummonCooldown();
@@ -320,8 +336,8 @@ public class GameLogic {
                     if (hitTarget != null) {
                         player.faceToward(hitTarget.getWorldX(), hitTarget.getWorldY());
                         player.playAttackAnimation(null, autoFireWeapon.getSwingDuration());
-                        damageEnemy(hitTarget, autoFireWeapon.getProjectileDamage(),
-                                DamageElement.PHYSICAL, player.getWorldX(), player.getWorldY());
+                        damageEnemiesInMeleeArc(autoFireWeapon.getAttackRange(),
+                                autoFireWeapon.getProjectileDamage());
                     }
                 }
             } else {
@@ -541,6 +557,7 @@ public class GameLogic {
         double maxScreenX = PANEL_WIDTH * 0.65;
         double maxScreenY = 600.0 * 0.65;
 
+        List<Enemy> hitEnemies = new ArrayList<>();
         for (Enemy enemy : enemies) {
             if (enemy.isDead()) {
                 continue;
@@ -563,7 +580,10 @@ public class GameLogic {
 
     private Enemy findAutoAttackTarget() {
         if (weapon instanceof AutoFireWeapon autoFireWeapon) {
-            return findNearestLivingEnemyInRange(autoFireWeapon.getAttackRange() + 80.0);
+            double targetRange = autoFireWeapon.isRangedAttack()
+                    ? autoFireWeapon.getAttackRange() + 80.0
+                    : autoFireWeapon.getAttackRange() + player.getCollisionRadius() + 12.0;
+            return findNearestLivingEnemyInRange(targetRange);
         }
         Enemy target = findNearestLivingEnemyOnScreen();
         if (target == null) {
@@ -625,23 +645,28 @@ public class GameLogic {
 
     private void spawnEnemyProjectiles(double deltaTime) {
         for (Enemy enemy : enemies) {
-            if (!(enemy instanceof TemplateEnemy2)) {
-                continue;
-            }
+            if (enemy instanceof RegionalEnemy regionalEnemy) {
+                if (regionalEnemy.canFireAt(player.getWorldX(), player.getWorldY())) {
+                    Projectile projectile = regionalEnemy.fireAt(player.getWorldX(), player.getWorldY());
+                    if (projectile != null) {
+                        enemyProjectiles.add(projectile);
+                        trimListToLimit(enemyProjectiles, MAX_ENEMY_PROJECTILES);
+                    }
+                }
+            } else if (enemy instanceof TemplateEnemy2 enemy2) {
+                enemy2.updateFireCooldown(deltaTime);
+                if (!enemy2.canFire()) {
+                    continue;
+                }
 
-            TemplateEnemy2 enemy2 = (TemplateEnemy2) enemy;
-            enemy2.updateFireCooldown(deltaTime);
-            if (!enemy2.canFire()) {
-                continue;
-            }
-
-            double distanceSquared = enemy2.distanceSquaredTo(player.getWorldX(), player.getWorldY());
-            double attackRange = 420.0;
-            if (distanceSquared <= attackRange * attackRange) {
-                Projectile projectile = enemy2.fireAt(player.getWorldX(), player.getWorldY());
-                if (projectile != null) {
-                    enemyProjectiles.add(projectile);
-                    trimListToLimit(enemyProjectiles, MAX_ENEMY_PROJECTILES);
+                double distanceSquared = enemy2.distanceSquaredTo(player.getWorldX(), player.getWorldY());
+                double attackRange = 420.0;
+                if (distanceSquared <= attackRange * attackRange) {
+                    Projectile projectile = enemy2.fireAt(player.getWorldX(), player.getWorldY());
+                    if (projectile != null) {
+                        enemyProjectiles.add(projectile);
+                        trimListToLimit(enemyProjectiles, MAX_ENEMY_PROJECTILES);
+                    }
                 }
             }
         }
@@ -689,6 +714,9 @@ public class GameLogic {
                 if (projectile.getOwner() instanceof TemplateEnemy2) {
                     ((TemplateEnemy2) projectile.getOwner()).onProjectileDestroyed();
                 }
+                if (projectile.getOwner() instanceof RegionalEnemy regionalEnemy) {
+                    regionalEnemy.onProjectileDestroyed();
+                }
                 if (hitPlayer) {
                     player.takeDamage(projectile.getDamage());
                 }
@@ -702,8 +730,32 @@ public class GameLogic {
             return;
         }
         enemy.markLootDropped();
-        gems.add(new Gem(enemy.getWorldX(), enemy.getWorldY()));
+        int gemCount = 1;
+        if (enemy instanceof RegionalEnemy regionalEnemy) {
+            gemCount = regionalEnemy.isBoss() ? 8 : Math.max(1,
+                    regionalEnemy.getDefinition().getExperienceReward() / 5);
+            addFloatingText(regionalEnemy.getDefinition().getLootName(),
+                    enemy.getWorldX(), enemy.getWorldY() - enemy.getCollisionRadius() * 1.2,
+                    lootTextColor(regionalEnemy.getDefinition().getElement()));
+        }
+        for (int index = 0; index < gemCount; index++) {
+            double angle = Math.PI * 2.0 * index / gemCount;
+            gems.add(new Gem(enemy.getWorldX() + Math.cos(angle) * 10.0,
+                    enemy.getWorldY() + Math.sin(angle) * 10.0));
+        }
         trimListToLimit(gems, MAX_GEMS);
+    }
+
+    private Color lootTextColor(DamageElement element) {
+        return switch (element) {
+            case FIRE, EXPLOSION -> new Color(255, 140, 55);
+            case ICE -> new Color(150, 235, 255);
+            case POISON -> new Color(110, 245, 90);
+            case SHADOW -> new Color(210, 120, 255);
+            case LIGHTNING -> new Color(255, 235, 95);
+            case HOLY -> new Color(255, 245, 170);
+            default -> new Color(255, 220, 140);
+        };
     }
 
     private void updateGems(double deltaTime) {
@@ -954,43 +1006,40 @@ public class GameLogic {
     }
 
     private void checkBossSpawns() {
-        if (!bossSpawned && gameTimer >= FIRST_BOSS_SPAWN_TIME) {
+        if (bossSpawned && !bossDefeated && !hasBossAlive()) {
+            bossDefeated = true;
+            regionalBossIndex++;
+            player.heal(player.getMaxHealth() - player.getHealth());
+            resetSpawnCadence();
+            nextRegionalBossSpawnTime = gameTimer + 95.0;
+            if (regionalBossIndex < EnemyRegion.values().length) {
+                addFloatingText("Next: " + EnemyRegion.byIndex(regionalBossIndex).getDisplayName(),
+                        player.getWorldX(), player.getWorldY() - 64.0,
+                        new Color(255, 220, 140));
+            }
+            return;
+        }
+
+        if ((!bossSpawned || bossDefeated)
+                && regionalBossIndex < EnemyRegion.values().length
+                && gameTimer >= nextRegionalBossSpawnTime) {
+            EnemyRegion region = EnemyRegion.byIndex(regionalBossIndex);
+            EnemyDefinition bossDefinition = EnemyCatalog.bossFor(region);
+            if (bossDefinition == null) {
+                return;
+            }
             bossSpawned = true;
             bossDefeated = false;
             resetSpawnCadence();
             clearEnemiesForBossWave();
-            spawnBoss(new BossEnemy(player.getWorldX() + SPAWN_RADIUS * 0.85,
-                    player.getWorldY() + SPAWN_RADIUS * 0.35));
+            spawnBoss(new RegionalEnemy(bossDefinition,
+                    player.getWorldX() + SPAWN_RADIUS * 0.72,
+                    player.getWorldY() + SPAWN_RADIUS * 0.32));
+            addFloatingText("BOSS: " + bossDefinition.getDisplayName(),
+                    player.getWorldX(), player.getWorldY() - 74.0,
+                    new Color(255, 150, 80));
+            triggerScreenShake(0.25, 7.0);
             return;
-        }
-
-        if (bossSpawned && !bossDefeated && !hasBossAlive()) {
-            bossDefeated = true;
-            player.heal(player.getMaxHealth() - player.getHealth());
-            resetSpawnCadence();
-            eliteBossSpawnTime = gameTimer + ELITE_BOSS_DELAY_AFTER_BOSS;
-        }
-
-        if (bossSpawned && bossDefeated && !eliteBossSpawned) {
-            if (player.getHealth() < player.getMaxHealth()) {
-                player.heal(player.getMaxHealth() - player.getHealth());
-            }
-            if (gameTimer >= eliteBossSpawnTime) {
-                eliteBossSpawned = true;
-                resetSpawnCadence();
-                clearEnemiesForBossWave();
-                spawnBoss(new EliteBossEnemy(player.getWorldX() - SPAWN_RADIUS * 0.75,
-                        player.getWorldY() - SPAWN_RADIUS * 0.25));
-            }
-        }
-
-        if (eliteBossSpawned && !hasEliteBossAlive() && !finalBossSpawned
-                && gameTimer >= eliteBossSpawnTime + 180.0) {
-            finalBossSpawned = true;
-            finalBossSpawnTime = gameTimer;
-            resetSpawnCadence();
-            clearEnemiesForBossWave();
-            spawnBoss(new FinalBossEnemy(player.getWorldX(), player.getWorldY()));
         }
     }
 
@@ -1001,7 +1050,9 @@ public class GameLogic {
 
     private boolean hasBossAlive() {
         for (Enemy enemy : enemies) {
-            if (enemy instanceof BossEnemy && !enemy.isDead()) {
+            if (((enemy instanceof BossEnemy)
+                    || (enemy instanceof RegionalEnemy regionalEnemy && regionalEnemy.isBoss()))
+                    && !enemy.isDead()) {
                 return true;
             }
         }
@@ -1031,6 +1082,7 @@ public class GameLogic {
         while (enemyIterator.hasNext()) {
             Enemy enemy = enemyIterator.next();
             if (!(enemy instanceof BossEnemy)
+                    && !(enemy instanceof RegionalEnemy regionalEnemy && regionalEnemy.isBoss())
                     && !(enemy instanceof EliteBossEnemy)
                     && !(enemy instanceof FinalBossEnemy)
                     && !(enemy instanceof TemplateEnemyMinion)
@@ -1213,6 +1265,8 @@ public class GameLogic {
         finalBossPulseTimer = 0.0;
         finalBossLaserTimer = 0.0;
         finalBossWallTimer = 0.0;
+        regionalBossIndex = 0;
+        nextRegionalBossSpawnTime = FIRST_BOSS_SPAWN_TIME;
         gameTimer = 0.0;
         repositionTimer = 0.0;
         level = 1;
@@ -1488,31 +1542,16 @@ public class GameLogic {
     }
 
     private Enemy createEnemy(double worldX, double worldY) {
-        double level3Chance = 0.0;
-        if (level >= 3) {
-            level3Chance = 0.12;
-        }
-        if (level >= 5) {
-            level3Chance = 0.18;
-        }
-        if (gameTimer >= 60.0) {
-            level3Chance = Math.min(0.28, level3Chance + 0.08);
-        }
-        if (random.nextDouble() < level3Chance) {
-            return new TemplateEnemy3(worldX, worldY);
-        }
+        EnemyDefinition definition = EnemyCatalog.randomNormal(getActiveEnemyRegion(), random);
+        return new RegionalEnemy(definition, worldX, worldY);
+    }
 
-        double level2Chance = 0.0;
-        if (level >= 2) {
-            level2Chance = 0.25;
-        }
-        if (gameTimer >= 90.0) {
-            level2Chance = Math.min(0.55, level2Chance + 0.2);
-        }
-        if (random.nextDouble() < level2Chance) {
-            return new TemplateEnemy2(worldX, worldY);
-        }
-        return new TemplateEnemy(worldX, worldY);
+    private EnemyRegion getActiveEnemyRegion() {
+        return EnemyRegion.byIndex(regionalBossIndex);
+    }
+
+    public String getActiveRegionName() {
+        return getActiveEnemyRegion().getDisplayName();
     }
 
     private void spawnClump(int enemyCount) {
@@ -2029,6 +2068,50 @@ public class GameLogic {
             if (knockback) {
                 enemy.knockAwayFrom(worldX, worldY, element == DamageElement.EXPLOSION ? 46.0 : 28.0);
             }
+        }
+    }
+
+    private void damageEnemiesInMeleeArc(double range, double damage) {
+        double originX = player.getWorldX();
+        double originY = player.getWorldY();
+        double directionX = player.getRecentMoveX();
+        double directionY = player.getRecentMoveY();
+        double directionLength = Math.hypot(directionX, directionY);
+        if (Math.abs(directionX) <= 0.001) {
+            directionX = player.getHeldWeaponSideX() * 0.85;
+            directionLength = Math.hypot(directionX, directionY);
+        }
+        if (directionLength <= 0.0001) {
+            directionX = player.getHeldWeaponSideX();
+            directionY = 0.0;
+            directionLength = 1.0;
+        }
+        directionX /= directionLength;
+        directionY /= directionLength;
+
+        double maxRange = range + 28.0;
+        double maxRangeSquared = maxRange * maxRange;
+        double arcCosine = Math.cos(Math.toRadians(82.0));
+        List<Enemy> hitEnemies = new ArrayList<>();
+        for (Enemy enemy : enemies) {
+            if (enemy.isDead()) {
+                continue;
+            }
+            double differenceX = enemy.getWorldX() - originX;
+            double differenceY = enemy.getWorldY() - originY;
+            double distanceSquared = differenceX * differenceX + differenceY * differenceY;
+            if (distanceSquared > maxRangeSquared) {
+                continue;
+            }
+            double distance = Math.max(0.0001, Math.sqrt(distanceSquared));
+            double dot = (differenceX / distance) * directionX + (differenceY / distance) * directionY;
+            if (dot >= arcCosine || distance <= 34.0) {
+                hitEnemies.add(enemy);
+            }
+        }
+        for (Enemy enemy : hitEnemies) {
+            damageEnemy(enemy, damage, DamageElement.PHYSICAL, originX, originY);
+            enemy.knockAwayFrom(originX, originY, 12.0);
         }
     }
 

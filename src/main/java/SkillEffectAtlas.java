@@ -346,10 +346,10 @@ public final class SkillEffectAtlas {
             }
 
             double clampedProgress = Math.max(0.0, Math.min(0.999, progress));
-            int frameIndex = frameIndexFor(clampedProgress);
-            BufferedImage frame = frames.get(frameIndex);
+            FrameSample frameSample = frameSampleFor(clampedProgress);
             double drawX = anchorX(startX, targetX, clampedProgress);
             double drawY = anchorY(startY, targetY, clampedProgress);
+            BufferedImage frame = frames.get(frameSample.index);
             double targetWidth = Math.min(MAX_DRAW_WIDTH, Math.max(54.0, radius * worldScale));
             double scale = targetWidth / Math.max(1.0, frame.getWidth());
             double width = frame.getWidth() * scale;
@@ -365,11 +365,11 @@ public final class SkillEffectAtlas {
             graphics.setComposite(AlphaComposite.SrcOver.derive((float) fade));
             graphics.translate(drawX, drawY);
             graphics.rotate(angle);
-            graphics.drawImage(frame,
-                    (int) Math.round(-width * pivotX),
-                    (int) Math.round(-height * pivotY),
-                    (int) Math.round(width),
-                    (int) Math.round(height), null);
+            drawFrame(graphics, frame, width, height, fade * (1.0 - frameSample.blend));
+            if (frameSample.nextIndex != frameSample.index && frameSample.blend > 0.001) {
+                drawFrame(graphics, frames.get(frameSample.nextIndex), width, height,
+                        fade * frameSample.blend);
+            }
             graphics.setTransform(previousTransform);
             graphics.setComposite(previousComposite);
             if (previousInterpolation != null) {
@@ -377,16 +377,36 @@ public final class SkillEffectAtlas {
             }
         }
 
-        private int frameIndexFor(double progress) {
+        private void drawFrame(Graphics2D graphics, BufferedImage frame,
+                double width, double height, double alpha) {
+            if (alpha <= 0.0) {
+                return;
+            }
+            graphics.setComposite(AlphaComposite.SrcOver.derive(
+                    (float) Math.max(0.0, Math.min(1.0, alpha))));
+            graphics.drawImage(frame,
+                    (int) Math.round(-width * pivotX),
+                    (int) Math.round(-height * pivotY),
+                    (int) Math.round(width),
+                    (int) Math.round(height), null);
+        }
+
+        private FrameSample frameSampleFor(double progress) {
             double mark = progress * totalFrameWeight;
             double running = 0.0;
             for (int index = 0; index < frameWeights.length; index++) {
+                double start = running;
                 running += frameWeights[index];
                 if (mark <= running) {
-                    return index;
+                    double local = frameWeights[index] <= 0.0 ? 0.0
+                            : (mark - start) / frameWeights[index];
+                    double blend = smooth(local);
+                    return new FrameSample(index, Math.min(index + 1, frameWeights.length - 1),
+                            blend);
                 }
             }
-            return frameWeights.length - 1;
+            int last = frameWeights.length - 1;
+            return new FrameSample(last, last, 0.0);
         }
 
         private static double[] createFrameWeights(int frameCount) {
@@ -437,6 +457,23 @@ public final class SkillEffectAtlas {
             }
             double normalized = (progress - 0.18) / 0.6;
             return normalized * normalized * (3.0 - 2.0 * normalized);
+        }
+
+        private static double smooth(double value) {
+            double clamped = Math.max(0.0, Math.min(1.0, value));
+            return clamped * clamped * (3.0 - 2.0 * clamped);
+        }
+
+        private static final class FrameSample {
+            private final int index;
+            private final int nextIndex;
+            private final double blend;
+
+            private FrameSample(int index, int nextIndex, double blend) {
+                this.index = index;
+                this.nextIndex = nextIndex;
+                this.blend = blend;
+            }
         }
     }
 }
