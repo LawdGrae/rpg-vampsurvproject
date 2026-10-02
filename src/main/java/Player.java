@@ -311,6 +311,11 @@ public abstract class Player {
     }
 
     public void draw(Graphics2D graphics, int centerX, int centerY) {
+        draw(graphics, centerX, centerY, centerX, centerY);
+        }
+
+        public void draw(Graphics2D graphics, int centerX, int centerY,
+            int playerScreenX, int playerScreenY) {
         boolean moving = horizontalInput() != 0 || verticalInput() != 0;
         // The walk cycle is columns 0, 1, 2, 1; column 1 is the idle frame.
         int animationFrame = (int) (animationTime * animationSpeed) % 4;
@@ -319,20 +324,20 @@ public abstract class Player {
         int sourceY = spriteRow * spriteHeight;
         int renderedWidth = spriteWidth * spriteScale;
         int renderedHeight = spriteHeight * spriteScale;
-        int playerX = centerX - renderedWidth / 2;
-        int playerY = centerY - renderedHeight / 2;
+        int playerX = playerScreenX - renderedWidth / 2;
+        int playerY = playerScreenY - renderedHeight / 2;
 
         Object previousInterpolation = graphics.getRenderingHint(RenderingHints.KEY_INTERPOLATION);
         graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
                 RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
 
-        drawWeapons(graphics, centerX, centerY, renderedWidth, renderedHeight, true);
+        drawWeapons(graphics, playerScreenX, playerScreenY, renderedWidth, renderedHeight, true);
 
         // Draw only one frame from the larger sprite sheet.
         graphics.drawImage(spriteSheet,
                 playerX, playerY, playerX + renderedWidth, playerY + renderedHeight,
                 sourceX, sourceY, sourceX + spriteWidth, sourceY + spriteHeight, null);
-        drawWeapons(graphics, centerX, centerY, renderedWidth, renderedHeight, false);
+        drawWeapons(graphics, playerScreenX, playerScreenY, renderedWidth, renderedHeight, false);
         if (previousInterpolation == null) {
             graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
                     RenderingHints.VALUE_INTERPOLATION_BILINEAR);

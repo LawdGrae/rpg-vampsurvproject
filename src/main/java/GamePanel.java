@@ -50,7 +50,6 @@ public class GamePanel extends JPanel {
     private static final Font LABEL_FONT = new Font("Times New Roman", Font.BOLD, 13);
     private static final Font BODY_FONT = new Font("Times New Roman", Font.PLAIN, 14);
 
-    private final BufferedImage grassTile;
     private final BufferedImage landscape;
     private final GameLogic gameLogic;
     private final Timer frameTimer;
@@ -65,7 +64,6 @@ public class GamePanel extends JPanel {
 
     public GamePanel() {
         setPreferredSize(new Dimension(PANEL_WIDTH, PANEL_HEIGHT));
-        grassTile = loadGrassTile();
         landscape = loadLandscape();
         gameLogic = new GameLogic();
         installKeyBindings();
@@ -88,10 +86,6 @@ public class GamePanel extends JPanel {
             repaint();
         });
         frameTimer.start();
-    }
-
-    private BufferedImage loadGrassTile() {
-        return loadCachedImage("/main/resources/grasstile.png");
     }
 
     private BufferedImage loadLandscape() {
@@ -211,6 +205,11 @@ public class GamePanel extends JPanel {
                     return;
                 }
 
+                if (gameLogic.isMapSelectionOpen()) {
+                    GamePanel.this.handleMapSelectionClick(event);
+                    return;
+                }
+
                 if (gameLogic.isSkillMenuOpen()) {
                     handleSkillMenuClick(event);
                     return;
@@ -304,7 +303,15 @@ public class GamePanel extends JPanel {
             return;
         }
 
+        if (gameLogic.isMapSelectionOpen()) {
+            drawMapSelection(graphics2D);
+            return;
+        }
+
         Graphics2D worldGraphics = (Graphics2D) graphics2D.create();
+        int worldCenterX = getWidth() / 2;
+        int worldCenterY = getHeight() / 2;
+        gameLogic.setWorldViewportSize(getWidth(), getHeight());
         worldGraphics.translate(gameLogic.getScreenShakeOffsetX(), gameLogic.getScreenShakeOffsetY());
         worldGraphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
         worldGraphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
@@ -312,20 +319,12 @@ public class GamePanel extends JPanel {
         worldGraphics.setRenderingHint(RenderingHints.KEY_RENDERING,
                 RenderingHints.VALUE_RENDER_SPEED);
 
-        int tileWidth = grassTile.getWidth();
-        int tileHeight = grassTile.getHeight();
-        int startX = Math.floorMod((int) gameLogic.getWorldOffsetX(), tileWidth) - tileWidth;
-        int startY = Math.floorMod((int) gameLogic.getWorldOffsetY(), tileHeight) - tileHeight;
+        gameLogic.getActiveMap().draw(worldGraphics, getWidth(), getHeight(),
+                gameLogic.getWorldOffsetX(), gameLogic.getWorldOffsetY());
 
-        for (int tileX = startX; tileX < PANEL_WIDTH; tileX += tileWidth) {
-            for (int tileY = startY; tileY < PANEL_HEIGHT; tileY += tileHeight) {
-                worldGraphics.drawImage(grassTile, tileX, tileY, null);
-            }
-        }
-
-        gameLogic.drawAbilityGroundEffects(worldGraphics, PANEL_WIDTH / 2, PANEL_HEIGHT / 2);
-        gameLogic.drawEntities(worldGraphics, PANEL_WIDTH / 2, PANEL_HEIGHT / 2);
-        gameLogic.drawAbilityBursts(worldGraphics, PANEL_WIDTH / 2, PANEL_HEIGHT / 2);
+        gameLogic.drawAbilityGroundEffects(worldGraphics, worldCenterX, worldCenterY);
+        gameLogic.drawEntities(worldGraphics, worldCenterX, worldCenterY);
+        gameLogic.drawAbilityBursts(worldGraphics, worldCenterX, worldCenterY);
         worldGraphics.dispose();
         drawExperienceBar(graphics2D);
         drawGameTimer(graphics2D);
@@ -482,8 +481,70 @@ public class GamePanel extends JPanel {
             }
         }
 
-        drawMenuButton(graphics, getCharacterStartButtonBounds(), "Start");
+        drawMenuButton(graphics, getCharacterStartButtonBounds(), "Continue");
         drawSelectionTooltip(graphics);
+    }
+
+    private void drawMapSelection(Graphics2D graphics) {
+        int panelWidth = getWidth();
+        int panelHeight = getHeight();
+        graphics.drawImage(landscape, 0, 0, panelWidth, panelHeight, null);
+        drawVignette(graphics);
+        drawPanel(graphics, new Rectangle(28, 30, panelWidth - 56, panelHeight - 54), 24);
+        drawCenteredString(graphics, "Choose your world", HEADER_FONT.deriveFont(30f),
+                GOLD_LIGHT, 0, 90, panelWidth);
+
+        for (int index = 0; index < gameLogic.getMapCount(); index++) {
+            Rectangle card = getMapCardBounds(index);
+            boolean selected = gameLogic.getSelectedMapIndex() == index;
+            boolean hovered = containsPoint(mouseX, mouseY, card);
+            GameMap map = MapCatalog.selectableMap(index);
+            Color accent = selected ? GOLD_LIGHT : hovered ? new Color(190, 170, 126)
+                    : new Color(115, 112, 108);
+            graphics.setColor(new Color(0, 0, 0, 135));
+            graphics.fillRoundRect(card.x + 4, card.y + 5, card.width, card.height, 18, 18);
+            graphics.setColor(selected ? new Color(68, 57, 37) : new Color(25, 27, 34));
+            graphics.fillRoundRect(card.x, card.y, card.width, card.height, 18, 18);
+            graphics.drawImage(map.getImage(), card.x + 8, card.y + 8,
+                    card.width - 16, card.height - 50, null);
+            graphics.setColor(new Color(5, 7, 12, 175));
+            graphics.fillRoundRect(card.x + 8, card.y + card.height - 48,
+                    card.width - 16, 40, 0, 0);
+            graphics.setColor(accent);
+            graphics.setStroke(new BasicStroke(selected ? 3f : 1.2f));
+            graphics.drawRoundRect(card.x, card.y, card.width, card.height, 18, 18);
+            graphics.setFont(scaledFont(LABEL_FONT, card, 1.2));
+            drawCenteredClippedString(graphics, map.getName(), card.x + 10,
+                    card.y + card.height - 20, card.width - 20);
+        }
+
+        drawMenuButton(graphics, getMapBackButtonBounds(), "Back");
+        drawMenuButton(graphics, getMapStartButtonBounds(), "Start Game");
+    }
+
+    private Rectangle getMapCardBounds(int index) {
+        int panelWidth = Math.max(620, getWidth());
+        int panelHeight = Math.max(560, getHeight());
+        int columns = 4;
+        int margin = clamp(panelWidth / 24, 28, 52);
+        int gap = clamp(panelWidth / 90, 10, 16);
+        int cardWidth = (panelWidth - margin * 2 - gap * (columns - 1)) / columns;
+        int cardHeight = clamp((panelHeight - 224) / 2, 150, 220);
+        int gridWidth = cardWidth * columns + gap * (columns - 1);
+        int startX = (panelWidth - gridWidth) / 2;
+        int startY = clamp(panelHeight / 6, 112, 132);
+        int row = index / columns;
+        int column = index % columns;
+        return new Rectangle(startX + column * (cardWidth + gap),
+                startY + row * (cardHeight + gap), cardWidth, cardHeight);
+    }
+
+    private Rectangle getMapBackButtonBounds() {
+        return new Rectangle(getWidth() / 2 - 220, getHeight() - 76, 190, 48);
+    }
+
+    private Rectangle getMapStartButtonBounds() {
+        return new Rectangle(getWidth() / 2 + 30, getHeight() - 76, 190, 48);
     }
 
     private void drawCharacterPortrait(Graphics2D graphics, int characterIndex,
@@ -1313,6 +1374,23 @@ public class GamePanel extends JPanel {
 
         Rectangle startButton = getCharacterStartButtonBounds();
         if (contains(event, startButton)) {
+            gameLogic.showMapSelection();
+        }
+    }
+
+    private void handleMapSelectionClick(MouseEvent event) {
+        for (int index = 0; index < gameLogic.getMapCount(); index++) {
+            if (contains(event, getMapCardBounds(index))) {
+                gameLogic.selectMap(index);
+                repaint();
+                return;
+            }
+        }
+        if (contains(event, getMapBackButtonBounds())) {
+            gameLogic.showCharacterSelection();
+            return;
+        }
+        if (contains(event, getMapStartButtonBounds())) {
             gameLogic.startGame();
         }
     }

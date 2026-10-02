@@ -33,6 +33,8 @@ public class GameLogic {
     private static final int LEVEL_UP_EXP_BONUS = 6;
 
     private Player player;
+    private int worldViewportWidth = PANEL_WIDTH;
+    private int worldViewportHeight = 720;
     private final List<Enemy> enemies = new ArrayList<>();
     private final List<Gem> gems = new ArrayList<>();
     private final List<SecretJpg> secretJpgs = new ArrayList<>();
@@ -129,6 +131,7 @@ public class GameLogic {
             ""
     );
     private int selectedCharacterIndex;
+    private int selectedMapIndex;
     private double whenToSpawn = INITIAL_SPAWN_DELAY;
     private double gameTimer;
     private double repositionTimer;
@@ -150,6 +153,7 @@ public class GameLogic {
     private boolean upgradeMenuOpen;
     private boolean mainMenuOpen = true;
     private boolean characterSelectOpen;
+    private boolean mapSelectionOpen;
     private boolean gameStarted;
     private boolean paused;
     private boolean settingsOpen;
@@ -203,8 +207,22 @@ public class GameLogic {
             return;
         }
 
-        // Update all game objects once per timer tick.
+        // Keep map boundaries and solid terrain synchronized with character movement.
+        GameMap mapBeforeUpdate = getActiveMap();
+        double previousPlayerX = player.getWorldX();
+        double previousPlayerY = player.getWorldY();
         player.update(deltaTime);
+        GameMap movementMap = getActiveMap();
+        movementMap.resolveMovement(previousPlayerX, previousPlayerY,
+            player.getWorldX(), player.getWorldY(), player.getCollisionRadius(), player);
+        java.awt.geom.Point2D.Double portalDestination = movementMap.activatePortal(
+            player.getWorldX(), player.getWorldY());
+        if (portalDestination != null) {
+            java.awt.geom.Point2D.Double safeDestination = movementMap.findWalkablePointNear(
+                    portalDestination.x, portalDestination.y, player.getCollisionRadius());
+            player.moveWorld(safeDestination.x - player.getWorldX(),
+                safeDestination.y - player.getWorldY());
+        }
         abilityManager.update(deltaTime);
         updatePlayerBuffs(deltaTime);
         updateAbilityVisualEffects(deltaTime);
@@ -214,6 +232,12 @@ public class GameLogic {
 
         gameTimer += deltaTime;
         checkBossSpawns();
+        if (getActiveMap() != mapBeforeUpdate) {
+            java.awt.geom.Point2D.Double safeStart = getActiveMap().findWalkablePointNear(
+                0.0, 0.0, player.getCollisionRadius());
+            player.moveWorld(safeStart.x - player.getWorldX(),
+                safeStart.y - player.getWorldY());
+        }
         updateFinalBossScript(deltaTime);
 
         // Start small and ramp up the wave size over time instead of instantly
@@ -247,8 +271,14 @@ public class GameLogic {
         for (int enemyIndex = 0; enemyIndex < enemiesAtStartOfFrame; enemyIndex++) {
             Enemy enemy = enemies.get(enemyIndex);
             // Enemies chase the player's current position in world space.
+                double previousEnemyX = enemy.getWorldX();
+                double previousEnemyY = enemy.getWorldY();
             enemy.update(deltaTime, player.getWorldX(), player.getWorldY(),
                     player.getCollisionRadius());
+                java.awt.geom.Point2D.Double enemyPosition = getActiveMap().resolveMovement(
+                    previousEnemyX, previousEnemyY, enemy.getWorldX(), enemy.getWorldY(),
+                    enemy.getCollisionRadius());
+                enemy.teleportTo(enemyPosition.x, enemyPosition.y);
 
             if (enemy instanceof BossEnemy boss && boss.shouldSummon()) {
                 pendingSummons.addAll(boss.createSummons(boss.getWorldX(), boss.getWorldY(), random));
@@ -261,7 +291,7 @@ public class GameLogic {
                             regionalEnemy.getWorldX(),
                             regionalEnemy.getWorldY() - regionalEnemy.getCollisionRadius() * 1.4,
                             new Color(255, 190, 90));
-                    triggerScreenShake(0.16, 5.0);
+                    addScreenShake(0.16, 5.0);
                 }
                 if (regionalEnemy.shouldSummon()) {
                     pendingSummons.addAll(regionalEnemy.createSummons(random));
@@ -313,6 +343,14 @@ public class GameLogic {
                         <= broadPhase * broadPhase) {
                     firstEnemy.separateFrom(secondEnemy);
                 }
+            }
+        }
+        for (Enemy enemy : enemies) {
+            if (getActiveMap().isBlocked(enemy.getWorldX(), enemy.getWorldY(),
+                    enemy.getCollisionRadius())) {
+                java.awt.geom.Point2D.Double safePosition = getActiveMap().findWalkablePointNear(
+                        enemy.getWorldX(), enemy.getWorldY(), enemy.getCollisionRadius());
+                enemy.teleportTo(safePosition.x, safePosition.y);
             }
         }
 
@@ -1032,13 +1070,14 @@ public class GameLogic {
             bossDefeated = false;
             resetSpawnCadence();
             clearEnemiesForBossWave();
-            spawnBoss(new RegionalEnemy(bossDefinition,
-                    player.getWorldX() + SPAWN_RADIUS * 0.72,
-                    player.getWorldY() + SPAWN_RADIUS * 0.32));
+                java.awt.geom.Point2D.Double bossSpawn = getActiveMap().findSpawnPoint(
+                    player.getWorldX(), player.getWorldY(), SPAWN_RADIUS,
+                    bossDefinition.getCollisionRadius(), random);
+                spawnBoss(new RegionalEnemy(bossDefinition, bossSpawn.x, bossSpawn.y));
             addFloatingText("BOSS: " + bossDefinition.getDisplayName(),
                     player.getWorldX(), player.getWorldY() - 74.0,
                     new Color(255, 150, 80));
-            triggerScreenShake(0.25, 7.0);
+            addScreenShake(0.25, 7.0);
             return;
         }
     }
@@ -1113,6 +1152,29 @@ public class GameLogic {
 
     public boolean isCharacterSelectOpen() {
         return characterSelectOpen;
+    }
+
+    public boolean isMapSelectionOpen() {
+        return mapSelectionOpen;
+    }
+
+    public int getSelectedMapIndex() {
+        return selectedMapIndex;
+    }
+
+    public int getMapCount() {
+        return MapCatalog.selectableMapCount();
+    }
+
+    public String getMapName(int index) {
+        return index < 0 || index >= getMapCount()
+                ? "" : MapCatalog.selectableMap(index).getName();
+    }
+
+    public void selectMap(int index) {
+        if (index >= 0 && index < getMapCount()) {
+            selectedMapIndex = index;
+        }
     }
 
     public boolean isGameStarted() {
@@ -1213,6 +1275,7 @@ public class GameLogic {
         resetRunState();
         mainMenuOpen = true;
         characterSelectOpen = false;
+        mapSelectionOpen = false;
         gameStarted = false;
         paused = false;
         settingsOpen = false;
@@ -1222,6 +1285,17 @@ public class GameLogic {
     public void showCharacterSelection() {
         mainMenuOpen = false;
         characterSelectOpen = true;
+        mapSelectionOpen = false;
+        gameStarted = false;
+        paused = false;
+        settingsOpen = false;
+        skillMenuOpen = false;
+    }
+
+    public void showMapSelection() {
+        mainMenuOpen = false;
+        characterSelectOpen = false;
+        mapSelectionOpen = true;
         gameStarted = false;
         paused = false;
         settingsOpen = false;
@@ -1230,12 +1304,20 @@ public class GameLogic {
 
     public void startGame() {
         resetRunState();
+        placePlayerOnWalkableGround();
         mainMenuOpen = false;
         characterSelectOpen = false;
+        mapSelectionOpen = false;
         gameStarted = true;
         paused = false;
         settingsOpen = false;
         skillMenuOpen = false;
+    }
+
+    private void placePlayerOnWalkableGround() {
+        GameMap map = getActiveMap();
+        java.awt.geom.Point2D.Double start = map.getStartingPoint(player.getCollisionRadius());
+        player.moveWorld(start.x - player.getWorldX(), start.y - player.getWorldY());
     }
 
     private void resetRunState() {
@@ -1563,10 +1645,8 @@ public class GameLogic {
 
         // Place the enemies evenly around a ring centered on the player.
         for (int index = 0; index < enemiesToSpawn; index++) {
-            double angle = Math.PI * 2.0 * index / enemiesToSpawn;
-            double enemyX = player.getWorldX() + Math.cos(angle) * SPAWN_RADIUS;
-            double enemyY = player.getWorldY() + Math.sin(angle) * SPAWN_RADIUS;
-            enemies.add(createEnemy(enemyX, enemyY));
+            java.awt.geom.Point2D.Double spawn = findMapSpawnPoint();
+            enemies.add(createEnemy(spawn.x, spawn.y));
         }
     }
 
@@ -1585,10 +1665,8 @@ public class GameLogic {
 
         // Place every enemy on one uniform ring centered on the player.
         for (int index = 0; index < enemiesToSpawn; index++) {
-            double angle = Math.PI * 2.0 * index / enemiesToSpawn;
-            double enemyX = player.getWorldX() + Math.cos(angle) * SPAWN_RADIUS;
-            double enemyY = player.getWorldY() + Math.sin(angle) * SPAWN_RADIUS;
-            enemies.add(createEnemy(enemyX, enemyY));
+            java.awt.geom.Point2D.Double spawn = findMapSpawnPoint();
+            enemies.add(createEnemy(spawn.x, spawn.y));
         }
     }
 
@@ -1598,10 +1676,17 @@ public class GameLogic {
         }
 
         // Choose a fresh random angle for every individual enemy.
-        double angle = random.nextDouble() * Math.PI * 2.0;
-        double enemyX = player.getWorldX() + Math.cos(angle) * SPAWN_RADIUS;
-        double enemyY = player.getWorldY() + Math.sin(angle) * SPAWN_RADIUS;
-        enemies.add(createEnemy(enemyX, enemyY));
+        java.awt.geom.Point2D.Double spawn = findMapSpawnPoint();
+        enemies.add(createEnemy(spawn.x, spawn.y));
+    }
+
+    private java.awt.geom.Point2D.Double findMapSpawnPoint() {
+        return findMapSpawnPoint(24.0);
+    }
+
+    private java.awt.geom.Point2D.Double findMapSpawnPoint(double radius) {
+        return getActiveMap().findSpawnPoint(player.getWorldX(), player.getWorldY(),
+                SPAWN_RADIUS, radius, random);
     }
 
     private void addPendingEnemies(List<Enemy> pendingEnemies) {
@@ -1610,7 +1695,14 @@ public class GameLogic {
         }
         int slots = availableSlots();
         for (int index = 0; index < pendingEnemies.size() && index < slots; index++) {
-            enemies.add(pendingEnemies.get(index));
+            Enemy pendingEnemy = pendingEnemies.get(index);
+            if (getActiveMap().isBlocked(pendingEnemy.getWorldX(), pendingEnemy.getWorldY(),
+                    pendingEnemy.getCollisionRadius())) {
+                java.awt.geom.Point2D.Double spawn = findMapSpawnPoint(
+                    pendingEnemy.getCollisionRadius());
+                pendingEnemy.teleportTo(spawn.x, spawn.y);
+            }
+            enemies.add(pendingEnemy);
         }
     }
 
@@ -1648,11 +1740,20 @@ public class GameLogic {
     }
 
     public double getWorldOffsetX() {
-        return player.getWorldOffsetX();
+        return getActiveMap().cameraX(player.getWorldX(), worldViewportWidth);
     }
 
     public double getWorldOffsetY() {
-        return player.getWorldOffsetY();
+        return getActiveMap().cameraY(player.getWorldY(), worldViewportHeight);
+    }
+
+    public void setWorldViewportSize(int width, int height) {
+        worldViewportWidth = Math.max(1, width);
+        worldViewportHeight = Math.max(1, height);
+    }
+
+    public GameMap getActiveMap() {
+        return MapCatalog.selectableMap(selectedMapIndex);
     }
 
     public double getPlayerWorldX() {
@@ -1661,6 +1762,10 @@ public class GameLogic {
 
     public double getPlayerWorldY() {
         return player.getWorldY();
+    }
+
+    public double getPlayerCollisionRadius() {
+        return player.getCollisionRadius();
     }
 
     public double getGameTimer() {
@@ -1696,7 +1801,9 @@ public class GameLogic {
             projectile.draw(graphics, centerX, centerY,
                 getWorldOffsetX(), getWorldOffsetY());
         }
-        player.draw(graphics, centerX, centerY);
+        int playerScreenX = (int) Math.round(centerX + player.getWorldX() + getWorldOffsetX());
+        int playerScreenY = (int) Math.round(centerY + player.getWorldY() + getWorldOffsetY());
+        player.draw(graphics, centerX, centerY, playerScreenX, playerScreenY);
 
         for (Enemy enemy : enemies) {
             if (enemy.isDead()) {
