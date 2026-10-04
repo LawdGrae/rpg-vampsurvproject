@@ -1,3 +1,7 @@
+import java.awt.BasicStroke;
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 
 public class AutoFireWeapon extends Weapon {
@@ -6,10 +10,10 @@ public class AutoFireWeapon extends Weapon {
     private static final double PROJECTILE_DAMAGE = 1.0;
     private static final double PROJECTILE_RADIUS = 16.0;
     private static final BufferedImage PROJECTILE_SPRITE = loadProjectileSprite();
-    private static final BufferedImage HOLY_PROJECTILE_SPRITE =
-            ResourceLoader.loadImage("/main/resources/abilities/holy_bolt.png");
-    private static final BufferedImage ELEMENTAL_PROJECTILE_SPRITE =
-            ResourceLoader.loadImage("/main/resources/abilities/fire_bolt.png");
+    private static final BufferedImage HOLY_PROJECTILE_SPRITE = createStaffMote(
+            new Color(255, 246, 180), new Color(255, 205, 80));
+    private static final BufferedImage ELEMENTAL_PROJECTILE_SPRITE = createStaffMote(
+            new Color(150, 225, 255), new Color(150, 85, 255));
     private double attackCooldown;
     private double attackRange = 118.0;
     private String weaponStyle = "sword_shield";
@@ -153,13 +157,13 @@ public class AutoFireWeapon extends Weapon {
         } else if ("holy_staff".equals(this.weaponStyle)) {
             attackRange = 300.0;
             attackSprite = HOLY_PROJECTILE_SPRITE;
-            maxDrawSize = 36.0;
+            maxDrawSize = 24.0;
             damageElement = DamageElement.HOLY;
         } else if ("elemental_staff".equals(this.weaponStyle) || "staff".equals(this.weaponStyle)) {
             attackRange = 310.0;
             attackSprite = ELEMENTAL_PROJECTILE_SPRITE;
-            maxDrawSize = 38.0;
-            damageElement = DamageElement.FIRE;
+            maxDrawSize = 24.0;
+            damageElement = DamageElement.LIGHTNING;
         } else {
             attackRange = 78.0;
             attackSprite = PROJECTILE_SPRITE;
@@ -185,5 +189,28 @@ public class AutoFireWeapon extends Weapon {
 
     private static BufferedImage loadProjectileSprite() {
         return ResourceLoader.loadImage("/main/resources/weapons/long_sword.png");
+    }
+
+    private static BufferedImage createStaffMote(Color core, Color glow) {
+        int size = 28;
+        int center = size / 2;
+        BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D graphics = image.createGraphics();
+        graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        graphics.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+
+        for (int radius = 12; radius >= 4; radius -= 4) {
+            int alpha = 32 + (12 - radius) * 12;
+            graphics.setColor(new Color(glow.getRed(), glow.getGreen(), glow.getBlue(), alpha));
+            graphics.fillOval(center - radius, center - radius, radius * 2, radius * 2);
+        }
+
+        graphics.setColor(new Color(core.getRed(), core.getGreen(), core.getBlue(), 235));
+        graphics.fillOval(center - 4, center - 4, 8, 8);
+        graphics.setColor(new Color(255, 255, 255, 220));
+        graphics.drawLine(center - 8, center, center + 8, center);
+        graphics.drawLine(center, center - 8, center, center + 8);
+        graphics.dispose();
+        return image;
     }
 }

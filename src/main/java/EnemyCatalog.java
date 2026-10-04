@@ -198,9 +198,9 @@ public final class EnemyCatalog {
             return "/main/resources/enemy/LVL2Walks.png";
         }
         return switch (region) {
-            case FROSTPEAK_MOUNTAINS -> "/main/resources/enemy/BLUEMINION.png";
             case SHADOWGRAVE_RUINS, CURSED_WOODS -> "/main/resources/enemy/LVL3Walk.png";
-            case ASHEN_VOLCANO, CRIMSON_CITADEL -> "/main/resources/enemy/REDMINION.png";
+            case FROSTPEAK_MOUNTAINS, ASHEN_VOLCANO, CRIMSON_CITADEL ->
+                    "/main/resources/enemy/LVL2Walks.png";
             default -> "/main/resources/enemy/LVL1Walk.png";
         };
     }

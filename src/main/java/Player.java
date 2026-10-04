@@ -1,3 +1,4 @@
+import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.BasicStroke;
 import java.awt.Graphics2D;
@@ -14,6 +15,10 @@ public abstract class Player {
     private static final int HEALTH_BAR_HEIGHT = 5;
     private static final int HEALTH_BAR_GAP = 4;
     private static final Map<BufferedImage, Rectangle> WEAPON_BOUNDS_CACHE = new IdentityHashMap<>();
+    private static final Color SWORD_TRAIL_COLOR = new Color(255, 224, 150);
+    private static final Color DAGGER_TRAIL_COLOR = new Color(205, 95, 255);
+    private static final Color HOLY_TRAIL_COLOR = new Color(255, 242, 150);
+    private static final Color ELEMENTAL_TRAIL_COLOR = new Color(110, 210, 255);
 
     // Subclasses provide these values so different characters can have different settings.
     protected double speed;
@@ -46,6 +51,7 @@ public abstract class Player {
     private double aimLockTime;
     private double attackAnimationTime;
     private double attackAnimationDuration = 0.34;
+    private int attackSequence;
     private String attackWeaponStyle = "sword";
 
     protected Player(String spritePath, double speed, double animationSpeed,
@@ -291,10 +297,19 @@ public abstract class Player {
     }
 
     public double getWeaponCastWorldX() {
-        return getWorldX() + heldWeaponSideX * spriteWidth * spriteScale * 0.26;
+        double sideOffset = spriteWidth * spriteScale * 0.26;
+        if ("holy_staff".equals(defaultWeaponStyle) || "elemental_staff".equals(defaultWeaponStyle)
+                || "staff".equals(defaultWeaponStyle)) {
+            sideOffset = spriteWidth * spriteScale * 0.18;
+        }
+        return getWorldX() + heldWeaponSideX * sideOffset;
     }
 
     public double getWeaponCastWorldY() {
+        if ("holy_staff".equals(defaultWeaponStyle) || "elemental_staff".equals(defaultWeaponStyle)
+                || "staff".equals(defaultWeaponStyle)) {
+            return getWorldY() - spriteHeight * spriteScale * 0.16;
+        }
         double verticalOffset = getFacingY() < 0 ? -spriteHeight * spriteScale * 0.18
                 : spriteHeight * spriteScale * 0.02;
         return getWorldY() + verticalOffset;
@@ -307,6 +322,7 @@ public abstract class Player {
     public void playAttackAnimation(AbilityDefinition definition, double duration) {
         attackAnimationDuration = Math.max(0.12, duration);
         attackAnimationTime = attackAnimationDuration;
+        attackSequence++;
         attackWeaponStyle = weaponStyleFor(definition);
     }
 
@@ -366,10 +382,14 @@ public abstract class Player {
             return;
         }
 
+        double attackProgress = -1.0;
         if (attackAnimationTime > 0.0) {
-            double attackProgress = attackAnimationDuration <= 0.0 ? 0.0
+            attackProgress = attackAnimationDuration <= 0.0 ? 0.0
                     : 1.0 - attackAnimationTime / attackAnimationDuration;
             pose.applyAttackProgress(attackProgress, heldWeaponSideX, getFacingY());
+        }
+        if (attackProgress >= 0.0) {
+            pose.drawAttackTrail(graphics, centerX, centerY, attackProgress);
         }
 
         Graphics2D weaponGraphics = (Graphics2D) graphics.create();
@@ -451,54 +471,63 @@ public abstract class Player {
 
         if ("sword_shield".equals(attackWeaponStyle)) {
             if (offhand) {
-                double x = left ? -renderedWidth * 0.16 : renderedWidth * 0.16;
+                double x = left ? -renderedWidth * 0.12 : renderedWidth * 0.12;
                 double y = renderedHeight * 0.09;
                 if (down) {
-                    x = left ? -renderedWidth * 0.14 : renderedWidth * 0.14;
+                    x = left ? -renderedWidth * 0.11 : renderedWidth * 0.11;
                     y = renderedHeight * 0.12;
                 }
                 return new WeaponPose(x, y, left ? -0.04 : 0.04, 24,
                         0.50, 0.56, false, false);
             }
-            double x = left ? -renderedWidth * 0.12 : renderedWidth * 0.12;
-            double y = renderedHeight * 0.04;
-            double angle = left ? Math.toRadians(190) : Math.toRadians(170);
+            double x = left ? -renderedWidth * 0.09 : renderedWidth * 0.09;
+            double y = renderedHeight * 0.02;
+            double angle = left ? Math.toRadians(198) : Math.toRadians(162);
             if (down) {
-                x = left ? -renderedWidth * 0.10 : renderedWidth * 0.10;
-                y = renderedHeight * 0.07;
+                x = left ? -renderedWidth * 0.08 : renderedWidth * 0.08;
+                y = renderedHeight * 0.06;
             }
             return new WeaponPose(x, y, angle, 34, 0.82, 0.17, left, false,
-                    5.0, left ? 0.42 : -0.42);
+                    11.0, left ? 0.95 : -0.95, SWORD_TRAIL_COLOR, 4.5);
         }
 
         if ("daggers".equals(attackWeaponStyle)) {
-            double x = left ? -renderedWidth * 0.08 : renderedWidth * 0.08;
-            double y = renderedHeight * 0.04;
-            double angle = left ? Math.toRadians(8) : Math.toRadians(-8);
+            boolean alternateSlash = attackAnimationTime > 0.0 && attackSequence % 2 == 0;
+            double x = left ? -renderedWidth * 0.06 : renderedWidth * 0.06;
+            double y = renderedHeight * 0.05;
+            double angle = left ? Math.toRadians(12) : Math.toRadians(-12);
             if (down) {
-                y = renderedHeight * 0.07;
-                angle = left ? Math.toRadians(5) : Math.toRadians(-5);
+                y = renderedHeight * 0.08;
+                angle = left ? Math.toRadians(8) : Math.toRadians(-8);
+            }
+            if (alternateSlash) {
+                angle += left ? Math.toRadians(-16) : Math.toRadians(16);
+            }
+            double arc = left ? -0.72 : 0.72;
+            if (alternateSlash) {
+                arc = -arc * 0.86;
             }
             return new WeaponPose(x, y, angle, 24, 0.50, 0.20, left, false,
-                    5.0, left ? -0.38 : 0.38);
+                    8.0, arc, DAGGER_TRAIL_COLOR, 3.5);
         }
 
         if ("holy_staff".equals(attackWeaponStyle) || "elemental_staff".equals(attackWeaponStyle)
                 || "staff".equals(attackWeaponStyle)) {
             boolean elementalStaff = "elemental_staff".equals(attackWeaponStyle);
-            double sideDistance = elementalStaff ? 0.27 : 0.17;
+            double sideDistance = elementalStaff ? 0.14 : 0.12;
             double x = left ? -renderedWidth * sideDistance : renderedWidth * sideDistance;
-            double y = elementalStaff ? renderedHeight * 0.06 : renderedHeight * 0.06;
-            double angle = left ? Math.toRadians(-5) : Math.toRadians(5);
+            double y = elementalStaff ? renderedHeight * 0.04 : renderedHeight * 0.05;
+            double angle = left ? Math.toRadians(-7) : Math.toRadians(7);
             if (down) {
                 y = elementalStaff ? renderedHeight * 0.08 : renderedHeight * 0.09;
-                double downSideDistance = elementalStaff ? 0.24 : 0.15;
+                double downSideDistance = elementalStaff ? 0.12 : 0.11;
                 x = left ? -renderedWidth * downSideDistance : renderedWidth * downSideDistance;
-                angle = left ? Math.toRadians(-3) : Math.toRadians(3);
+                angle = left ? Math.toRadians(-4) : Math.toRadians(4);
             }
             return new WeaponPose(x, y, angle, elementalStaff ? 42 : 38,
                     0.50, 0.78, left, !elementalStaff,
-                    4.0, left ? -0.22 : 0.22);
+                    6.0, left ? -0.42 : 0.42,
+                    elementalStaff ? ELEMENTAL_TRAIL_COLOR : HOLY_TRAIL_COLOR, 3.0);
         }
 
         double x = left ? -renderedWidth * 0.34 : renderedWidth * 0.34;
@@ -521,16 +550,25 @@ public abstract class Player {
         private final boolean behindCharacter;
         private final double attackReach;
         private final double attackArc;
+        private final Color trailColor;
+        private final double trailWidth;
 
         private WeaponPose(double offsetX, double offsetY, double angle, int drawHeight,
                 double pivotX, double pivotY, boolean flipX, boolean behindCharacter) {
             this(offsetX, offsetY, angle, drawHeight, pivotX, pivotY, flipX,
-                    behindCharacter, 0.0, 0.0);
+                    behindCharacter, 0.0, 0.0, null, 0.0);
         }
 
         private WeaponPose(double offsetX, double offsetY, double angle, int drawHeight,
                 double pivotX, double pivotY, boolean flipX, boolean behindCharacter,
                 double attackReach, double attackArc) {
+            this(offsetX, offsetY, angle, drawHeight, pivotX, pivotY, flipX,
+                    behindCharacter, attackReach, attackArc, null, 0.0);
+        }
+
+        private WeaponPose(double offsetX, double offsetY, double angle, int drawHeight,
+                double pivotX, double pivotY, boolean flipX, boolean behindCharacter,
+                double attackReach, double attackArc, Color trailColor, double trailWidth) {
             this.handAnchorX = offsetX;
             this.handAnchorY = offsetY;
             this.weaponX = offsetX;
@@ -543,6 +581,8 @@ public abstract class Player {
             this.behindCharacter = behindCharacter;
             this.attackReach = attackReach;
             this.attackArc = attackArc;
+            this.trailColor = trailColor;
+            this.trailWidth = trailWidth;
         }
 
         private void applyAttackProgress(double progress, int facingX, int facingY) {
@@ -566,10 +606,63 @@ public abstract class Player {
 
             double hitPulse = Math.sin(Math.min(1.0, clamped / 0.72) * Math.PI);
             double handNudge = hitPulse * Math.min(5.0, attackReach * 0.42);
-            double lift = Math.sin(clamped * Math.PI) * 2.5;
+            double lift = Math.sin(clamped * Math.PI) * (facingY < 0 ? 1.4 : 2.6);
             weaponRotation += rotationOffset;
             weaponX = handAnchorX + facingX * handNudge;
             weaponY = handAnchorY - lift;
+        }
+
+        private void drawAttackTrail(Graphics2D graphics, int centerX, int centerY,
+                double progress) {
+            if (trailColor == null || attackArc == 0.0) {
+                return;
+            }
+            double clamped = Math.max(0.0, Math.min(1.0, progress));
+            if (clamped < 0.20 || clamped > 0.76) {
+                return;
+            }
+
+            double phase = smooth((clamped - 0.20) / 0.56);
+            float alpha = (float) (Math.sin(phase * Math.PI) * 0.48);
+            if (alpha <= 0.01f) {
+                return;
+            }
+
+            double handX = centerX + weaponX;
+            double handY = centerY + weaponY;
+            double radius = drawHeight * (0.54 + 0.28 * phase);
+            double middleAngle = weaponRotation - Math.PI / 2.0;
+            double sweep = attackArc * 0.58;
+            double startAngle = middleAngle - sweep;
+            double endAngle = middleAngle + sweep * 0.22;
+
+            Graphics2D trailGraphics = (Graphics2D) graphics.create();
+            trailGraphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                    RenderingHints.VALUE_ANTIALIAS_ON);
+            trailGraphics.setComposite(AlphaComposite.SrcOver.derive(alpha));
+            trailGraphics.setStroke(new BasicStroke((float) Math.max(2.0, trailWidth),
+                    BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            trailGraphics.setColor(trailColor);
+
+            int previousX = (int) Math.round(handX + Math.cos(startAngle) * radius);
+            int previousY = (int) Math.round(handY + Math.sin(startAngle) * radius * 0.72);
+            for (int step = 1; step <= 6; step++) {
+                double ratio = step / 6.0;
+                double angle = lerp(startAngle, endAngle, ratio);
+                double taperedRadius = radius * (1.0 - ratio * 0.16);
+                int x = (int) Math.round(handX + Math.cos(angle) * taperedRadius);
+                int y = (int) Math.round(handY + Math.sin(angle) * taperedRadius * 0.72);
+                trailGraphics.drawLine(previousX, previousY, x, y);
+                previousX = x;
+                previousY = y;
+            }
+            trailGraphics.setComposite(AlphaComposite.SrcOver.derive(alpha * 0.65f));
+            trailGraphics.setStroke(new BasicStroke((float) Math.max(1.0, trailWidth * 0.45),
+                    BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            trailGraphics.setColor(Color.WHITE);
+            trailGraphics.drawLine((int) Math.round(handX), (int) Math.round(handY),
+                    previousX, previousY);
+            trailGraphics.dispose();
         }
 
         private static double lerp(double start, double end, double ratio) {

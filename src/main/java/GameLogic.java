@@ -47,6 +47,7 @@ public class GameLogic {
     private final List<ScheduledAbilityImpact> scheduledAbilityImpacts = new ArrayList<>();
     private final List<CombatImpactEffect> combatImpactEffects = new ArrayList<>();
     private final List<FloatingText> floatingTexts = new ArrayList<>();
+    private PendingMeleeAttack pendingMeleeAttack;
     private final Random random = new Random();
     private final List<Double> spawnQueue = new ArrayList<>();
     private static final List<String> GENERIC_UPGRADE_NAMES = Arrays.asList(
@@ -205,6 +206,7 @@ public class GameLogic {
 
         // Update all game objects once per timer tick.
         player.update(deltaTime);
+        updatePendingMeleeAttack(deltaTime);
         abilityManager.update(deltaTime);
         updatePlayerBuffs(deltaTime);
         updateAbilityVisualEffects(deltaTime);
@@ -261,7 +263,7 @@ public class GameLogic {
                             regionalEnemy.getWorldX(),
                             regionalEnemy.getWorldY() - regionalEnemy.getCollisionRadius() * 1.4,
                             new Color(255, 190, 90));
-                    triggerScreenShake(0.16, 5.0);
+                    addScreenShake(0.16, 5.0);
                 }
                 if (regionalEnemy.shouldSummon()) {
                     pendingSummons.addAll(regionalEnemy.createSummons(random));
@@ -335,9 +337,10 @@ public class GameLogic {
                             player.getWorldX(), player.getWorldY(), target);
                     if (hitTarget != null) {
                         player.faceToward(hitTarget.getWorldX(), hitTarget.getWorldY());
-                        player.playAttackAnimation(null, autoFireWeapon.getSwingDuration());
-                        damageEnemiesInMeleeArc(autoFireWeapon.getAttackRange(),
-                                autoFireWeapon.getProjectileDamage());
+                        double swingDuration = autoFireWeapon.getSwingDuration();
+                        player.playAttackAnimation(null, swingDuration);
+                        scheduleMeleeAttack(autoFireWeapon.getAttackRange(),
+                                autoFireWeapon.getProjectileDamage(), swingDuration);
                     }
                 }
             } else {
@@ -1038,7 +1041,7 @@ public class GameLogic {
             addFloatingText("BOSS: " + bossDefinition.getDisplayName(),
                     player.getWorldX(), player.getWorldY() - 74.0,
                     new Color(255, 150, 80));
-            triggerScreenShake(0.25, 7.0);
+            addScreenShake(0.25, 7.0);
             return;
         }
     }
@@ -1254,6 +1257,7 @@ public class GameLogic {
         combatImpactEffects.clear();
         floatingTexts.clear();
         spawnQueue.clear();
+        pendingMeleeAttack = null;
         whenToSpawn = INITIAL_SPAWN_DELAY;
         secretCycleIndex = 0;
         bossSpawned = false;
@@ -1434,6 +1438,7 @@ public class GameLogic {
             scheduledAbilityImpacts.clear();
             combatImpactEffects.clear();
             floatingTexts.clear();
+            pendingMeleeAttack = null;
         }
     }
 
@@ -1704,10 +1709,6 @@ public class GameLogic {
                         getWorldOffsetX(), getWorldOffsetY());
             }
         }
-    }
-
-    public void drawCollisionAreas(Graphics2D graphics, int centerX, int centerY) {
-        // Collision debug overlays are disabled; no solid map collisions remain.
     }
 
     public void applyAbilityEffect(AbilityDefinition definition) {
@@ -2112,6 +2113,35 @@ public class GameLogic {
         for (Enemy enemy : hitEnemies) {
             damageEnemy(enemy, damage, DamageElement.PHYSICAL, originX, originY);
             enemy.knockAwayFrom(originX, originY, 12.0);
+        }
+    }
+
+    private void scheduleMeleeAttack(double range, double damage, double swingDuration) {
+        double hitDelay = Math.max(0.06, swingDuration * 0.43);
+        pendingMeleeAttack = new PendingMeleeAttack(range, damage, hitDelay);
+    }
+
+    private void updatePendingMeleeAttack(double deltaTime) {
+        if (pendingMeleeAttack == null) {
+            return;
+        }
+        pendingMeleeAttack.timeUntilHit -= deltaTime;
+        if (pendingMeleeAttack.timeUntilHit > 0.0) {
+            return;
+        }
+        damageEnemiesInMeleeArc(pendingMeleeAttack.range, pendingMeleeAttack.damage);
+        pendingMeleeAttack = null;
+    }
+
+    private static class PendingMeleeAttack {
+        private final double range;
+        private final double damage;
+        private double timeUntilHit;
+
+        private PendingMeleeAttack(double range, double damage, double timeUntilHit) {
+            this.range = range;
+            this.damage = damage;
+            this.timeUntilHit = timeUntilHit;
         }
     }
 
