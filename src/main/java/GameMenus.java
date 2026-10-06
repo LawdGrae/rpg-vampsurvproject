@@ -7,6 +7,7 @@ import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.geom.Ellipse2D;
+import java.awt.geom.Path2D;
 import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.util.HashMap;
@@ -34,6 +35,7 @@ final class GameMenus {
     };
     private final GameLogic logic;
     private final BufferedImage landscape;
+    private final BufferedImage mainMenuArtwork;
     private final Map<Integer, Player> previews;
     private final IntSupplier targetFps;
     private final IntConsumer adjustFps;
@@ -51,6 +53,7 @@ final class GameMenus {
         this.selection = new double[logic.getCharacterCount()];
         this.selection[logic.getSelectedCharacterIndex()] = 1.0;
         this.landscape = landscape;
+        this.mainMenuArtwork = ResourceLoader.loadImage("/main/resources/ui/venoria_main_menu_background.png");
         this.previews = previews;
         this.targetFps = targetFps;
         this.adjustFps = adjustFps;
@@ -113,84 +116,66 @@ final class GameMenus {
     }
 
     void drawMain(Graphics2D g) {
-        background(g);
-        text(g, "SURVIVE THE NIGHT", GameUiTheme.label(13), GOLD, 88, 145);
-        text(g, "RPG", GameUiTheme.title(100), INK, 82, 258);
-        text(g, "One hero. An unrelenting world.", GameUiTheme.title(26), INK, 88, 306);
-        text(g, "Choose your champion and make every moment count.", GameUiTheme.body(14), MUTED, 88, 334);
-        button(g, mainButton(0), "Begin adventure     →", true);
-        button(g, mainButton(1), "Settings", false);
-        button(g, mainButton(2), "Exit game", false);
-        int selected = logic.getSelectedCharacterIndex();
-        Color accent = HERO_COLORS[selected];
-        drawStage(g, 950, 420, 165, accent, 0.7);
-        portrait(g, selected, new Rectangle(775, 185, 350, 350));
-        centered(g, logic.getSelectedCharacterName(), GameUiTheme.title(32), INK, 740, 588, 420);
-        centered(g, logic.getCharacterClassName(selected).toUpperCase(), GameUiTheme.label(12), accent, 740, 614, 420);
-        GameUiTheme.separator(g, 88, 658, 1104);
-        text(g, "WASD  MOVE     ·     1–4  SKILLS     ·     ESC  PAUSE", GameUiTheme.label(11), MUTED, 88, 689);
-        text(g, "FIVE HEROES. ONE LAST STAND.", GameUiTheme.label(11), GOLD, 896, 689);
+        FantasyMainMenu.drawBackgroundAndTitle(g, mainMenuArtwork, time);
+        for (int index = 0; index < 3; index++) {
+            Rectangle bounds = mainButton(index);
+            FantasyMainMenu.drawButton(g, index, hover(bounds), pressed && bounds.contains(mouseX, mouseY));
+        }
         if (logic.isSettingsOpen()) {
             dim(g);
             drawSettings(g);
         }
     }
 
-    Rectangle mainButton(int row) { return new Rectangle(88, 374 + row * 66, 300, 52); }
-    Rectangle backBounds() { return new Rectangle(1110, 62, 106, 36); }
+    Rectangle mainButton(int row) { return FantasyMainMenu.buttonBounds(row); }
+    Rectangle backBounds() { return new Rectangle(48, 40, 106, 38); }
     Rectangle heroBounds(int index) {
-        int stride = 1152 / logic.getCharacterCount();
-        return new Rectangle(64 + index * stride, 138, stride - 12, 352);
+        int stride = 1020 / logic.getCharacterCount();
+        return new Rectangle(136 + index * stride, 130, stride - 12, 42);
     }
-    Rectangle startBounds() { return new Rectangle(1002, 571, 190, 52); }
-    Rectangle selectedSkillBounds(int index) { return new Rectangle(330 + index * 155, 558, 144, 78); }
-    Rectangle selectedPassiveBounds() { return new Rectangle(86, 625, 25, 25); }
+    Rectangle startBounds() { return new Rectangle(494, 502, 292, 48); }
+    Rectangle selectedSkillBounds(int index) {
+        boolean lower = index % 2 == 1;
+        int x = index < 2 ? (lower ? 242 : 284) : (lower ? 910 : 868);
+        return new Rectangle(x, lower ? 365 : 194, 128, 164);
+    }
+    Rectangle selectedPassiveBounds() { return new Rectangle(610, 411, 60, 60); }
 
     void drawSelection(Graphics2D g) {
         background(g);
-        text(g, "THE HERO ROSTER", GameUiTheme.label(11), GOLD, 65, 45);
-        text(g, "Choose your champion", GameUiTheme.title(40), INK, 64, 96);
-        text(g, HERO_COPY[logic.getSelectedCharacterIndex()], GameUiTheme.body(13), MUTED, 66, 120);
+        GameUiTheme.glow(g, 640, 310, 380, GOLD, 0.13);
+        GameUiTheme.glow(g, 640, 548, 220, new Color(153, 49, 37), 0.13);
         button(g, backBounds(), "←  Back", false);
-        for (int index = 0; index < logic.getCharacterCount(); index++) drawHeroCard(g, index);
+        text(g, "THE HERO ROSTER", GameUiTheme.label(10), GOLD, 1119, 54);
+        text(g, "Choose your champion", GameUiTheme.body(11), MUTED, 1119, 73);
+        selectionFrame(g, new Rectangle(414, 24, 452, 62), 0.5, false);
+        centered(g, logic.getCharacterClassName(logic.getSelectedCharacterIndex()).toUpperCase(),
+                GameUiTheme.title(32), INK, 414, 66, 452);
+        g.setColor(new Color(GOLD.getRed(), GOLD.getGreen(), GOLD.getBlue(), 90));
+        g.drawLine(300, 55, 402, 55);
+        g.drawLine(878, 55, 980, 55);
+        GameUiTheme.emblem(g, 640, 108, 28, GOLD);
+        for (int index = 0; index < logic.getCharacterCount(); index++) drawClassChoice(g, index);
         drawSelectedHero(g);
-        text(g, "Click a hero to inspect  ·  Hover over a skill for details", GameUiTheme.body(11), MUTED, 65, 698);
-        text(g, "MORE CHAMPIONS TO COME", GameUiTheme.label(10), MUTED, 1026, 698);
+        text(g, "Click a class to inspect  ·  Hover over a skill for details", GameUiTheme.body(11), MUTED, 48, 712);
+        text(g, "ENTER  TO BEGIN     ·     ESC  BACK", GameUiTheme.label(10), MUTED, 1042, 712);
         drawTooltip(g);
     }
 
-    private void drawHeroCard(Graphics2D graphics, int index) {
+    private void drawClassChoice(Graphics2D graphics, int index) {
         Rectangle r = heroBounds(index);
         Graphics2D g = (Graphics2D) graphics.create();
-        boolean selected = logic.getSelectedCharacterIndex() == index;
         Color accent = HERO_COLORS[index];
         double focus = Math.max(selection[index], hover(r) * 0.52);
-        GameUiTheme.panel(g, r, 14);
-        g.clip(new RoundRectangle2D.Double(r.x + 1, r.y + 1, r.width - 2, r.height - 2, 14, 14));
-        GameUiTheme.glow(g, r.getCenterX(), r.y + 150, 182, accent, 0.13 + focus * 0.18);
-        g.setColor(new Color(accent.getRed(), accent.getGreen(), accent.getBlue(), (int) (36 + focus * 76)));
-        g.setStroke(new BasicStroke(1));
-        g.drawRoundRect(r.x + 1, r.y + 1, r.width - 3, r.height - 3, 14, 14);
-        g.setColor(new Color(GOLD.getRed(), GOLD.getGreen(), GOLD.getBlue(), (int) (selection[index] * 170)));
-        g.drawRoundRect(r.x + 1, r.y + 1, r.width - 3, r.height - 3, 14, 14);
-        text(g, logic.getCharacterClassName(index).toUpperCase(), GameUiTheme.label(11), accent, r.x + 22, r.y + 29);
-        if (selected) {
-            g.setColor(GOLD);
-            g.fillOval(r.x + r.width - 38, r.y + 17, 18, 18);
-            g.setColor(GameUiTheme.BACKGROUND);
-            g.setStroke(new BasicStroke(1.7f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-            int checkX = r.x + r.width - 34;
-            g.drawLine(checkX, r.y + 26, checkX + 3, r.y + 29);
-            g.drawLine(checkX + 3, r.y + 29, checkX + 8, r.y + 22);
-        } else {
-            text(g, String.format("%02d", index + 1), GameUiTheme.numeric(12), MUTED, r.x + r.width - 37, r.y + 29);
+        selectionFrame(g, r, focus, false);
+        centered(g, logic.getCharacterClassName(index).toUpperCase(), GameUiTheme.label(10),
+                focus > 0.4 ? accent : MUTED, r.x, r.y + 15, r.width);
+        centered(g, logic.getCharacterNames().get(index), GameUiTheme.title(16),
+                focus > 0.4 ? INK : MUTED, r.x, r.y + 33, r.width);
+        if (logic.getSelectedCharacterIndex() == index) {
+            selectionDiamond(g, r.x + 16, r.y + 21, 4, GOLD);
+            selectionDiamond(g, r.x + r.width - 16, r.y + 21, 4, GOLD);
         }
-        drawStage(g, (int) r.getCenterX(), r.y + 197, 79, accent, 0.38 + focus * 0.3);
-        portrait(g, index, new Rectangle(r.x + (r.width - 192) / 2, r.y + 50, 192, 192));
-        GameUiTheme.separator(g, r.x + 24, r.y + 246, r.width - 48);
-        text(g, logic.getCharacterNames().get(index), GameUiTheme.title(30), INK, r.x + 22, r.y + 285);
-        clipped(g, logic.getCharacterRole(index), GameUiTheme.body(r.width < 240 ? 11 : 13), MUTED, r.x + 23, r.y + 309, r.width - 46);
-        text(g, logic.getCharacterWeaponName(index), GameUiTheme.body(11), accent, r.x + 23, r.y + 330);
         g.dispose();
     }
 
@@ -220,35 +205,149 @@ final class GameMenus {
     private void drawSelectedHero(Graphics2D g) {
         int selected = logic.getSelectedCharacterIndex();
         Color accent = HERO_COLORS[selected];
-        GameUiTheme.panel(g, new Rectangle(64, 512, 1152, 158), 14);
-        text(g, "YOUR CHAMPION", GameUiTheme.label(10), GOLD, 86, 537);
-        text(g, logic.getSelectedCharacterName(), GameUiTheme.title(26), INK, 86, 571);
-        text(g, logic.getCharacterClassName(selected), GameUiTheme.label(12), accent, 87, 595);
-        RpgAbility passive = logic.getCharacterPassiveAbility(selected);
-        if (passive != null) {
-            image(g, passive.getIcon(), selectedPassiveBounds());
-            text(g, "PASSIVE", GameUiTheme.label(9), MUTED, 119, 633);
-            text(g, passive.getName(), GameUiTheme.body(11), INK, 119, 649);
-        }
-        text(g, "STARTING ABILITIES", GameUiTheme.label(10), MUTED, 330, 539);
+        drawStage(g, 640, 405, 154, GOLD, 0.8);
+        centered(g, logic.getSelectedCharacterName(), GameUiTheme.title(23), INK, 440, 202, 400);
+        portrait(g, selected, new Rectangle(496, 207, 288, 204));
+
         List<RpgAbility> abilities = logic.getCharacterActiveAbilities(selected);
         for (int index = 0; index < Math.min(4, abilities.size()); index++) {
             Rectangle r = selectedSkillBounds(index);
-            g.setPaint(new GradientPaint(r.x, r.y, new Color(33, 41, 57), r.x, r.y + r.height, new Color(18, 25, 38)));
-            g.fillRoundRect(r.x, r.y, r.width, r.height, 8, 8);
-            g.setColor(hover(r) > 0.02 ? accent : GameUiTheme.BORDER);
-            g.drawRoundRect(r.x, r.y, r.width, r.height, 8, 8);
             RpgAbility ability = abilities.get(index);
-            image(g, ability.getIcon(), new Rectangle(r.x + 7, r.y + 9, 44, 44));
-            text(g, Integer.toString(index + 1), GameUiTheme.numeric(9), MUTED, r.x + 129, r.y + 14);
-            wrapped(g, ability.getName(), GameUiTheme.label(11), INK, r.x + 57, r.y + 27, 78, 14, 2);
-            text(g, (int) ability.getDefinition().getManaCost() + " MANA", GameUiTheme.numeric(9), MUTED, r.x + 10, r.y + 68);
+            selectionIcon(g, ability, new Rectangle(r.x, r.y, r.width, r.width), hover(r), accent);
+            centered(g, Integer.toString(index + 1), GameUiTheme.numeric(10), GOLD, r.x + 4, r.y + 17, 20);
+            selectionCaption(g, ability.getName(), GameUiTheme.title(15), INK, r.x - 12, r.y + 148, r.width + 24);
+            centered(g, (int) ability.getDefinition().getManaCost() + " MP  ·  "
+                    + (int) ability.getDefinition().getCooldownSeconds() + "s", GameUiTheme.numeric(10), MUTED,
+                    r.x - 12, r.y + 164, r.width + 24);
         }
-        g.setColor(new Color(135, 192, 170));
-        g.fillOval(1004, 541, 5, 5);
-        text(g, "Ready to deploy", GameUiTheme.body(11), MUTED, 1017, 549);
-        button(g, startBounds(), "Enter battlefield  →", true);
-        text(g, "ENTER  TO BEGIN", GameUiTheme.label(9), MUTED, 1035, 649);
+        RpgAbility passive = logic.getCharacterPassiveAbility(selected);
+        if (passive != null) {
+            Rectangle r = selectedPassiveBounds();
+            selectionIcon(g, passive, r, hover(r), accent);
+            centered(g, "PASSIVE", GameUiTheme.label(8), GOLD, r.x, r.y + 10, r.width);
+            centered(g, passive.getName(), GameUiTheme.body(13), INK, 450, 490, 380);
+        }
+        Rectangle start = startBounds();
+        Graphics2D startGraphics = (Graphics2D) g.create();
+        if (pressed && start.contains(mouseX, mouseY)) startGraphics.translate(0, 1);
+        selectionFrame(startGraphics, start, hover(start), true);
+        centered(startGraphics, "START", GameUiTheme.title(28), INK, start.x, start.y + 34, start.width);
+        selectionDiamond(startGraphics, start.x + 24, start.y + 24, 5, GOLD);
+        selectionDiamond(startGraphics, start.x + start.width - 24, start.y + 24, 5, GOLD);
+        startGraphics.dispose();
+
+        selectionFrame(g, new Rectangle(48, 568, 880, 120), 0.25, false);
+        GameUiTheme.emblem(g, 130, 628, 104, new Color(GOLD.getRed(), GOLD.getGreen(), GOLD.getBlue(), 75));
+        text(g, "CLASS DESCRIPTION", GameUiTheme.label(10), GOLD, 216, 592);
+        wrapped(g, HERO_COPY[selected], GameUiTheme.title(22), INK, 216, 623, 680, 27, 2);
+        text(g, logic.getCharacterRole(selected), GameUiTheme.body(12), MUTED, 216, 670);
+        String weapon = logic.getCharacterWeaponName(selected);
+        g.setFont(GameUiTheme.body(12));
+        text(g, weapon, GameUiTheme.body(12), accent, 896 - g.getFontMetrics().stringWidth(weapon), 670);
+
+        selectionFrame(g, new Rectangle(952, 568, 280, 120), 0.25, false);
+        text(g, "CLASS STATS", GameUiTheme.label(10), GOLD, 974, 592);
+        selectionStat(g, "MAX HEALTH", logic.getPlayerMaxHealth(), 620);
+        selectionStat(g, "MAX MANA", logic.getAbilityManager().getMaxMana(), 647);
+        // Preview speed is the unchanged class value, before gameplay passive bonuses.
+        selectionStat(g, "BASE SPEED", previews.get(selected).speed, 674);
+    }
+
+    /** Selection-only ornaments; no raster resources or shared menu styling are changed. */
+    private void selectionFrame(Graphics2D graphics, Rectangle r, double focus, boolean primary) {
+        Graphics2D g = (Graphics2D) graphics.create();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        if (focus > 0.05) GameUiTheme.glow(g, r.getCenterX(), r.getCenterY(),
+                Math.max(r.width, r.height) * 0.7, primary ? new Color(195, 63, 43) : GOLD, focus * 0.15);
+        g.translate(0, 4);
+        g.setColor(new Color(0, 0, 0, 120));
+        g.fill(selectionShape(r, 0));
+        g.translate(0, -4);
+        g.setPaint(new GradientPaint(r.x, r.y,
+                primary ? new Color(91 + (int) (focus * 22), 30, 29) : new Color(36, 36, 39),
+                r.x, r.y + r.height, primary ? new Color(31, 12, 17) : new Color(10, 13, 20)));
+        g.fill(selectionShape(r, 0));
+        g.setStroke(new BasicStroke(3f));
+        g.setColor(new Color(44, 31, 21));
+        g.draw(selectionShape(r, 1));
+        g.setStroke(new BasicStroke(1.3f));
+        g.setPaint(new GradientPaint(r.x, r.y, new Color(235, 209, 155, (int) (130 + focus * 110)),
+                r.x, r.y + r.height, new Color(147, 108, 59, 170)));
+        g.draw(selectionShape(r, 1));
+        g.setColor(new Color(GOLD.getRed(), GOLD.getGreen(), GOLD.getBlue(), 60 + (int) (focus * 65)));
+        g.setStroke(new BasicStroke(1f));
+        g.draw(selectionShape(r, 5));
+        int reach = Math.min(24, r.height / 3);
+        g.setColor(new Color(232, 207, 153, 145 + (int) (focus * 90)));
+        for (int corner = 0; corner < 4; corner++) {
+            int x = corner % 2 == 0 ? r.x : r.x + r.width;
+            int y = corner < 2 ? r.y : r.y + r.height;
+            int dx = corner % 2 == 0 ? 1 : -1;
+            int dy = corner < 2 ? 1 : -1;
+            Path2D trim = new Path2D.Double();
+            trim.moveTo(x + dx * 7, y + dy * reach);
+            trim.lineTo(x + dx * 7, y + dy * 14);
+            trim.lineTo(x + dx * 14, y + dy * 7);
+            trim.lineTo(x + dx * reach, y + dy * 7);
+            g.draw(trim);
+        }
+        g.dispose();
+    }
+
+    private Path2D selectionShape(Rectangle r, int inset) {
+        int x = r.x + inset, y = r.y + inset;
+        int right = r.x + r.width - inset, bottom = r.y + r.height - inset;
+        int cut = Math.min(12, r.height / 4);
+        Path2D shape = new Path2D.Double();
+        shape.moveTo(x + cut, y);
+        shape.lineTo(right - cut, y);
+        shape.lineTo(right, y + cut);
+        shape.lineTo(right, bottom - cut);
+        shape.lineTo(right - cut, bottom);
+        shape.lineTo(x + cut, bottom);
+        shape.lineTo(x, bottom - cut);
+        shape.lineTo(x, y + cut);
+        shape.closePath();
+        return shape;
+    }
+
+    private void selectionDiamond(Graphics2D g, int x, int y, int radius, Color color) {
+        Path2D diamond = new Path2D.Double();
+        diamond.moveTo(x, y - radius);
+        diamond.lineTo(x + radius, y);
+        diamond.lineTo(x, y + radius);
+        diamond.lineTo(x - radius, y);
+        diamond.closePath();
+        g.setColor(color);
+        g.draw(diamond);
+    }
+
+    private void selectionIcon(Graphics2D g, RpgAbility ability, Rectangle r, double focus, Color accent) {
+        GameUiTheme.glow(g, r.getCenterX(), r.getCenterY(), r.width * 0.85, accent, 0.08 + focus * 0.18);
+        selectionFrame(g, r, focus, false);
+        int inset = r.width > 80 ? 13 : 11;
+        image(g, ability.getIcon(), new Rectangle(r.x + inset, r.y + inset, r.width - inset * 2, r.height - inset * 2));
+        selectionDiamond(g, (int) r.getCenterX(), r.y, r.width > 80 ? 6 : 4, GOLD);
+    }
+
+    private void selectionCaption(Graphics2D g, String value, Font font, Color color, int x, int y, int width) {
+        g.setFont(font);
+        while (g.getFontMetrics().stringWidth(value) > width && font.getSize2D() > 10) {
+            font = font.deriveFont(font.getSize2D() - 0.5f);
+            g.setFont(font);
+        }
+        centered(g, value, font, color, x, y, width);
+    }
+
+    private void selectionStat(Graphics2D g, String label, double value, int baseline) {
+        text(g, label, GameUiTheme.label(11), MUTED, 974, baseline - 2);
+        String number = String.format("%.0f", value);
+        g.setFont(GameUiTheme.title(22));
+        text(g, number, GameUiTheme.title(22), INK, 1208 - g.getFontMetrics().stringWidth(number), baseline);
+        if (baseline < 674) {
+            g.setColor(new Color(GOLD.getRed(), GOLD.getGreen(), GOLD.getBlue(), 45));
+            g.drawLine(974, baseline + 8, 1208, baseline + 8);
+        }
     }
 
     void drawOverlays(Graphics2D g) {

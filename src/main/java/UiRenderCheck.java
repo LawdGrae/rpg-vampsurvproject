@@ -44,6 +44,15 @@ public class UiRenderCheck {
         GameLogic logic = logic(panel);
         GameMenus menus = (GameMenus) field(panel, "menus");
         render(panel);
+        for (int index = 0; index < 3; index++) {
+            Rectangle bounds = menus.mainButton(index);
+            require(new Rectangle(0, 0, 1280, 720).contains(bounds), "Main menu buttons must fit on the canvas");
+            require(menus.interactive((int) bounds.getCenterX(), (int) bounds.getCenterY()),
+                    "Every main menu button must have a matching interactive region");
+            for (int other = 0; other < index; other++) {
+                require(!bounds.intersects(menus.mainButton(other)), "Main menu button regions must not overlap");
+            }
+        }
         click(panel, menus.mainButton(1));
         require(logic.isSettingsOpen(), "Settings must open from the visible main menu button");
         click(panel, menus.settingsToggle(0));
@@ -128,6 +137,19 @@ public class UiRenderCheck {
         GameLogic logic = logic(panel);
         GameMenus menus = (GameMenus) field(panel, "menus");
         capture(panel, "main-menu");
+        panel.setSize(1024, 640); capture(panel, "main-small");
+        panel.setSize(1920, 1080); capture(panel, "main-large");
+        panel.setSize(1280, 720);
+        Rectangle start = menus.mainButton(0);
+        menus.pointer((int) start.getCenterX(), (int) start.getCenterY(), false);
+        menus.update(0.4);
+        capture(panel, "main-hover");
+        menus.pointer((int) start.getCenterX(), (int) start.getCenterY(), true);
+        capture(panel, "main-pressed");
+        menus.pointer(-1, -1, false);
+        menus.update(0.4);
+        logic.toggleSettings(); capture(panel, "main-settings");
+        logic.toggleSettings();
         logic.showCharacterSelection();
         String[] names = {"eumann", "haze", "yuexin", "ziea", "rakki"};
         for (int index = 0; index < logic.getCharacterCount(); index++) {

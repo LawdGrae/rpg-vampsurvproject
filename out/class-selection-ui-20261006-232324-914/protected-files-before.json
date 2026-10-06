@@ -1,0 +1,1142 @@
+[
+  {
+    "Path": "out\\weapon-poses-fixed.png",
+    "Hash": "39A5F4A59BB89D02BA045A09C73D2B2306F14DCD1BF38AC6C57BAED78E8E88B4"
+  },
+  {
+    "Path": "out\\weapon-poses-animated.png",
+    "Hash": "C3F3C41C7B0FBB33F95021BF1FAB54A538C563F206965696E008942723652C38"
+  },
+  {
+    "Path": "out\\weapon-animation-poses.png",
+    "Hash": "5B01828616579CF3A96D639E2633E3A63C007595EB1C8ACB720AFEB7DF939011"
+  },
+  {
+    "Path": "out\\ui-upgrades.png",
+    "Hash": "2244ACB91C7DAA6E5E6813C5313E6086D47AFD208CB11334CA914240C4968616"
+  },
+  {
+    "Path": "out\\ui-skills.png",
+    "Hash": "563DC2F9EFE1704DBDF29571A178A255ACAA93E6AED314182A9BC52AEBD3FFF2"
+  },
+  {
+    "Path": "out\\ui-settings.png",
+    "Hash": "8DCCC292AD21E8EDC5A7745C21B97AEE6366BA329C4E9E9382BE4EBCEA232264"
+  },
+  {
+    "Path": "out\\ui-pause.png",
+    "Hash": "B87B73E309658881C176EBE62B78BAC7B7AE6ACF4F8329600FFCFD7F0C73782D"
+  },
+  {
+    "Path": "out\\ui-overview.png",
+    "Hash": "A42E09B9E604E1890BE33D7FF49115B1E592A561868EC7EE46DDF4FEEEFE39EF"
+  },
+  {
+    "Path": "out\\ui-main-menu.png",
+    "Hash": "BF381C298340F2DA5B2F03D4A3C400BA9404844B8189974E3FACF88A7731E2F3"
+  },
+  {
+    "Path": "out\\ui-hero-ziea.png",
+    "Hash": "D4812653B9E7A8AF18E67393A4343933BA72E3FEFEAA8B3E4C3FCD61637D3922"
+  },
+  {
+    "Path": "out\\ui-hero-yuexin.png",
+    "Hash": "DDE958F6BA8E9EA43ACE9F39233DF0794215C52B7F92B1A37C2A4A6EF74AB5FB"
+  },
+  {
+    "Path": "out\\ui-hero-small.png",
+    "Hash": "99187C97F8E8CA90D187AA9F846FFB066B3BF035E884D0AE3A52267F96A5E3D6"
+  },
+  {
+    "Path": "out\\ui-hero-large.png",
+    "Hash": "32EF1D3276A623938143124BD9E2B490EFB69A13921D13788A97E037FB074B0E"
+  },
+  {
+    "Path": "out\\ui-hero-haze.png",
+    "Hash": "5D5F4D5F7084BC89BCEC0F45C3B9176FBFB2ADF93EC71AA13DC2BA8B87B683A4"
+  },
+  {
+    "Path": "out\\ui-hero-eumann.png",
+    "Hash": "54FEA61E12F1A8C83BFE7C3512870D03D6C0BBB09D8531856C3FE264C2CC4DA3"
+  },
+  {
+    "Path": "out\\ui-gameplay.png",
+    "Hash": "C652B110797C1ED059AE3FFA25C37056AF7090349AD24AB2B02BE9F7C222DF7B"
+  },
+  {
+    "Path": "out\\ui-game-over.png",
+    "Hash": "AB26C87405301E2B3BF813D4724C285362AD4D2268DC33E3445B04CC10AE092F"
+  },
+  {
+    "Path": "out\\skill-animation-frames.png",
+    "Hash": "7EDAFAC7E4EBE50AA5BEC74EC137A9FB06C79F02450E697957A2AB431410BA1E"
+  },
+  {
+    "Path": "out\\selection-weapons-fixed.png",
+    "Hash": "9A933B0E972335095B5F18C8CBF56333060B45B903B9EF68CE4E3D65CFCED0C9"
+  },
+  {
+    "Path": "src\\main\\resources\\weapons\\twin_daggers.png",
+    "Hash": "DD0798E2AD08C3E1368332FA277F64851DFE1B8150708BC74DA5B3BBFC783A11"
+  },
+  {
+    "Path": "src\\main\\resources\\weapons\\shield.png",
+    "Hash": "D1F112296A19666425CF0FAE273852097BAEFE3213F45ABCFC73A9B08181EF17"
+  },
+  {
+    "Path": "src\\main\\resources\\weapons\\long_sword.png",
+    "Hash": "87928F4202EA5D2C195BFF8DEF5B37798183EBE495E6120027E2A12DA293876A"
+  },
+  {
+    "Path": "src\\main\\resources\\weapons\\holy_staff.png",
+    "Hash": "A3764792350E9EFA890F637544A8ED001702B75F6D452469DA5EE00D3A1B5494"
+  },
+  {
+    "Path": "src\\main\\resources\\weapons\\elemental_staff.png",
+    "Hash": "90E8D5952DF1D3F5E5110003897881DC26515E8DE367B699AC62E48696B93403"
+  },
+  {
+    "Path": "src\\main\\resources\\weapons\\aegis_greatshield.png",
+    "Hash": "1893263C0058E7CE9759B27034C51BE3CAC1F5B7827BCB4A266329E6E1362954"
+  },
+  {
+    "Path": "src\\main\\resources\\projectiles\\temp_bullet.png",
+    "Hash": "AC79C4778C7469DCA2B44D73ACC7B45E4DA083C3D6497D7B6AEF2E2D345EBF90"
+  },
+  {
+    "Path": "src\\main\\resources\\projectiles\\LASER.png",
+    "Hash": "27D9D2DB62B950BE8EB76980000E6853271730F9038AEB5A0A9346669F307A13"
+  },
+  {
+    "Path": "src\\main\\resources\\projectiles\\enemylv2projectile.png",
+    "Hash": "E24B2C85A5AFFAA78293825AB3C5F9708C0D0C68FFE15B207CAACA8D71A47D0B"
+  },
+  {
+    "Path": "src\\main\\resources\\projectiles\\EliteBossProjectile.png",
+    "Hash": "729340B7C80794CBE9E090637A2BDA6804CD4A3C4354FE856AB1C9DCABA4429C"
+  },
+  {
+    "Path": "src\\main\\resources\\portrait_temp.png",
+    "Hash": "1AA334FC7BF5D1AACBD1A86547CCB526174E9012542A37F57EC62B5367A37A7F"
+  },
+  {
+    "Path": "src\\main\\resources\\portrait_coming_soon.png",
+    "Hash": "24DD349CFDA7128DD7C0D4CA4F7F43F7FACB11D0F749B7916E14DBFBB9C9C7BE"
+  },
+  {
+    "Path": "src\\main\\resources\\landscape.png",
+    "Hash": "678240A705C2EBB328E5AEF6E7C826C846A5E26750FDCCB08EB53ED39F37F8EC"
+  },
+  {
+    "Path": "src\\main\\resources\\grasstile.png",
+    "Hash": "5E5E95DC85FF9E1797E4880EC8F0B25D4D0AB5BD87C39E13245AA243BE6E30F2"
+  },
+  {
+    "Path": "src\\main\\resources\\gem.png",
+    "Hash": "D768F8B14E4AD87A9626C26B0E1C19EB5C141750E3F3C48A1E87FA3F3C784102"
+  },
+  {
+    "Path": "out\\character-sprite-clarity-strong-v1.png",
+    "Hash": "C69D586A17DF658E77C83D38B47F2B4456A6BE7C70F4CE7079CBC8B05EE86610"
+  },
+  {
+    "Path": "out\\character-sprite-clarity-comparison.png",
+    "Hash": "B72EEE22330A5A17FE57D294083B94CFE7191CC664FA825FCFCAA4967052BBA2"
+  },
+  {
+    "Path": "out\\character-combo-frames.png",
+    "Hash": "9E15433B4705F085DB7DCDEE8994AB4E7B56AB1F82802B72AEA0F9073E4685D8"
+  },
+  {
+    "Path": "out\\character-animation.gif",
+    "Hash": "E9F24FDD4DCA83C5CF3CBE04E1105F646898C1B4C95983536B39081EC64655E5"
+  },
+  {
+    "Path": "out\\character-animation-frames.png",
+    "Hash": "52F4EFC01FD7234D24493F83625BD1CEE218D3675C61D91B75B88DB5D52ABBDB"
+  },
+  {
+    "Path": "src\\main\\resources\\character\\temp_up_2.png",
+    "Hash": "3B612B55C83E60088E5129E0AFFFC71C5C2CB3A385123991E35F9069491897B8"
+  },
+  {
+    "Path": "src\\main\\resources\\character\\temp_up_1.png",
+    "Hash": "53063A5E999CAA20231DF453F568A7B80EF0931233B7008259040EDC30689543"
+  },
+  {
+    "Path": "src\\main\\resources\\character\\temp_up_0.png",
+    "Hash": "9B5CED5E00629980A284F2555AEFDE59914B37A12F66C8C7F32C540843D5389F"
+  },
+  {
+    "Path": "src\\main\\resources\\character\\temp_sheet.png",
+    "Hash": "6AAFEF786E79F381A1057FC692A4CB5B14AA8175E171E27617A376C4040DAD0A"
+  },
+  {
+    "Path": "src\\main\\resources\\character\\temp_right_2.png",
+    "Hash": "DE20BE232EB6DF0482A188C3190DD1F55B53001444067221B0BB6A4BCC6EAB1A"
+  },
+  {
+    "Path": "src\\main\\resources\\character\\temp_right_1.png",
+    "Hash": "FA1DF27762F944DF596E28C00C830DE5975D338EFA26CCD29C745F33CC156E0F"
+  },
+  {
+    "Path": "src\\main\\resources\\character\\temp_right_0.png",
+    "Hash": "FAF9EC19C3794BDE391D990BDBB09502AD33C650B20B6873385CFAF09DA422DD"
+  },
+  {
+    "Path": "src\\main\\resources\\character\\temp_left_2.png",
+    "Hash": "66FAE9F14740D752445B5856B7A85B5A1720B1D9C3F96DB94932D96227ED6A96"
+  },
+  {
+    "Path": "src\\main\\resources\\character\\temp_left_1.png",
+    "Hash": "E92DE2E08A3CBA96C72AE4F4CA66302FCFE9FCEAC10B23247165546ACACAE3DA"
+  },
+  {
+    "Path": "src\\main\\resources\\character\\temp_left_0.png",
+    "Hash": "7AA3A0028E53CAB3C4E280F47088C71A7000AC7B3E23614CE641D7538D0B13ED"
+  },
+  {
+    "Path": "src\\main\\resources\\character\\temp_down_2.png",
+    "Hash": "AA553E5B3E80FCC3D3E4D50F5B802E03A6A2D75404DB4A811B68274C08BD5EEC"
+  },
+  {
+    "Path": "src\\main\\resources\\character\\temp_down_1.png",
+    "Hash": "38DB0B3E3691A3CBBF041B3BED7C1AC85A3519AD316C0565015C3E4A97B112D1"
+  },
+  {
+    "Path": "src\\main\\resources\\character\\temp_down_0.png",
+    "Hash": "4FAAD223B6066CC5D7FBC2DDAA770C7B45DAC849672285B008AD439B944E9DFC"
+  },
+  {
+    "Path": "src\\main\\resources\\character\\CharYuexin.png",
+    "Hash": "F062EC1CDA48964CA4A505BC8323FEAF7157E61128416670573266B414172660"
+  },
+  {
+    "Path": "src\\main\\resources\\character\\CharSirRakki.png",
+    "Hash": "388D85379D82277F1F5A40A7F659DB5C9B841FF3C09027E981B11C35D48B9B27"
+  },
+  {
+    "Path": "src\\main\\resources\\character\\CharHaze.png",
+    "Hash": "70E386594FBCADC759B401D6E49F0AC499D9F123DC30DA048568AF406B5C39ED"
+  },
+  {
+    "Path": "src\\main\\resources\\character\\CharEumann.png",
+    "Hash": "1D9303ABE0D19B945DFA66B638F584EE15EEF6FD393E19AD6FB1D1B1DA6BDF87"
+  },
+  {
+    "Path": "src\\main\\resources\\character\\CharacterZiea.png",
+    "Hash": "D9FC2E63F08AE6A32E0D2B6EF7DF78C0B82CC1C0D964B7B22BB86CE8755733A4"
+  },
+  {
+    "Path": "out\\rakki-ui\\ui-upgrades.png",
+    "Hash": "C68D719BD449CF7BA2075C80204C217F7D727C0B5C3731FAFF8A62358F4AA738"
+  },
+  {
+    "Path": "out\\rakki-ui\\ui-skills.png",
+    "Hash": "83BA4538B19D22D2AE1A9C07AF9C7B877A2BD18C5E88078C61929A851EF3A15E"
+  },
+  {
+    "Path": "out\\rakki-ui\\ui-settings.png",
+    "Hash": "2445F4BDF16DAF4AC391F8054017F91B477E1A488F3DF94F88D00FA656F50EE4"
+  },
+  {
+    "Path": "out\\rakki-ui\\ui-pause.png",
+    "Hash": "29936E9A65598199ECE2BAD7AD40A5325E15C35DED3ADB6AEC5CAE7574C726F2"
+  },
+  {
+    "Path": "out\\rakki-ui\\ui-overview.png",
+    "Hash": "20B9504A892C9A1185100F37F31855470854CA81BF16C696B409E42580E26709"
+  },
+  {
+    "Path": "out\\rakki-ui\\ui-main-menu.png",
+    "Hash": "50CE1C4E3464EC67E1D97746FF88B6D132F3FA3756AEA5A98CD8E65FF0BE8C9F"
+  },
+  {
+    "Path": "out\\rakki-ui\\ui-hero-ziea.png",
+    "Hash": "49F756026FAB3175126CB3819A4FEE8FBB90902C6A95098C42F5CCC8AF0424C2"
+  },
+  {
+    "Path": "src\\main\\java\\WeaponPoseRenderCheck.java",
+    "Hash": "CF1E97B529D867C854BFBDA23DD2A3569E33C8F1A19F37FF752D4CC12F0FBF96"
+  },
+  {
+    "Path": "out\\rakki-ui\\ui-hero-yuexin.png",
+    "Hash": "849BA7438961653BA477B0EA501B3417DDC023E6C7674133B739ABBC730BA719"
+  },
+  {
+    "Path": "out\\rakki-ui\\ui-hero-small.png",
+    "Hash": "30AF3AAFB01A69D99AAE8A301D99C3166C1CC1A16A2DA72568B9965089C407BF"
+  },
+  {
+    "Path": "src\\main\\java\\WeaponDirectionSmokeTest.java",
+    "Hash": "FB0C7BA46E1D03926B745B7A8326D188F3A16E6A0BAFD3408E1B20B9DD3A2B5B"
+  },
+  {
+    "Path": "out\\rakki-ui\\ui-hero-rakki.png",
+    "Hash": "BF8E28C870CE4EEDFC1250C60FCA544305253FD1661C1BFD9251EFD8B011DADC"
+  },
+  {
+    "Path": "src\\main\\java\\WeaponAttachmentSmokeTest.java",
+    "Hash": "5E1806992FA312A7E87B24CA4B38436A976507E76369AF4DC3492ABDCE905BC6"
+  },
+  {
+    "Path": "out\\rakki-ui\\ui-hero-large.png",
+    "Hash": "B07571E1946FE697C3D298FE55201C651AA8D064078D0D89B7EB57E7FD2C3007"
+  },
+  {
+    "Path": "src\\main\\java\\Weapon.java",
+    "Hash": "C86668523BFE26F3B7AA298FA49D4F536E4D69D04D52BA4F286E4680F6A90B73"
+  },
+  {
+    "Path": "out\\rakki-ui\\ui-hero-haze.png",
+    "Hash": "837DB4CA0B4D47269C5CC6A57EBED6845D411467777710A2A91F58DEC3CB83FD"
+  },
+  {
+    "Path": "src\\main\\java\\UpgradeStatSmokeTest.java",
+    "Hash": "C63879FD6E0194BEEA9D2C5A57D88BAA40683314FF2D6D442CFAA7732476E81D"
+  },
+  {
+    "Path": "out\\rakki-ui\\ui-hero-eumann.png",
+    "Hash": "B40B6AF5CDAD57F20A9FE5E620B699A53D4C3A53961256875B392BA49C718EC4"
+  },
+  {
+    "Path": "src\\main\\java\\UiRenderCheck.java",
+    "Hash": "07B5B8C1179F78C426ADDA095FE0AC82588D81AC6D472B576D6B248A4BC88A3C"
+  },
+  {
+    "Path": "out\\rakki-ui\\ui-gameplay.png",
+    "Hash": "3ED07261AB9B61C4AD202F9D672F1CBC6B7E58B554947FB4D1996003F795034D"
+  },
+  {
+    "Path": "src\\main\\java\\TestEnemy3Behavior.java",
+    "Hash": "EDA0BB7D034788F7A2B4703931E71AED00C82EFB44739ACAE21FFEA0969B4FCD"
+  },
+  {
+    "Path": "src\\main\\java\\TemplateEnemyMinion.java",
+    "Hash": "57B6139D68E7D908B9454795BB9FE4891A67F5FAA918C06284D5A9622ECA4A71"
+  },
+  {
+    "Path": "out\\rakki-ui\\ui-game-over.png",
+    "Hash": "AA80DD4FAA30896793D3E47D3631E4D55D07AAC1AE58E4E52D3F88DBEF244A29"
+  },
+  {
+    "Path": "src\\main\\java\\TemplateEnemy3.java",
+    "Hash": "E9D481BEC37CB243E493DFF8A4CA2FAA0C1397EE36FF57E8C95A398E8FF59E34"
+  },
+  {
+    "Path": "src\\main\\java\\TemplateEnemy2.java",
+    "Hash": "0048F006B4FEA19D0D51BA75560A1407B1F09BB89A20A361CD40589EBFB1C8C1"
+  },
+  {
+    "Path": "src\\main\\java\\TemplateEnemy.java",
+    "Hash": "2CCF600F273194D6BE26895E72D31B16DA11EA1247BDB6AD951054B9F0D6B8EF"
+  },
+  {
+    "Path": "src\\main\\java\\TemplateCharacter.java",
+    "Hash": "E0DB135B20369306C7A3CF34D146351C4B728988A645B5C670938A8C9A84CB19"
+  },
+  {
+    "Path": "src\\main\\java\\TemplateAbility.java",
+    "Hash": "0795150BCCB5E40FEF29DC3C5359C7BCAB5EF88395A62AEAE1C857F6A79259C6"
+  },
+  {
+    "Path": "src\\main\\java\\TempCheck.java",
+    "Hash": "D5EF0441943FB6D1ADFA809AA917F43286D14333C32DCDA7F0249850EE6B6540"
+  },
+  {
+    "Path": "src\\main\\java\\SkillLoadoutSmokeTest.java",
+    "Hash": "BEFD665A4A405D3DB6482A7B4D75596BBCCA19B6839B7299774760E32BA02CE2"
+  },
+  {
+    "Path": "src\\main\\java\\SkillEffectAtlas.java",
+    "Hash": "8B910FDBF667A22E7C1EF460DA293620CE2B7BAAE5CF30545999E729BF671F1C"
+  },
+  {
+    "Path": "out\\hud-premium-states.png",
+    "Hash": "3196CBD6437D8887D37DB394E38B22731E2298E42BF53B6BC1E35E6E9610F8F3"
+  },
+  {
+    "Path": "src\\main\\java\\SelectionRenderCheck.java",
+    "Hash": "C6F5D7D0E356ED0C8B6EAA7C37A03B0C283F219D40DFB752BB782F446AB9C83E"
+  },
+  {
+    "Path": "out\\hud-premium-ready.png",
+    "Hash": "B40DE767BD2AE2AC1FF16A48623E40E8AE12305EDA28F739E588AEE855A17A4A"
+  },
+  {
+    "Path": "out\\guardian-vfx-preview.png",
+    "Hash": "6A0AC397A09D47128F6544E802C105CFB546DBA628C95C994E0D5015170C1C71"
+  },
+  {
+    "Path": "src\\main\\java\\SecretJpg2.java",
+    "Hash": "B07E637CDB8ECB13E3AA48F54D16934C0FEEA3C8C598549A8A98C6357FC66442"
+  },
+  {
+    "Path": "src\\main\\java\\SecretJpg.java",
+    "Hash": "FB2579AA3F2CB1F370888CE8AEE82D4586A3331D53487DF518058422D8BB9A1B"
+  },
+  {
+    "Path": "src\\main\\java\\RuntimeStabilitySmokeTest.java",
+    "Hash": "EC8DCE6E7E63EFFF3EBBA491837294193DEF69053B823B3E96E980CA3C14E9D3"
+  },
+  {
+    "Path": "src\\main\\java\\RpgAbility.java",
+    "Hash": "0F4FEA125D514F000B31E3723E18E8FB09D5162B7D7B309D85F1B61D4051EBE8"
+  },
+  {
+    "Path": "src\\main\\java\\RestartSmokeTest.java",
+    "Hash": "871E8341C60C59790A28E8835A3DCA948F74195945F1F75A1E9763BE3043CC06"
+  },
+  {
+    "Path": "src\\main\\java\\ResourceLoader.java",
+    "Hash": "013C9688B89382F126E2FB181F7F256478560C77A557FA38AE5C420394D2A1D3"
+  },
+  {
+    "Path": "src\\main\\java\\RegionalEnemySmokeTest.java",
+    "Hash": "2F1B2150AB97217C7685E419F06537BFEA355C8F03FA80A2CD3F642FDC68BD1F"
+  },
+  {
+    "Path": "src\\main\\java\\RegionalEnemy.java",
+    "Hash": "9F3A30D15E6DA407E21E3A4520692DFFC24A28B142AF7DF747B8C40BA77611BE"
+  },
+  {
+    "Path": "src\\main\\java\\RedFinalMinion.java",
+    "Hash": "CAB0CB70413277B1F3F223BD99A8E82F7FDDB4EEAC3D3E9F4863F0700DE0FEC8"
+  },
+  {
+    "Path": "src\\main\\java\\Projectile.java",
+    "Hash": "896254C0798FCD33401DE17EB6867120284CB0B7B73BE8F56E3EAC3C18F0D9B5"
+  },
+  {
+    "Path": "src\\main\\java\\Player.java",
+    "Hash": "75159E2F43EE760F3C8BF78E47FC30146CFA5DC8313BEB3A34006799B0F31157"
+  },
+  {
+    "Path": "src\\main\\java\\GuardianVisualEffect.java",
+    "Hash": "3B3056A4AC0C2F19E11EE3C30660207510B213338D1EDDBFD253FC8AB838FFF2"
+  },
+  {
+    "Path": "src\\main\\java\\GuardianRenderCheck.java",
+    "Hash": "B866B252C6AF1F20DE1899AF3952C6CEF27C9B5A9878C45D86FD0F7057CB5DE6"
+  },
+  {
+    "Path": "src\\main\\java\\GuardianCombatSmokeTest.java",
+    "Hash": "7A8CBF9D6172A4D390AB469F819D4015B718FE560C70754FC018D023DE5FF27A"
+  },
+  {
+    "Path": "src\\main\\java\\GreenFinalMinion.java",
+    "Hash": "05BFB656BBEEB2C698AC7F1204FC862302D54A769D7A4E1C1102153EB0A0F1E6"
+  },
+  {
+    "Path": "src\\main\\java\\Gem.java",
+    "Hash": "383594C7B8CF29959F74B75C0370D12AACA38F71C977905AFBDA6AC4BED028EF"
+  },
+  {
+    "Path": "src\\main\\java\\GameUiTheme.java",
+    "Hash": "0C3CEE935187F938F6D866ED7E6F16228019CEA6030C56CEA1A4A00E23D74A59"
+  },
+  {
+    "Path": "src\\main\\java\\GamePanel.java",
+    "Hash": "A41023221519670DF5509D31A6349882F6B45C64AB312D7BF1425F6800F6EABC"
+  },
+  {
+    "Path": "src\\main\\java\\GameMenus.java",
+    "Hash": "9BEE2626A01AB74C916E8C9451A88B6C77980D36B7E1036597D998F3BA405CC0"
+  },
+  {
+    "Path": "src\\main\\java\\GameLogic.java",
+    "Hash": "9549BE17DA4E40308E5B2C3E414562357DCFE7A146B3C443D15E644E98F683F1"
+  },
+  {
+    "Path": "src\\main\\java\\GameHud.java",
+    "Hash": "4A0436F0375EFCF223DBBAE5E0C71EF15A6A44275D9F348243C7B8337D632415"
+  },
+  {
+    "Path": "src\\main\\java\\GameFrame.java",
+    "Hash": "EE64976096B1082C3726B9FAA6D344B1674A863FC8349B69F8F42803E04B5B92"
+  },
+  {
+    "Path": "src\\main\\java\\FinalBossEnemy.java",
+    "Hash": "BE330633DE893FD42C492D08A8ACC1EF6E86737940A82003D10D9CD5CB05AB88"
+  },
+  {
+    "Path": "src\\main\\java\\EnemyVisualSmokeTest.java",
+    "Hash": "9F8AAFB9998A768EBF1F0EB6326ED642752A9544E9D981F39B324CD4123BE2A7"
+  },
+  {
+    "Path": "src\\main\\java\\EnemySpriteAssets.java",
+    "Hash": "023C5B47366C764B436A7DD52E4E8B3DA2A61CB6A5AC617E88B21CC318D30573"
+  },
+  {
+    "Path": "src\\main\\java\\EnemyRegion.java",
+    "Hash": "161D9BBDB05D6181918F1D7CAB14CAC45DDDDF6ED686DCC327EEAD6E89BB994E"
+  },
+  {
+    "Path": "src\\main\\java\\EnemyDefinition.java",
+    "Hash": "B5A63EEE94272028B6AC17C3540F202CDACE213A8B80900DA499F9584753692C"
+  },
+  {
+    "Path": "src\\main\\java\\EnemyCatalog.java",
+    "Hash": "F3B69542F312F636348BB324281645AB6A2FFCFB483C981494D1D1FD6C16A8E9"
+  },
+  {
+    "Path": "src\\main\\java\\Enemy.java",
+    "Hash": "4641A0D3690E607777309BDB5F1643242B553F3B5606AFC878B5CB89C50924B9"
+  },
+  {
+    "Path": "src\\main\\java\\EliteBossProjectile.java",
+    "Hash": "FDEB664F439E36F2BD0B14CF21C3E898A473C08944D56FFACEDCDD5DD8E257BD"
+  },
+  {
+    "Path": "src\\main\\java\\EliteBossEnemy.java",
+    "Hash": "F30BFEBDC7E76C4FA6F4FB062E85DB87B81D3601863D5694053234489B7397CE"
+  },
+  {
+    "Path": "src\\main\\java\\DamageElement.java",
+    "Hash": "B9D93753BA359F030EF34A3B2D82C8EA727608A63D05B1EA23DA53C6229F324C"
+  },
+  {
+    "Path": "src\\main\\java\\DaggerPoseSmokeTest.java",
+    "Hash": "EF9812D38BD9A2A80C9395745E58C08360376918799FB94CB6B6C0E4490B446C"
+  },
+  {
+    "Path": "src\\main\\java\\DaggerAnimationRenderCheck.java",
+    "Hash": "91340C2CE0C97C998D28E95AA329F5FF5C62C3CB8C887203FB4800E22C5A5D4E"
+  },
+  {
+    "Path": "src\\main\\java\\CombatImpactEffect.java",
+    "Hash": "924F49E70B1CC49C1AC5DE44350EDAE0628D3479D029C72328D7FC9C0D454D29"
+  },
+  {
+    "Path": "src\\main\\java\\Character_Ziea.java",
+    "Hash": "C2EBC5B57EFB254CFC859E8613DFF9C06F73B094985BA422073B457CA1FEBEB7"
+  },
+  {
+    "Path": "src\\main\\java\\Character_Yuexin.java",
+    "Hash": "D0960F16721A2BFFB79D97F95263AB9F1064E84C613A2B3E78C017284F3ABBC7"
+  },
+  {
+    "Path": "src\\main\\java\\Character_Sir_Rakki.java",
+    "Hash": "7DE39DA6251C3407851D468504B488CD69795BA8CB329C576DCCECBB449FD375"
+  },
+  {
+    "Path": "src\\main\\java\\Character_Haze.java",
+    "Hash": "B8641F9AFAD6D290D636EFDCE41CCB32CE7907D5C46B15557B57657F56D057EB"
+  },
+  {
+    "Path": "src\\main\\java\\Character_Eumann.java",
+    "Hash": "960FC48038D1EF23AEB612769B6012E599811C9D1570A0A214F059AF5451CCA8"
+  },
+  {
+    "Path": "src\\main\\java\\CharacterSpriteImages.java",
+    "Hash": "D205A5F85C3B749D73F67DC3FB7E20F39B8A777E957240672363030734BCAFC8"
+  },
+  {
+    "Path": "src\\main\\java\\CharacterSpriteClaritySmokeTest.java",
+    "Hash": "8EBA9CB234047DE4431E762622BEEDAA33495AFA3B2C36800E44B933F1DC6500"
+  },
+  {
+    "Path": "src\\main\\java\\CharacterAnimationRenderCheck.java",
+    "Hash": "7ACB7F22A0B2741F61C0677C1B6D12B92BA9D3DCC07CCC49DD6159EB080E13FE"
+  },
+  {
+    "Path": "src\\main\\java\\BossEnemy.java",
+    "Hash": "FE326445397A8E93C4B57A5C3F43508777AA7BF86C8F628EC8DE6F2CEBDE4820"
+  },
+  {
+    "Path": "src\\main\\java\\BlueFinalMinion.java",
+    "Hash": "651D7FE0FCC57A511644214E6E84B828DA595A81F432A25DC9FABA1D0C4360F6"
+  },
+  {
+    "Path": "src\\main\\java\\AutoFireWeapon.java",
+    "Hash": "A922575C62139275C03A9B88933E27A21B4283AA47551F08ED73C0A512AF2278"
+  },
+  {
+    "Path": "src\\main\\java\\App.java",
+    "Hash": "FB4DE0E35FF9F3FCB8009A0E101EC0DB45C86D7380B8F1EAEB008B859D575736"
+  },
+  {
+    "Path": "src\\main\\java\\AnimationVfxSmokeTest.java",
+    "Hash": "F193A3EEB640800E86490CBF38D8FD56B269A58BEEA3AC65BEF99034F01CB1B6"
+  },
+  {
+    "Path": "src\\main\\java\\AbilityVisualEffect.java",
+    "Hash": "41E342421E56B7DCB575C03FAE45805EF65A486E8F14C0271194D4C1EE10A540"
+  },
+  {
+    "Path": "src\\main\\java\\AbilitySystemSmokeTest.java",
+    "Hash": "981B1F40487C30AB6CBBD72BA4455D2B11A7AE414FA18278DD2B32A7ED43908E"
+  },
+  {
+    "Path": "src\\main\\java\\AbilitySoundPlayer.java",
+    "Hash": "E2DD2E9EC2665534089B8BE2E16FBBF6015565CF529ABE27EC5E786E9501D8C5"
+  },
+  {
+    "Path": "src\\main\\java\\AbilitySmokeTest.java",
+    "Hash": "6CF3361A2E119D2A23B767B140A55178CFD936D1D090F3FF6648F0107FF9276B"
+  },
+  {
+    "Path": "src\\main\\java\\AbilityManager.java",
+    "Hash": "49861A3A2315F328840EDA7F0A2EFF21B4FA0D806D636115FF13BA544DBBBF84"
+  },
+  {
+    "Path": "src\\main\\java\\AbilityIconGenerator.java",
+    "Hash": "C65B3CBF9BC064199D46DF0A821424AFB592CB8675F17C2C543277A175F19C18"
+  },
+  {
+    "Path": "src\\main\\java\\AbilityEffectType.java",
+    "Hash": "3F0937FBA74CF83AE553B1A8E649A80782180E8B5D686E130B7EEF9B4306BC6E"
+  },
+  {
+    "Path": "src\\main\\java\\AbilityDefinition.java",
+    "Hash": "1ED7038170ADDEFD59C674B0B5C2283F4E2A9EA79920F0268B69566D41D3A9EC"
+  },
+  {
+    "Path": "src\\main\\java\\AbilityClass.java",
+    "Hash": "D6C26F7630CF23B282ECEA2656AC59F4AD30CD247AF4ACADBAC84C3ECFD51983"
+  },
+  {
+    "Path": "src\\main\\java\\AbilityAnimationTiming.java",
+    "Hash": "9A54E16115F558600B68D0ACB82DB23435996D3F86AC573BDE2BB8F0233FE9BA"
+  },
+  {
+    "Path": "src\\main\\java\\Ability.java",
+    "Hash": "DDA34BFFBA4BE3B3920A1D2E3F7603C90AE74FD557BEA2614DA578ACD774EA37"
+  },
+  {
+    "Path": "out\\dagger-poses-fixed.png",
+    "Hash": "AF8C111196CAF11A72D3635801AB1D1E5D46D13E0F962387B0D77761615B6CEE"
+  },
+  {
+    "Path": "out\\dagger-animation.gif",
+    "Hash": "2457B50517F02BF5DDDCD2BEDD751F6946DC3E7AB3126E1496A83E15D73311F3"
+  },
+  {
+    "Path": "out\\character-sprite-clarity-strong-v3.png",
+    "Hash": "138A197FAAB08BEB21127501CD0FCECD93F2F6C43538DBF0E0FE71E95FD30863"
+  },
+  {
+    "Path": "out\\character-sprite-clarity-strong-v2.png",
+    "Hash": "B72EEE22330A5A17FE57D294083B94CFE7191CC664FA825FCFCAA4967052BBA2"
+  },
+  {
+    "Path": "out\\guardian-check\\shield_fortress-5.png",
+    "Hash": "6DD5F4284F59F7C64EA124B7CFB9030ECD6ECDB8E6F0C6F4433EC035417447A9"
+  },
+  {
+    "Path": "src\\main\\resources\\enemy\\REDMINION.png",
+    "Hash": "B3D2464C6AD592EE270A7CE49CF7BAF0307AC75E7B2088E6D3530FA13977C34D"
+  },
+  {
+    "Path": "out\\guardian-check\\shield_fortress-4.png",
+    "Hash": "493E4F16A7942BD61AF964E0EF1A408EA6FCDDD774EE95FD6FB3D5DCFEBB8B7F"
+  },
+  {
+    "Path": "out\\guardian-check\\shield_fortress-3.png",
+    "Hash": "6DE0F916A5BB1253381B6CB08D2CAB770460A58E1BB31A28684381FA759AB5A9"
+  },
+  {
+    "Path": "out\\guardian-check\\shield_fortress-2.png",
+    "Hash": "0B33A8866492B1110A3728551B1B6725C3C0D7845DDD45D25C179708E4A4A98C"
+  },
+  {
+    "Path": "out\\guardian-check\\shield_fortress-1.png",
+    "Hash": "CDFE8BD513074073A3C3EFD698D166B42197120BFB76ABE884240EA1BD4B9F9E"
+  },
+  {
+    "Path": "out\\guardian-check\\shield_fortress-0.png",
+    "Hash": "447C4C9279608804C44E633259F47A3C89F34901601F13B3FF0AB2423333EB75"
+  },
+  {
+    "Path": "out\\guardian-check\\iron_charge-5.png",
+    "Hash": "83597B6200EB6221CBE26E0BB3AC563F450A6D04C08392324BEEBBF6DBC08128"
+  },
+  {
+    "Path": "out\\guardian-check\\iron_charge-4.png",
+    "Hash": "81D54538E0C10E8D0BE0D520E1123AF306DC9B4B1ECD9BF0AC6F7E54D6670B8D"
+  },
+  {
+    "Path": "out\\guardian-check\\iron_charge-3.png",
+    "Hash": "955AE0EBEC842A9473A54A46954E299A8ABCCE657C8AA1FD18A2BE87B8C10ED7"
+  },
+  {
+    "Path": "out\\guardian-check\\iron_charge-2.png",
+    "Hash": "3CC73C043B314BAA04B50C3F942BE32E5069AFA1AA6D5CEFCE2813FC86781DB3"
+  },
+  {
+    "Path": "out\\guardian-check\\iron_charge-1.png",
+    "Hash": "D6E771CB2A20A9FE9C87CE71247D5106AAABF97DAA41A297A3AB99D3316054C7"
+  },
+  {
+    "Path": "out\\guardian-check\\iron_charge-0.png",
+    "Hash": "C6B4AD6BA0D1898F0A61AFB0060EB74764484FEF1BB1E431CA6940BDBE544E0E"
+  },
+  {
+    "Path": "out\\guardian-check\\guardians_roar-5.png",
+    "Hash": "A81AB0CF9C0209060DDFEAFFEBE2F730023FFDECD79A15A82C2090706E44CC7B"
+  },
+  {
+    "Path": "out\\guardian-check\\guardians_roar-4.png",
+    "Hash": "F8C42E9C381680AD18970E83118D52087B21F8754471CE3823554C4D604BCE58"
+  },
+  {
+    "Path": "out\\guardian-check\\guardians_roar-3.png",
+    "Hash": "C6E593F003FAFCB77E33B7BB50863DEA34460A38D004FA2EE421376213E17AA4"
+  },
+  {
+    "Path": "out\\guardian-check\\guardians_roar-2.png",
+    "Hash": "D3883FD02DD6C4F409F24219085F47E16281DB7CFBAC65AD3682D2F83EA72AB2"
+  },
+  {
+    "Path": "out\\guardian-check\\guardians_roar-1.png",
+    "Hash": "73DF79D87241675EA77D9503099B1CBB5BCC8AD6FA7BC2DFDF0B1DDC96DA96A2"
+  },
+  {
+    "Path": "out\\guardian-check\\guardians_roar-0.png",
+    "Hash": "C71C8946A866AD74C1AE79C31D633B5D80B4625BB4DF177A18C37105AD5F3C2F"
+  },
+  {
+    "Path": "out\\guardian-check\\guardian-skills.png",
+    "Hash": "11477BC9AA2E40BE89714BBDC7166518B025C220426AE20CA703970D3674E3F5"
+  },
+  {
+    "Path": "out\\guardian-check\\guardian-poses.png",
+    "Hash": "5B5CAFC0C58B864C253DC75988F97DAE6AE217F6C4EFC2432BC48396A9B8353A"
+  },
+  {
+    "Path": "out\\guardian-check\\guardian-attachment-anchors.png",
+    "Hash": "92E329C0427C2D817DCEEA3913BBD79B9EF98850EF1CB72E7998C04A9DFCBD86"
+  },
+  {
+    "Path": "out\\guardian-check\\earthbreaker-5.png",
+    "Hash": "CEFA8607746D1F4087BBBF095791C35E752EC686E1144F01B104A6A45BFCBCB5"
+  },
+  {
+    "Path": "out\\guardian-check\\earthbreaker-4.png",
+    "Hash": "C62CBB080EDDA2863DAD55DBB350A9EF22595F49639DC7FB9680394D278EA793"
+  },
+  {
+    "Path": "out\\guardian-check\\earthbreaker-3.png",
+    "Hash": "B150081FC5F3D6D4F0AA50451DE2A22E3EB988970E2F5C85694039AEF0367A25"
+  },
+  {
+    "Path": "out\\guardian-check\\earthbreaker-2.png",
+    "Hash": "268AE06ED580DEDBB26E46557DB47F029E09686758BFC1ACC9296D654C442147"
+  },
+  {
+    "Path": "out\\guardian-check\\earthbreaker-1.png",
+    "Hash": "160A589E5B91A60A57E212D7F29BB7864CE260664D9A7BC33139923A1E55F7CD"
+  },
+  {
+    "Path": "out\\guardian-check\\earthbreaker-0.png",
+    "Hash": "E5E46F920397E6D8BB8B084DB2945B6971B22B29544A293AB1406FC8D978EDC1"
+  },
+  {
+    "Path": "src\\main\\resources\\enemy\\LVL3Walk.png",
+    "Hash": "798D6F8A9AC79AEDA92E1FF0C0C882B2667BBDC15B515AA4414DB21CFE591434"
+  },
+  {
+    "Path": "src\\main\\resources\\enemy\\LVL3Death.png",
+    "Hash": "C80CDD1739FE99ADFF7C745DC9284E0581F6078AA06878AAA69D6AC883026E3B"
+  },
+  {
+    "Path": "src\\main\\resources\\enemy\\LVL2Walks.png",
+    "Hash": "5471CD7EF2E0A42C5CD39F8DD4B6336DDAC59E6E9039F343E2A986A60D3E9383"
+  },
+  {
+    "Path": "src\\main\\resources\\enemy\\LVL2Death.png",
+    "Hash": "C9D405F1631A628339C2EB6D5C3AFFAF65388B9B9D1650FDECEDF696DDB0BE30"
+  },
+  {
+    "Path": "src\\main\\resources\\enemy\\LVL1Walk.png",
+    "Hash": "EDF78E594BA38D2DE396DF5F0EF0F3ECDEF882EEFC01F61350D89440DF2260B6"
+  },
+  {
+    "Path": "src\\main\\resources\\enemy\\LVL1Death.png",
+    "Hash": "D55E4FDB9288389DAE22E90C08287A1C714CE3C07A13DE8EDD31D1D40D781895"
+  },
+  {
+    "Path": "src\\main\\resources\\enemy\\GREENMINION.png",
+    "Hash": "BF360D046A5E67B9985B58346C9B10B401948CA80F2C9DA80AE596A6FDD9A82E"
+  },
+  {
+    "Path": "src\\main\\resources\\enemy\\FINALBOSS.png",
+    "Hash": "5B6CEAF917AAB2CDD14CC2E7D45FCE198E580BB85D56B6F07065ED2D070D7FE2"
+  },
+  {
+    "Path": "src\\main\\resources\\enemy\\ELITEBOSSATK.png",
+    "Hash": "DFF9A09DB11BACE49C2A522F9D395003B9BFEC0C3502D825FD9C472101A91D49"
+  },
+  {
+    "Path": "src\\main\\resources\\enemy\\ELITEBOSS.png",
+    "Hash": "7076CF75D537C6498A07B23985428BD7CFA9857587394FB30EC5BFAD00741A52"
+  },
+  {
+    "Path": "src\\main\\resources\\enemy\\BOSS.png",
+    "Hash": "400BD7181DA1EEB006A55D0B4ECA86DC5C458F2D6A15C39D69A147454F21CBB4"
+  },
+  {
+    "Path": "src\\main\\resources\\enemy\\BLUEMINION.png",
+    "Hash": "493772970761C8C40710AB2D395923C1D58E8A8D353C723B43D45AC72F14B447"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\apocalypse.png",
+    "Hash": "8C7EB73815E40E8B243369C9C4CA8116460F41E489BA40A9AB61B111394FC016"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\arrow_storm.png",
+    "Hash": "9DAA1240A92A074AACAD86CF5DAE1D5D6012C7B6E007D4393B2FD16DE5D1B2C9"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\backstep.png",
+    "Hash": "3FA15326ABABD0E6F5B404281411FF64D3C23B48B4100869A986601E17EFD5CA"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\death_mark.png",
+    "Hash": "D00019F85EAD72D9590EFD5D648B2B5F0EAA07C0E1C7F2B1D223B3A542635EEE"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\dark_taunt.png",
+    "Hash": "938AA58A8D1372BCDAA721618D06983BF40094034870560A039AB8146B30AAA8"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\dark_pact.png",
+    "Hash": "ED855E7EF0E5210B3AAB6DC123CA67F96EDC7028BF2FD16FB11062EC7EE62B53"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\dark_fortress.png",
+    "Hash": "F7FCED2EECB13BAAC0A5551AD20AA9B5B3E37CB2A9F95C879ACE40664F0E10FA"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\dark_bolt.png",
+    "Hash": "CA007A7B566DD6A5637D8397C920255D78C3FDE8451E4C7502B8084C06AE60E9"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\curse.png",
+    "Hash": "62DE98E59724DEEFB6DC12BDBB8351D7C1E750BCFB0C82063C87E6E25C24B448"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\counter_strike.png",
+    "Hash": "94FB5B6522923554621C4390AECC1289BD6E9B858F9B86153ADDF2A581384144"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\cataclysm.png",
+    "Hash": "4BA5B07C10B16FAB1C198A4711CCA169984CD861B18F586E2ADF8F81750257F9"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\blood_armor.png",
+    "Hash": "09CF3B009345A9F7A34BE174D8921E73D4B522245014416D828B7D29895F8A56"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\blizzard.png",
+    "Hash": "5FB7D825425D54D2C525F64DFE852A6CA79CB24E078CF2463EB2C259CA154680"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\blessing.png",
+    "Hash": "1A11657B15C1E72762BDA3F043D728F2175F53914C585A1485DCA226BFD5F079"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\elemental_storm.png",
+    "Hash": "E73F12957A8918A049960432E7B0A042E219CC6BAD8A4BA742D760DB47F8333D"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\earth_shatter.png",
+    "Hash": "BEBF275B1A4D1188FA2149E954A29E6AE02FE311A8C6C18748155028F97AAF0B"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\earthbreaker.png",
+    "Hash": "BC2984510822F9E13229EF62CEA1842090457EA3450D9FB10D0F647E37DFC1FC"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\divine_light.png",
+    "Hash": "0E33DDD709498A363C85CFE52635310248C23E0175DB2FDFCA260A0B192B7E98"
+  },
+  {
+    "Path": "out\\enemy-sprite-clarity.png",
+    "Hash": "A65E01EE78A55A2C2EF6366264E2FCE94A48BC99D9067F2687977F24B63A6FB6"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\divine_judgment.png",
+    "Hash": "565275C4B9C6208200A01887F612BB2D36C04E0F0971407B4788EFA6B034A8F1"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\demon_summon.png",
+    "Hash": "0967CDD282CF5A36682AC38D7DC31B0FE3B6F9488F399ABB83D9AEB218C75AA0"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\flame_burst.png",
+    "Hash": "F427204DAF0F95BA287FA8F1D7439EEE0C5A2357AF3438414BFB547EE1B0AB31"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\fire_bolt.png",
+    "Hash": "299DB68E843C92A5EA1202459D179FC31A5263E8622E8BFF5371B77207D9E621"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\fear.png",
+    "Hash": "F9017CBB96FF5026E4B597031DBDB19224AC2A83DB4A5AAB1C01AD7FEA02DE06"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\guardians_roar.png",
+    "Hash": "7B5E3864943F1748EE59545C6D77ADAA19F96DFC2DAF58347FA82AA9E1E1AAA7"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\explosive_arrow.png",
+    "Hash": "B0F734BD20B75DB198D7C402BED129AEEBE9A0A5347115039006C00B7F22A382"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\frost_nova.png",
+    "Hash": "741EDF6B934EE12BBF634BDAD82462688BD51AE184334BCFBE49614B120792D7"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\heal.png",
+    "Hash": "F3826832371D8B474926F23F2CE2118C5F37FCF72F6FAE688FE71AB73298DB8F"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\heavy_slash.png",
+    "Hash": "77FC1306F3E9548A512F708225F9EBF59C4ED0FA04889EBA416C4F946963C969"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\holy_bolt.png",
+    "Hash": "94829033EB5820281BCCF5982EE8D3EB38CE0E6151AFF64FCC0308087FDFCBBD"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\quick_shot.png",
+    "Hash": "631BA056CEA5556D6332FD42CFDB7A293E30D3C5FCF67C1A1053CE26BF728EED"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\purify.png",
+    "Hash": "F50B053BE8B495D9EA4EA0EACAF9F50143F46004F31DEABBF79B76E922058BDC"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\prayer.png",
+    "Hash": "9D52358CF74B5604D3876AA1FC3BF584755F5E8D402F003D014D6C2A374687FB"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\power_arrow.png",
+    "Hash": "5E538327F9D91F1A950DAF01B4FEA6565D408B30B0D56EB61AFEE55A696E143E"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\poison_blade.png",
+    "Hash": "BF5D51C71416F93F8D23B9D258D493075022B64F6A0C500A7E3E6109735AA48C"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\poison_arrow.png",
+    "Hash": "D3534742BC55742E93A572197E103E3430196EEB93393ED34EEB5580DD6FD154"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\phantom_clone.png",
+    "Hash": "59D63E91FA083AE56968F9B78BEF4E504B0B71CC2037B3C8201C92DD9C765DE4"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\phantom_arrow.png",
+    "Hash": "6C445DE661268DDD68ECE2DAA539EF147BEA1E0D600D2B817D63CFD20E4B15E7"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\multi_shot.png",
+    "Hash": "D07C38216AB4A7CA457D429A4F702ABE460B1A500970C14D2352DFFB9E4E7E58"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\meteor.png",
+    "Hash": "B37A0B98CAC4335CB389C2FA71B22D9EFE421BFCF646F82A89DA164DEBFBD0E9"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\lightning_strike.png",
+    "Hash": "AC3096AFE34E4ACDC449AF3BBBA97C403708A49ADEAF1E9E81A1B312CC88AB9D"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\life_drain.png",
+    "Hash": "3FDBA251BD913977A1E6CF7CE427E1D7E646E193459C8E6B653B509941883DC3"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\knights_wrath.png",
+    "Hash": "238EC268D1F02EF990543E70AB526E2A779FB67DD4405163ADC3D3703678D00C"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\iron_guard.png",
+    "Hash": "D8D583F628E676E41CC9FBDAC3048BF173D1B2D47F2340B0A2A76ED8C8834A9D"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\iron_charge.png",
+    "Hash": "50452A00F3C200EB7C694AF5C9C835656117614F1DA831F14DF597311484B49B"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\ice_shard.png",
+    "Hash": "2647C522CAA41E6065BF4B070D510E267DFF23E57FCF157997EACD765B2A2E2C"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\hunters_mark.png",
+    "Hash": "4E47182FF9BF032E76C8388FB6873DDF63ABE3DE6A721999CFAE964E5F6D664A"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\holy_shield.png",
+    "Hash": "3F38F41B4A1EB7D9E1DCFF9617C0AE9BD1DC9A0C56EE815562D6D05AC1B8BFD3"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\shield_charge.png",
+    "Hash": "1CD6CF150C94F82870D136BFBA7DA8892049BF2685B6B8EA135A79866F6BDA2C"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\shield_bash.png",
+    "Hash": "633183E03CD8AF968763ED672B4D63CB1E6942359C4989D57AC73B98EA2D011D"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\shadow_strike.png",
+    "Hash": "5E9778F00A063E9D59289E14A21C3FB62D6CB4EFD8F50FE91329289BC757725F"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\shadow_step.png",
+    "Hash": "4BA6B3CBFE0FD591C5A79067A715BDC7C0EB6FE542E3F806DA450953A8D6ED1A"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\shadow_orb.png",
+    "Hash": "9F390F868A0A3FA31D2CADE845F7DC90DE25F8005023EF5BAF84ED774FB2CD89"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\shadow_assassin.png",
+    "Hash": "9996BBDF9AF022BBB19199BE6B68A75DC00E1CE8F6906BB5BC9903C57D0B4633"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\sanctuary.png",
+    "Hash": "C49E7AFEA6A8C05C914D21BC0239CF07384D75C0D2EB76F734DEA298C494F836"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\resurrection.png",
+    "Hash": "A25D9AC41256130EC0CDF48D354045D35E7BE80119ED8503D7E397B58D175A62"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\rain_of_arrows.png",
+    "Hash": "58E206933602915DF8869DA98E6ACCD6F40060AC6B6D2245FA1EE48FDCD8A732"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\venom_burst.png",
+    "Hash": "219794E5AFE5A63DFA2C67843DCB3EC3420D3520AE5741C60AC5D727D04101D0"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\soul_burn.png",
+    "Hash": "38447B68AD801D2FA63CDA23C1BD25215B43405BCF9712FF42B217803A64206E"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\unbreakable.png",
+    "Hash": "49539C5D2257A3FC522F232355A38817EE963AC75D6D595FB501C1358B607248"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\smoke_veil.png",
+    "Hash": "7A10A44343B808A8F6B1DE2F061AE861194E2643794ED7C29BF846CBE9765524"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\silent_execution.png",
+    "Hash": "09F93CFC519ADA25413C097B6FBF3DE8E2DBFFA6BAF4B64515026085DBF55BDD"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\twin_fang.png",
+    "Hash": "C8FF52CC0754B6C1F51AE819E67CEC300F89547D6B879E4E0270790A1F6B85AF"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\shield_fortress.png",
+    "Hash": "62BC716D56D8C08CD5A15D0DD580B397F97ABC38DBBE4D7BD7353648E3370B9B"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\thunder_chain.png",
+    "Hash": "D0BA2521855269D9896F97BAEE5255A8D7817A9CE98F9D7EB0AC8F5ED212C074"
+  },
+  {
+    "Path": "src\\main\\resources\\abilities\\soul_prison.png",
+    "Hash": "FA37956D32C52CF6C01F4DA2294032B79EDCE8EE25EF1BC9C2D7AD8D56E2211D"
+  },
+  {
+    "Path": "src\\main\\resources\\enemy\\atlas\\README.md",
+    "Hash": "C42390D15DF093AF0054A0A872087EB584C3B445FEFB22455AFE66033B181FEF"
+  },
+  {
+    "Path": "out\\clarity-before\\skill-animation-frames.png",
+    "Hash": "7EDAFAC7E4EBE50AA5BEC74EC137A9FB06C79F02450E697957A2AB431410BA1E"
+  },
+  {
+    "Path": "out\\clarity-before\\character-combo-frames.png",
+    "Hash": "72115B7DC527CB753970F78DB67CBF0B99E31B844C645CA0DBBA03E8394B53FB"
+  },
+  {
+    "Path": "out\\clarity-before\\character-animation.gif",
+    "Hash": "4A288CB1D7CA5E1283A7BBAD1C1713FC98E54FE8EF0DB34322E34309154C57A0"
+  },
+  {
+    "Path": "out\\clarity-before\\character-animation-frames.png",
+    "Hash": "C90CAD7487B60346BC10F0172368C619EF143CF019F9AFAED582E5F862A9458E"
+  },
+  {
+    "Path": "out\\guardian-ui\\ui-game-over.png",
+    "Hash": "AA80DD4FAA30896793D3E47D3631E4D55D07AAC1AE58E4E52D3F88DBEF244A29"
+  },
+  {
+    "Path": "out\\clarity-after\\skill-animation-frames.png",
+    "Hash": "7EDAFAC7E4EBE50AA5BEC74EC137A9FB06C79F02450E697957A2AB431410BA1E"
+  },
+  {
+    "Path": "out\\clarity-after\\character-combo-frames.png",
+    "Hash": "A5E70B55D64A737F57F3E2BF36966894A14444D6B9EF1C3947E184425B3C59FC"
+  },
+  {
+    "Path": "out\\clarity-after\\character-animation.gif",
+    "Hash": "AFA6A94137E265FB0399735180DD067483FB3B74AD4E0F57A7445618DE08804B"
+  },
+  {
+    "Path": "out\\clarity-after\\character-animation-frames.png",
+    "Hash": "564656CBF04438EAD20DCCF2B58F967E5A2275A8068CBB177137711D4AE90198"
+  },
+  {
+    "Path": "out\\guardian-ui\\ui-hero-yuexin.png",
+    "Hash": "39F400D33D45A565871572B60BCFCBEB3ECBF71D6923F361BF1E4E804FB7AF68"
+  },
+  {
+    "Path": "out\\guardian-ui\\ui-hero-small.png",
+    "Hash": "71789FA0B74A4354F300E412C76FEDAB15E7B856C52BDFA891B0AD1012AFB54F"
+  },
+  {
+    "Path": "out\\guardian-ui\\ui-hero-rakki.png",
+    "Hash": "964190EAF8E0C16C949B00604ACBED34C6F41A54655095DF0888A2B4FCC6C057"
+  },
+  {
+    "Path": "out\\guardian-ui\\ui-hero-large.png",
+    "Hash": "93E1C298F09D51839260B1D8E798109D1C7E9B6B7456003CD864AF78E48EE437"
+  },
+  {
+    "Path": "out\\guardian-ui\\ui-hero-haze.png",
+    "Hash": "980D73F484BB23A5231B59984EC08324020A02698DC6087F1F7F719A907B78ED"
+  },
+  {
+    "Path": "out\\guardian-ui\\ui-hero-eumann.png",
+    "Hash": "A7AE7D2AA3E7F36B3571F8DF6E460CA73346E5CF1268C6E7D97C481728069089"
+  },
+  {
+    "Path": "out\\guardian-ui\\ui-gameplay.png",
+    "Hash": "3ED07261AB9B61C4AD202F9D672F1CBC6B7E58B554947FB4D1996003F795034D"
+  },
+  {
+    "Path": "out\\guardian-ui\\ui-upgrades.png",
+    "Hash": "C68D719BD449CF7BA2075C80204C217F7D727C0B5C3731FAFF8A62358F4AA738"
+  },
+  {
+    "Path": "out\\guardian-ui\\ui-overview.png",
+    "Hash": "4871396B887644FEF439BA1AF9C87FA58E64EDE9784536F944F2ACD17F82E40B"
+  },
+  {
+    "Path": "out\\guardian-ui\\ui-skills.png",
+    "Hash": "4C16D9919687A7634D9E24603AE3C46000A7B11BF8067115F1FBD2CE1D690D4C"
+  },
+  {
+    "Path": "out\\guardian-ui\\ui-main-menu.png",
+    "Hash": "50CE1C4E3464EC67E1D97746FF88B6D132F3FA3756AEA5A98CD8E65FF0BE8C9F"
+  },
+  {
+    "Path": "out\\guardian-ui\\ui-settings.png",
+    "Hash": "2445F4BDF16DAF4AC391F8054017F91B477E1A488F3DF94F88D00FA656F50EE4"
+  },
+  {
+    "Path": "out\\guardian-ui\\ui-hero-ziea.png",
+    "Hash": "2067923514AB90240D81B0EA51D977143AC3EB9FBD53FAD74F2F2EC30A258EF6"
+  },
+  {
+    "Path": "out\\guardian-ui\\ui-pause.png",
+    "Hash": "29936E9A65598199ECE2BAD7AD40A5325E15C35DED3ADB6AEC5CAE7574C726F2"
+  }
+]
