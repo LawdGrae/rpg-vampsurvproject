@@ -47,6 +47,9 @@ public class GameLogic {
     private final List<Projectile> enemyProjectiles = new ArrayList<>();
     private final List<AbilityVisualEffect> abilityVisualEffects = new ArrayList<>();
     private final List<ScheduledAbilityImpact> scheduledAbilityImpacts = new ArrayList<>();
+    private final List<SkillProjectile> skillProjectiles = new ArrayList<>();
+    private final List<SkillWave> skillWaves = new ArrayList<>();
+    private SkillDash skillDash;
     private final List<CombatImpactEffect> combatImpactEffects = new ArrayList<>();
     private final List<FloatingText> floatingTexts = new ArrayList<>();
     private PendingMeleeAttack pendingMeleeAttack;
@@ -66,7 +69,7 @@ public class GameLogic {
             "Haze",
             "Yuexin",
             "Ziea",
-            "Sir Rakki"
+            "Sire Rakki"
     );
     private final List<String> characterClassNames = Arrays.asList(
             "BLACK KNIGHT",
@@ -112,8 +115,8 @@ public class GameLogic {
     );
     private final List<List<String>> characterActiveSkillIds = Arrays.asList(
             Arrays.asList("heavy_slash", "shield_bash", "earth_shatter", "knights_wrath"),
-            Arrays.asList("shadow_strike", "twin_fang", "shadow_step", "silent_execution"),
-            Arrays.asList("holy_bolt", "heal", "holy_shield", "divine_light"),
+            Arrays.asList("shadow_strike", "shadow_step", "death_mark", "twin_fang"),
+            Arrays.asList("heal", "holy_bolt", "holy_shield", "divine_light"),
             Arrays.asList("flame_burst", "ice_shard", "lightning_strike", "elemental_storm"),
             Arrays.asList("shield_fortress", "iron_charge", "earthbreaker", "guardians_roar")
     );
@@ -125,9 +128,9 @@ public class GameLogic {
             "unbreakable"
     );
     private final List<String> characterPassiveNames = Arrays.asList(
-            "Iron Guard",
+            "Berserker's Will",
             "Assassin's Instinct",
-            "Divine Blessing",
+            "Faith",
             "Elemental Mastery",
             "Unbreakable"
     );
@@ -191,6 +194,7 @@ public class GameLogic {
     }
 
     public void update(double deltaTime) {
+        if (!Double.isFinite(deltaTime) || deltaTime < 0) return;
         if (gameOver) {
             updateGameOver(deltaTime);
             return;
@@ -422,6 +426,8 @@ public class GameLogic {
     }
 
     private void updateAbilityVisualEffects(double deltaTime) {
+        if (!Double.isFinite(deltaTime) || deltaTime < 0.0) return;
+        updateSkillDash(deltaTime);
         Iterator<ScheduledAbilityImpact> scheduledIterator = scheduledAbilityImpacts.iterator();
         while (scheduledIterator.hasNext()) {
             ScheduledAbilityImpact impact = scheduledIterator.next();
@@ -429,18 +435,23 @@ public class GameLogic {
             while (impact.hasReadyHit()) {
                 fireAbilityImpact(impact, impact.consumeReadyHit());
             }
+            impact.previousPlayerX = player.getWorldX();
+            impact.previousPlayerY = player.getWorldY();
             if (impact.isFinished()) {
                 scheduledIterator.remove();
             }
         }
 
         updateGuardianActions(deltaTime);
+        updateSkillProjectiles(deltaTime);
+        updateSkillWaves(deltaTime);
 
         Iterator<AbilityVisualEffect> effectIterator = abilityVisualEffects.iterator();
         while (effectIterator.hasNext()) {
             AbilityVisualEffect effect = effectIterator.next();
             effect.setCasterPosition(player.getWorldX(), player.getWorldY());
-            effect.setCastOrigin(player.getWeaponCastWorldX(), player.getWeaponCastWorldY());
+            effect.setCastOrigin(player.getSkillSourceWorldX(), player.getSkillSourceWorldY());
+            effect.setSourcePose(player.getSkillSourceRotation(), player.getHeldWeaponSideX() < 0);
             effect.update(deltaTime);
             if (effect.isExpired()) {
                 effectIterator.remove();
@@ -628,8 +639,17 @@ public class GameLogic {
             projectile.update(deltaTime);
 
             boolean hitEnemy = false;
+            Enemy nearestContact = null;
+            double nearestFraction = Double.POSITIVE_INFINITY;
             for (Enemy enemy : enemies) {
-                if (!enemy.isDead() && projectile.hits(enemy)) {
+                double fraction = projectile.getCollisionFraction(enemy);
+                if (!enemy.isDead() && fraction < nearestFraction) {
+                    nearestFraction = fraction;
+                    nearestContact = enemy;
+                }
+            }
+            if (nearestContact != null) {
+                    Enemy enemy = nearestContact;
                     if (enemy instanceof TemplateEnemy3 bossEnemy) {
                         bossEnemy.registerPlayerProjectileHit();
                         if (bossEnemy.shouldReflectPlayerProjectile(
@@ -643,10 +663,8 @@ public class GameLogic {
                     }
 
                     damageEnemy(enemy, projectile.getDamage(), projectile.getDamageElement(),
-                            projectile.getWorldX(), projectile.getWorldY());
+                            projectile.getContactWorldX(nearestFraction), projectile.getContactWorldY(nearestFraction));
                     hitEnemy = true;
-                    break;
-                }
             }
 
             if (hitEnemy || projectile.isExpired()) {
@@ -1265,6 +1283,9 @@ public class GameLogic {
         enemyProjectiles.clear();
         abilityVisualEffects.clear();
         scheduledAbilityImpacts.clear();
+        skillProjectiles.clear();
+        skillWaves.clear();
+        skillDash = null;
         combatImpactEffects.clear();
         floatingTexts.clear();
         spawnQueue.clear();
@@ -1451,6 +1472,9 @@ public class GameLogic {
             applySelectedPassive();
             abilityVisualEffects.clear();
             scheduledAbilityImpacts.clear();
+            skillProjectiles.clear();
+            skillWaves.clear();
+            skillDash = null;
             combatImpactEffects.clear();
             floatingTexts.clear();
             pendingMeleeAttack = null;
@@ -1720,6 +1744,7 @@ public class GameLogic {
             projectile.draw(graphics, centerX, centerY,
                 getWorldOffsetX(), getWorldOffsetY());
         }
+        drawPassiveAura(graphics, centerX, centerY);
         player.draw(graphics, centerX, centerY);
 
         for (Enemy enemy : enemies) {
@@ -1735,9 +1760,13 @@ public class GameLogic {
         Color color = colorFor(definition);
         double damage = definition.getDamage() * damageBoostMultiplier
                 * passiveAbilityPowerMultiplier;
+        if (player instanceof Character_Eumann && player.getHealth() < player.getMaxHealth() * 0.4) damage *= 1.25;
         double radius = definition.getRadius();
         DamageElement element = elementFor(definition);
-        Enemy target = findNearestLivingEnemyInRange(Math.max(radius, 420.0));
+        double aimRange = AbilityAnimationTiming.isReferenceSkill(definition.getId())
+                ? Math.max(radius, definition.getAbilityClass() == AbilityClass.ASSASSIN ? 240 : 300)
+                : Math.max(radius, 420.0);
+        Enemy target = findNearestLivingEnemyInRange(aimRange);
         if (target != null) {
             player.faceToward(target.getWorldX(), target.getWorldY());
         } else if (definition.getAbilityClass() == AbilityClass.GUARDIAN) {
@@ -1760,6 +1789,10 @@ public class GameLogic {
 
         if (definition.getAbilityClass() == AbilityClass.GUARDIAN) {
             applyGuardianAbility(definition, damage, animationDuration);
+            return;
+        }
+        if (AbilityAnimationTiming.isReferenceSkill(definition.getId())) {
+            beginReferenceSkill(definition, target, damage, element);
             return;
         }
 
@@ -1856,6 +1889,246 @@ public class GameLogic {
         return player instanceof Character_Sir_Rakki && player.isSkillAnimationActive();
     }
 
+    public boolean isSkillActionLocked() {
+        return player.isSkillAnimationActive();
+    }
+
+    private void beginReferenceSkill(AbilityDefinition d, Enemy target, double damage, DamageElement element) {
+        String id = d.getId();
+        double x = player.getSkillSourceWorldX(), y = player.getSkillSourceWorldY();
+        double dx = player.getRecentMoveX(), dy = player.getRecentMoveY();
+        double length = Math.max(0.001, Math.hypot(dx, dy));
+        dx /= length; dy /= length;
+        double tx = target == null ? x + dx * 180 : target.getWorldX();
+        double ty = target == null ? y + dy * 180 : target.getWorldY();
+        double life = AbilityAnimationTiming.duration(d);
+        if (id.equals("holy_shield") || id.equals("death_mark")) life += d.getDuration();
+        if (id.equals("elemental_storm")) { tx = player.getWorldX(); ty = player.getWorldY(); life += 0.30; }
+        AbilityVisualEffect visual = addAbilityVisual(d, x, y, tx, ty, Math.max(70, d.getRadius()), colorFor(d), life);
+        if (target != null && (id.equals("death_mark") || id.equals("holy_bolt")
+                || id.equals("divine_light") || id.equals("lightning_strike"))) visual.attachTarget(target);
+        ScheduledAbilityImpact impact = new ScheduledAbilityImpact(d, target, x, y, tx, ty,
+                d.getRadius(), damage, element, hitTimesFor(d));
+        impact.visual = visual;
+        impact.previousPlayerX = player.getWorldX();
+        impact.previousPlayerY = player.getWorldY();
+        scheduledAbilityImpacts.add(impact);
+        if (id.equals("shadow_strike") || id.equals("shadow_step")) {
+            double distance = id.equals("shadow_step") ? 160 : target == null ? 115
+                    : Math.max(0, Math.min(160, Math.hypot(tx - player.getWorldX(), ty - player.getWorldY()) - 38));
+            skillDash = new SkillDash(dx, dy, distance, d);
+        }
+    }
+
+    private void fireReferenceImpact(ScheduledAbilityImpact impact, int index) {
+        AbilityDefinition d = impact.definition;
+        String id = d.getId();
+        double damage = impact.damage / impact.hitCount();
+        double overdue = Math.max(0, impact.elapsed - impact.hitTimes[index]);
+        double fraction = impact.lastStep <= 0 ? 1 : Math.max(0, Math.min(1, 1 - overdue / impact.lastStep));
+        double x = impact.previousPlayerX + (player.getWorldX() - impact.previousPlayerX) * fraction;
+        double y = impact.previousPlayerY + (player.getWorldY() - impact.previousPlayerY) * fraction;
+        java.awt.geom.Point2D.Double source = player.sampleSkillSourceAt(impact.hitTimes[index], overdue);
+        double sourceX = source.x + x - player.getWorldX(), sourceY = source.y + y - player.getWorldY();
+        switch (id) {
+            case "flame_burst", "ice_shard" -> {
+                double tx = impact.target != null && !impact.target.isDead() ? impact.target.getWorldX() : impact.effectX;
+                double ty = impact.target != null && !impact.target.isDead() ? impact.target.getWorldY() : impact.effectY;
+                SkillProjectile projectile = new SkillProjectile(d, sourceX, sourceY, tx, ty, damage, impact.element, overdue);
+                skillProjectiles.add(projectile);
+                abilityVisualEffects.add(projectile.visual);
+            }
+            case "elemental_storm" -> {
+                impact.visual.freezeImpactOrigin(x, y);
+                skillWaves.add(new SkillWave(d, x, y, impact.radius, damage, impact.element, 0, 0, overdue, impact.visual));
+            }
+            case "heal" -> {
+                double healing = impact.damage * passiveHealingMultiplier;
+                player.heal(healing);
+                addFloatingText("+" + (int) Math.round(healing), x, y - 42, new Color(120, 255, 150));
+                abilityManager.restoreMana(healing * 0.25);
+                impact.visual.freezeImpactOrigin(x, y);
+            }
+            case "holy_shield" -> {
+                applyDamageReduction(0.35, d.getDuration());
+                impact.visual.freezeImpactOrigin(x, y);
+            }
+            case "death_mark" -> {
+                if (impact.target != null && !impact.target.isDead()
+                        && impact.target.distanceSquaredTo(x, y) <= d.getRadius() * d.getRadius()) {
+                    damageSkillEnemy(impact.target, damage, impact.element, sourceX, sourceY, id);
+                    if (!impact.target.isDead()) impact.target.applyMark(1.45, d.getDuration());
+                } else impact.visual.expire();
+            }
+            case "holy_bolt", "divine_light", "lightning_strike" -> {
+                double tx = impact.target != null && !impact.target.isDead() ? impact.target.getWorldX() : impact.effectX;
+                double ty = impact.target != null && !impact.target.isDead() ? impact.target.getWorldY() : impact.effectY;
+                impact.visual.freezeImpactOrigin(tx, ty);
+                List<Enemy> hits = id.equals("holy_bolt") ? impact.target == null ? List.of() : List.of(impact.target)
+                        : enemiesInRadius(tx, ty, d.getRadius());
+                for (Enemy enemy : hits) {
+                    damageSkillEnemy(enemy, damage, impact.element, sourceX, sourceY, id);
+                    if (!id.equals("holy_bolt")) enemy.applyStun(d.getDuration());
+                }
+            }
+            default -> {
+                double aimX = impact.effectX - impact.originX, aimY = impact.effectY - impact.originY;
+                double length = Math.max(0.001, Math.hypot(aimX, aimY));
+                aimX /= length; aimY /= length;
+                boolean spinning = id.equals("knights_wrath") || id.equals("twin_fang");
+                // A target selected for aiming never becomes a remote melee damage center.
+                double reach = switch (id) {
+                    case "shield_bash" -> 62;
+                    case "shadow_strike", "shadow_step" -> 76;
+                    default -> Math.min(d.getRadius(), 105);
+                };
+                for (Enemy enemy : enemiesInRadius(x, y, reach)) {
+                    double ex = enemy.getWorldX() - x, ey = enemy.getWorldY() - y;
+                    if (!spinning && ex * aimX + ey * aimY < -enemy.getCollisionRadius()) continue;
+                    if (id.equals("shadow_strike") && enemy != impact.target) continue;
+                    damageSkillEnemy(enemy, damage, impact.element, x - aimX * 10, y - aimY * 10, id);
+                    if (id.equals("shield_bash") || id.equals("earth_shatter")) enemy.applyStun(d.getDuration());
+                    enemy.applyDirectionalKnockback(aimX, aimY, id.equals("shield_bash") ? 42 : id.equals("earth_shatter") ? 28 : 10);
+                }
+                impact.visual.freezeImpactOrigin(sourceX, sourceY);
+            }
+        }
+    }
+
+    private void updateSkillDash(double dt) {
+        if (skillDash == null) return;
+        SkillDash dash = skillDash;
+        double previous = smoothStep((dash.elapsed - dash.start) / dash.travelDuration);
+        dash.elapsed += dt;
+        double current = smoothStep((dash.elapsed - dash.start) / dash.travelDuration);
+        player.moveWorld(dash.dx * dash.distance * (current - previous), dash.dy * dash.distance * (current - previous));
+        if (dash.elapsed >= dash.start + dash.travelDuration) skillDash = null;
+    }
+
+    private void updateSkillProjectiles(double dt) {
+        Iterator<SkillProjectile> iterator = skillProjectiles.iterator();
+        while (iterator.hasNext()) {
+            SkillProjectile shot = iterator.next();
+            double step = shot.firstStep >= 0 ? shot.firstStep : dt;
+            shot.firstStep = -1;
+            double oldX = shot.x, oldY = shot.y, oldAge = shot.age;
+            shot.age = Math.min(1.8, shot.age + step);
+            // Integral of an accelerating speed curve, independent of frame rate.
+            double distance = projectileDistance(shot.age, shot.speed) - projectileDistance(oldAge, shot.speed);
+            shot.x += shot.dx * distance; shot.y += shot.dy * distance;
+            Enemy nearest = null;
+            double nearestFraction = Double.POSITIVE_INFINITY;
+            int count = enemies.size();
+            for (int i = 0; i < count; i++) {
+                Enemy enemy = enemies.get(i);
+                if (enemy.isDead()) continue;
+                double fraction = segmentCircleContact(oldX, oldY, shot.x, shot.y,
+                        enemy.getWorldX(), enemy.getWorldY(), enemy.getCollisionRadius() + 9);
+                if (fraction < nearestFraction) { nearest = enemy; nearestFraction = fraction; }
+            }
+            if (nearest != null) {
+                shot.x = oldX + (shot.x - oldX) * nearestFraction;
+                shot.y = oldY + (shot.y - oldY) * nearestFraction;
+                if (shot.definition.getId().equals("flame_burst")) {
+                    damageSkillEnemy(nearest, shot.damage, shot.element, oldX, oldY, shot.definition.getId());
+                    for (Enemy enemy : enemiesInRadius(shot.x, shot.y, 48)) {
+                        if (enemy == nearest) continue;
+                        damageSkillEnemy(enemy, shot.damage, shot.element, oldX, oldY, shot.definition.getId());
+                    }
+                } else {
+                    damageSkillEnemy(nearest, shot.damage, shot.element, oldX, oldY, shot.definition.getId());
+                    nearest.applySlow(0.45, shot.definition.getDuration());
+                }
+                shot.visual.expire();
+                iterator.remove();
+            } else if (shot.age >= 1.8) {
+                shot.visual.expire(); iterator.remove();
+            } else shot.visual.setProjectilePosition(shot.x, shot.y, Math.atan2(shot.dy, shot.dx), shot.age);
+        }
+    }
+
+    private static double projectileDistance(double age, double speed) {
+        return speed * (age - 0.07 * (1 - Math.exp(-age / 0.14)));
+    }
+
+    private static double segmentCircleContact(double x1, double y1, double x2, double y2, double cx, double cy, double radius) {
+        double dx = x2 - x1, dy = y2 - y1, ox = x1 - cx, oy = y1 - cy;
+        double c = ox * ox + oy * oy - radius * radius;
+        if (c <= 0) return 0;
+        double a = dx * dx + dy * dy, b = 2 * (ox * dx + oy * dy);
+        if (a < 1e-10) return Double.POSITIVE_INFINITY;
+        double disc = b * b - 4 * a * c;
+        if (disc < 0) return Double.POSITIVE_INFINITY;
+        double t = (-b - Math.sqrt(disc)) / (2 * a);
+        return t >= 0 && t <= 1 ? t : Double.POSITIVE_INFINITY;
+    }
+
+    private void updateSkillWaves(double dt) {
+        Iterator<SkillWave> iterator = skillWaves.iterator();
+        while (iterator.hasNext()) {
+            SkillWave wave = iterator.next();
+            double step = wave.firstStep >= 0 ? wave.firstStep : dt;
+            wave.firstStep = -1;
+            wave.age = Math.min(0.60, wave.age + step);
+            double radius = wave.radius * smoothStep(wave.age / 0.60);
+            wave.visual.setWaveRadius(radius);
+            for (Enemy enemy : enemiesInRadius(wave.x, wave.y, radius)) {
+                if (wave.hit.contains(enemy)) continue;
+                double dx = enemy.getWorldX() - wave.x, dy = enemy.getWorldY() - wave.y;
+                if (wave.definition.getId().equals("earthbreaker") && Math.hypot(dx, dy) > 42
+                        && dx * wave.dx + dy * wave.dy < -0.2 * Math.hypot(dx, dy)) continue;
+                wave.hit.add(enemy);
+                damageSkillEnemy(enemy, wave.damage, wave.element, wave.x, wave.y, wave.definition.getId());
+                if (wave.definition.getId().equals("earthbreaker")) {
+                    enemy.applyKnockdown(wave.definition.getDuration());
+                    enemy.applyDirectionalKnockback(dx + wave.dx * 20, dy + wave.dy * 20, 48);
+                }
+            }
+            if (wave.age >= 0.60) iterator.remove();
+        }
+    }
+
+    private static final class SkillDash {
+        final double dx, dy, distance, start, travelDuration;
+        double elapsed;
+        SkillDash(double dx, double dy, double distance, AbilityDefinition d) {
+            this.dx = dx; this.dy = dy; this.distance = distance;
+            start = AbilityAnimationTiming.duration(d) * AbilityAnimationTiming.releaseProgress(d);
+            travelDuration = AbilityAnimationTiming.duration(d) * 0.30;
+        }
+    }
+
+    private static final class SkillProjectile {
+        final AbilityDefinition definition;
+        final double dx, dy, speed, damage;
+        final DamageElement element;
+        final AbilityVisualEffect visual;
+        double x, y, age, firstStep;
+        SkillProjectile(AbilityDefinition d, double x, double y, double tx, double ty,
+                double damage, DamageElement element, double overdue) {
+            definition = d; this.x = x; this.y = y; this.damage = damage; this.element = element; firstStep = overdue;
+            double length = Math.max(0.001, Math.hypot(tx - x, ty - y));
+            dx = (tx - x) / length; dy = (ty - y) / length;
+            speed = d.getId().equals("ice_shard") ? 440 : 360;
+            visual = new AbilityVisualEffect(d, x, y, tx, ty, d.getId().equals("ice_shard") ? 72 : 58, Color.WHITE, 1.8);
+            visual.setProjectilePosition(x, y, Math.atan2(dy, dx));
+        }
+    }
+
+    private static final class SkillWave {
+        final AbilityDefinition definition;
+        final double x, y, radius, damage, dx, dy;
+        final DamageElement element;
+        final AbilityVisualEffect visual;
+        final Set<Enemy> hit = new HashSet<>();
+        double age, firstStep;
+        SkillWave(AbilityDefinition d, double x, double y, double radius, double damage,
+                DamageElement element, double dx, double dy, double overdue, AbilityVisualEffect visual) {
+            definition = d; this.x = x; this.y = y; this.radius = radius; this.damage = damage;
+            this.element = element; this.dx = dx; this.dy = dy; firstStep = overdue; this.visual = visual;
+        }
+    }
+
     private void applyGuardianAbility(AbilityDefinition definition, double damage, double animationDuration) {
         if (definition.isPassive()) return;
         double directionX = player.getRecentMoveX();
@@ -1902,18 +2175,8 @@ public class GameLogic {
                 double originX = player.getWeaponCastWorldX();
                 double originY = player.getWeaponCastWorldY();
                 impact.visual.freezeImpactOrigin(originX, originY);
-                // A broad fan from the shield's ground contact, not a target-centered circle.
-                for (Enemy enemy : enemiesInRadius(originX, originY, definition.getRadius())) {
-                    double dx = enemy.getWorldX() - originX;
-                    double dy = enemy.getWorldY() - originY;
-                    double distance = Math.hypot(dx, dy);
-                    if (distance <= 42.0 || (dx * directionX + dy * directionY) / Math.max(0.001, distance) >= -0.2) {
-                        damageEnemy(enemy, impact.damage, DamageElement.PHYSICAL, originX, originY);
-                        enemy.applyKnockdown(definition.getDuration());
-                        enemy.applyDirectionalKnockback(dx + directionX * 20, dy + directionY * 20, 48.0);
-                    }
-                }
-                combatImpactEffects.add(new CombatImpactEffect(originX, originY, DamageElement.PHYSICAL));
+                skillWaves.add(new SkillWave(definition, originX, originY, definition.getRadius(),
+                        impact.damage, DamageElement.PHYSICAL, directionX, directionY, overdue, impact.visual));
                 addScreenShake(0.22, 4.5);
             }
             case "guardians_roar" -> {
@@ -1951,8 +2214,8 @@ public class GameLogic {
                 if (distanceToSegmentSquared(enemy.getWorldX(), enemy.getWorldY(), beforeX, beforeY, afterX, afterY)
                         <= hitRadius * hitRadius) {
                     charge.hitEnemies.add(enemy);
-                    damageEnemy(enemy, charge.damage, DamageElement.PHYSICAL, beforeX - charge.directionX * 20,
-                            beforeY - charge.directionY * 20);
+                    damageSkillEnemy(enemy, charge.damage, DamageElement.PHYSICAL, beforeX - charge.directionX * 20,
+                            beforeY - charge.directionY * 20, "iron_charge");
                     enemy.applyStun(0.55);
                     enemy.applyDirectionalKnockback(charge.directionX, charge.directionY, 56.0);
                 }
@@ -2017,6 +2280,9 @@ public class GameLogic {
     private void applyIncomingDamage(double damage, Enemy source, double hitX, double hitY) {
         if (damage <= 0.0) return;
         double multiplier = damageReductionMultiplier * passiveDamageTakenMultiplier;
+        if (damageReductionTimer > 0) {
+            for (AbilityVisualEffect effect : abilityVisualEffects) effect.flashBarrier(hitX, hitY);
+        }
         if (source != null) multiplier *= source.getAttackDamageMultiplier();
         if (player instanceof Character_Sir_Rakki) {
             if (player.getHealth() < player.getMaxHealth() * 0.4) multiplier *= 0.70;
@@ -2034,6 +2300,16 @@ public class GameLogic {
         player.takeDamage(damage * multiplier);
     }
 
+    private void drawPassiveAura(Graphics2D graphics, int centerX, int centerY) {
+        String id = characterPassiveSkillIds.get(selectedCharacterIndex);
+        SkillEffectAtlas.SkillAnimation animation = SkillEffectAtlas.getAnimation(id, "passive");
+        if (animation == null) return;
+        boolean lowHealth = player.getHealth() < player.getMaxHealth() * 0.4;
+        double intensity = (id.equals("unbreakable") || id.equals("iron_guard")) && lowHealth ? 0.40 : 0.18;
+        intensity *= 0.88 + 0.12 * Math.sin(gameTimer * 2.5);
+        animation.drawAt(graphics, centerX, centerY + 12, 62, 0, gameTimer, intensity, false);
+    }
+
     private void scheduleAbilityImpact(AbilityDefinition definition, Enemy target,
             double originX, double originY, double effectX, double effectY,
             double radius, double damage, DamageElement element) {
@@ -2046,6 +2322,10 @@ public class GameLogic {
         AbilityDefinition definition = impact.definition;
         if (definition.getAbilityClass() == AbilityClass.GUARDIAN) {
             fireGuardianImpact(impact);
+            return;
+        }
+        if (AbilityAnimationTiming.isReferenceSkill(definition.getId())) {
+            fireReferenceImpact(impact, hitIndex);
             return;
         }
         double targetX = impact.target != null && !impact.target.isDead()
@@ -2201,6 +2481,7 @@ public class GameLogic {
         private final double[] hitTimes;
         private AbilityVisualEffect visual;
         private double elapsed;
+        private double lastStep, previousPlayerX, previousPlayerY;
         private int nextHitIndex;
 
         private ScheduledAbilityImpact(AbilityDefinition definition, Enemy target,
@@ -2219,6 +2500,7 @@ public class GameLogic {
         }
 
         private void update(double deltaTime) {
+            lastStep = deltaTime;
             elapsed += deltaTime;
         }
 
@@ -2341,15 +2623,21 @@ public class GameLogic {
 
     private void damageEnemy(Enemy enemy, double damage, DamageElement element,
             double originX, double originY) {
+        damageSkillEnemy(enemy, damage, element, originX, originY, null);
+    }
+
+    private void damageSkillEnemy(Enemy enemy, double damage, DamageElement element,
+            double originX, double originY, String skillId) {
         if (enemy == null || enemy.isDead()) {
             return;
         }
         double healthBefore = enemy.getHealth();
-        enemy.takeDamage(damage, element, originX, originY);
+        if (skillId == null) enemy.takeDamage(damage, element, originX, originY);
+        else enemy.takeSkillDamage(damage, element, originX, originY, skillId);
         double actualDamage = Math.max(0.0, healthBefore - enemy.getHealth());
         double visibleDamage = Math.min(9999, Math.max(1, Math.round(actualDamage)));
         if (actualDamage > 0.0) {
-            combatImpactEffects.add(new CombatImpactEffect(enemy.getWorldX(), enemy.getWorldY(), element));
+            combatImpactEffects.add(new CombatImpactEffect(skillId, enemy.getWorldX(), enemy.getWorldY(), element));
             if (combatImpactEffects.size() > 80) {
                 combatImpactEffects.removeFirst();
             }
@@ -2404,7 +2692,8 @@ public class GameLogic {
         AbilityVisualEffect effect = new AbilityVisualEffect(definition, startX, startY,
                 targetX, targetY, radius, color, maxLife);
         effect.setCasterPosition(player.getWorldX(), player.getWorldY());
-        effect.setCastOrigin(player.getWeaponCastWorldX(), player.getWeaponCastWorldY());
+        effect.setCastOrigin(player.getSkillSourceWorldX(), player.getSkillSourceWorldY());
+        effect.setSourcePose(player.getSkillSourceRotation(), player.getHeldWeaponSideX() < 0);
         abilityVisualEffects.add(effect);
         return effect;
     }
@@ -2559,6 +2848,7 @@ public class GameLogic {
 
     private DamageElement elementFor(AbilityDefinition definition) {
         String id = definition.getId();
+        if (id.equals("heavy_slash") || id.equals("earth_shatter") || id.equals("knights_wrath")) return DamageElement.FIRE;
         if (id.contains("fire") || id.contains("flame") || id.contains("meteor")) {
             return DamageElement.FIRE;
         }

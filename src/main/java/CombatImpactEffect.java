@@ -15,13 +15,25 @@ public class CombatImpactEffect {
     private final double worldX, worldY;
     private final DamageElement element;
     private final int seed;
-    private double life = MAX_LIFE;
+    private final boolean skillImpact;
+    private final SkillEffectAtlas.SkillAnimation animation;
+    private final double duration;
+    private double life;
 
     public CombatImpactEffect(double worldX, double worldY, DamageElement element) {
+        this(null, worldX, worldY, element);
+    }
+
+    /** Requested skills use only their reviewed PNG impact track. */
+    public CombatImpactEffect(String skillId, double worldX, double worldY, DamageElement element) {
         this.worldX = worldX;
         this.worldY = worldY;
         this.element = element;
         this.seed = (int) Math.round(worldX * 31 + worldY * 17) ^ element.ordinal() * 0x45d9f3b;
+        this.skillImpact = skillId != null;
+        this.animation = skillId == null ? null : SkillEffectAtlas.getAnimation(skillId, "impact");
+        this.duration = animation == null ? MAX_LIFE : Math.max(0.05, animation.getDurationSeconds());
+        this.life = duration;
     }
     public void update(double deltaTime) {
         if (Double.isFinite(deltaTime) && deltaTime > 0) life = Math.max(0, life - deltaTime);
@@ -30,7 +42,14 @@ public class CombatImpactEffect {
 
     public void draw(Graphics2D graphics, int centerX, int centerY, double cameraX, double cameraY) {
         if (isExpired()) return;
-        double p = Math.min(1, 1 - life / MAX_LIFE);
+        double p = Math.min(1, 1 - life / duration);
+        if (skillImpact) {
+            if (animation != null) {
+                animation.drawAt(graphics, centerX + worldX + cameraX, centerY + worldY + cameraY,
+                        76.0, 0.0, duration - life, 1.0 - smooth(Math.max(0.0, (p - 0.78) / 0.22)), false);
+            }
+            return;
+        }
         double alpha = 1 - smooth(p);
         Color c = switch (element) {
             case FIRE, EXPLOSION -> new Color(255, 157, 68);

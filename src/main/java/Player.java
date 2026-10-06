@@ -71,6 +71,7 @@ public abstract class Player {
     protected final int spriteHeight;
     protected final BufferedImage spriteSheet;
     private final BufferedImage[][] spriteFrames;
+    private final BufferedImage[][] previewSpriteFrames;
     private final BufferedImage characterLayer;
     protected final BufferedImage weaponSprite;
     protected final BufferedImage offhandWeaponSprite;
@@ -110,6 +111,12 @@ public abstract class Player {
     private boolean autoStaffRecoil;
     private double primaryAttackCarry;
     private double offhandAttackCarry;
+    private double primaryReachCarryX;
+    private double primaryReachCarryY;
+    private double offhandReachCarryX;
+    private double offhandReachCarryY;
+    private String attackSkillId = "";
+    private AbilityDefinition activeAbility;
     private double daggerPrimaryTurnCarry;
     private double daggerOffhandTurnCarry;
     private MotionPose attackMotionCarry = new MotionPose();
@@ -158,9 +165,14 @@ public abstract class Player {
         this.spriteSheet = CharacterSpriteImages.prepareSheet(bodySheet, spriteWidth, spriteHeight);
         spriteFrames = new BufferedImage[spriteSheet.getHeight() / spriteHeight]
                 [spriteSheet.getWidth() / spriteWidth];
+        previewSpriteFrames = new BufferedImage[spriteFrames.length][spriteFrames[0].length];
         for (int row = 0; row < spriteFrames.length; row++) {
             for (int column = 0; column < spriteFrames[row].length; column++) {
                 spriteFrames[row][column] = spriteSheet.getSubimage(column * spriteWidth,
+                        row * spriteHeight, spriteWidth, spriteHeight);
+                // Keep existing equipment isolation, but sample body colors/alpha
+                // before the gameplay image preparation/sharpening pass.
+                previewSpriteFrames[row][column] = bodySheet.getSubimage(column * spriteWidth,
                         row * spriteHeight, spriteWidth, spriteHeight);
             }
         }
@@ -581,19 +593,98 @@ public abstract class Player {
     }
 
     public double getWeaponCastWorldX() {
-        return getWorldX() + weaponCastOffset()[0];
+        return getWorldX() + weaponCastOffset(false)[0];
     }
 
     public double getWeaponCastWorldY() {
-        return getWorldY() + weaponCastOffset()[1];
+        return getWorldY() + weaponCastOffset(false)[1];
     }
 
-    private double[] weaponCastOffset() {
-        WeaponPose pose = animatedWeaponPose(false, spriteWidth * spriteScale,
+    /** Exact transformed blade tip, shield rim or staff head used by the rendered pose. */
+    public double getSkillSourceWorldX() {
+        return getWorldX() + weaponCastOffset(usesOffhandSkillSource())[0];
+    }
+
+    public double getSkillSourceWorldY() {
+        return getWorldY() + weaponCastOffset(usesOffhandSkillSource())[1];
+    }
+
+    /** Sample the release pose inside the latest tick without advancing live animation. */
+    public Point2D.Double sampleSkillSourceAt(double elapsed, double secondsAgo) {
+        if (!Double.isFinite(elapsed) || !Double.isFinite(secondsAgo)) {
+            return new Point2D.Double(getSkillSourceWorldX(), getSkillSourceWorldY());
+        }
+        double savedAttack = attackAnimationTime, savedVisual = visualTime;
+        double savedGait = animationTime, savedBlend = locomotionBlend;
+        double savedDirectionX = motionDirectionX, savedDirectionY = motionDirectionY;
+        double savedPrimary = daggerPrimaryTurnCarry, savedOffhand = daggerOffhandTurnCarry;
+        double rewind = Math.max(0, Math.min(1.5, secondsAgo));
+        try {
+            attackAnimationTime = Math.max(1e-9, attackAnimationDuration - elapsed);
+            visualTime = (visualTime - rewind + 78.2) % 78.2;
+            double ix = isMovementLocked() ? 0 : horizontalInput();
+            double iy = isMovementLocked() ? 0 : verticalInput();
+            double length = Math.hypot(ix, iy);
+            boolean moving = length > 0;
+            double target = moving ? 1 : 0, response = moving ? 12 : 9;
+            locomotionBlend = Math.max(0, Math.min(1, target + (savedBlend - target) * Math.exp(response * rewind)));
+            double gaitTime = target * rewind + (locomotionBlend - target) * (1 - Math.exp(-response * rewind)) / response;
+            double period = 4 / Math.max(1, animationSpeed);
+            animationTime = ((savedGait - Math.max(0, gaitTime) * 1.55) % period + period) % period;
+            double dx = moving ? ix / length : 0, dy = moving ? iy / length : 0;
+            motionDirectionX = dx + (savedDirectionX - dx) * Math.exp(10 * rewind);
+            motionDirectionY = dy + (savedDirectionY - dy) * Math.exp(10 * rewind);
+            daggerPrimaryTurnCarry = savedPrimary * Math.exp(14 * rewind);
+            daggerOffhandTurnCarry = savedOffhand * Math.exp(14 * rewind);
+            double[] offset = weaponCastOffset(usesOffhandSkillSource());
+            return new Point2D.Double(getWorldX() + offset[0], getWorldY() + offset[1]);
+        } finally {
+            attackAnimationTime = savedAttack; visualTime = savedVisual;
+            animationTime = savedGait; locomotionBlend = savedBlend;
+            motionDirectionX = savedDirectionX; motionDirectionY = savedDirectionY;
+            daggerPrimaryTurnCarry = savedPrimary; daggerOffhandTurnCarry = savedOffhand;
+        }
+    }
+
+    /** World angle of the weapon's grip-to-source vector, including the body pose. */
+    public double getSkillSourceRotation() {
+        boolean offhand = usesOffhandSkillSource();
+        WeaponPose pose = animatedWeaponPose(offhand, spriteWidth * spriteScale,
+                spriteHeight * spriteScale);
+        Point2D.Double grip = new Point2D.Double(pose.weaponX, pose.weaponY);
+        characterTransform(0, 0).transform(grip, grip);
+        double[] tip = weaponCastOffset(offhand);
+        return Math.atan2(tip[1] - grip.y, tip[0] - grip.x);
+    }
+
+    public double getAttackAnimationProgress() {
+        return attackAnimationTime <= 0.0 ? 1.0
+                : Math.max(0.0, Math.min(1.0, 1.0 - attackAnimationTime / attackAnimationDuration));
+    }
+
+    public AbilityAnimationTiming.State getSkillState() {
+        if (!isSkillAnimationActive()) return AbilityAnimationTiming.State.IDLE;
+        return AbilityAnimationTiming.stateAt(activeAbility,
+                attackAnimationDuration - attackAnimationTime);
+    }
+
+    private boolean usesOffhandSkillSource() {
+        return "shield_bash".equals(attackSkillId)
+                && heldOffhandSprite != null;
+    }
+
+    private double[] weaponCastOffset(boolean offhand) {
+        WeaponPose pose = animatedWeaponPose(offhand, spriteWidth * spriteScale,
                 spriteHeight * spriteScale);
         double tipX = pose.weaponPivotX;
         double tipY = pose.weaponPivotY;
-        if ("holy_staff".equals(defaultWeaponStyle)) {
+        if ("sword_shield".equals(defaultWeaponStyle)) {
+            tipX = offhand ? (spriteRow == 0 || spriteRow == 2 ? 0.50 : 0.96) : 0.09;
+            tipY = offhand ? (spriteRow == 0 ? 0.10 : spriteRow == 2 ? 0.94 : 0.52) : 0.94;
+        } else if ("daggers".equals(defaultWeaponStyle)) {
+            tipX = offhand ? 0.91 : 0.09;
+            tipY = 0.92;
+        } else if ("holy_staff".equals(defaultWeaponStyle)) {
             tipX = 202.0 / 387.0;
             tipY = 0.25;
         } else if ("elemental_staff".equals(defaultWeaponStyle)) {
@@ -614,8 +705,9 @@ public abstract class Player {
                 tipY = 0.50;
             }
         }
-        Rectangle bounds = heldPrimarySprite == null ? new Rectangle(0, 0, 1, 1)
-                : visibleWeaponBounds(heldPrimarySprite);
+        BufferedImage image = offhand ? heldOffhandSprite : heldPrimarySprite;
+        Rectangle bounds = image == null ? new Rectangle(0, 0, 1, 1)
+                : visibleWeaponBounds(image);
         double scale = pose.drawHeight / (double) bounds.height;
         double x = (tipX - pose.weaponPivotX) * bounds.width * scale * (pose.flipX ? -1 : 1);
         double y = (tipY - pose.weaponPivotY) * pose.drawHeight;
@@ -643,18 +735,31 @@ public abstract class Player {
         }
         int width = spriteWidth * spriteScale;
         int height = spriteHeight * spriteScale;
-        primaryAttackCarry = animatedWeaponPose(false, width, height).weaponRotation
-                - getWeaponPose(false, width, height).weaponRotation;
-        offhandAttackCarry = animatedWeaponPose(true, width, height).weaponRotation
-                - getWeaponPose(true, width, height).weaponRotation;
+        WeaponPose primary = animatedWeaponPose(false, width, height);
+        WeaponPose offhand = animatedWeaponPose(true, width, height);
+        WeaponPose primaryBase = getWeaponPose(false, width, height);
+        WeaponPose offhandBase = getWeaponPose(true, width, height);
+        primaryAttackCarry = Math.IEEEremainder(primary.weaponRotation
+                - primaryBase.weaponRotation, Math.PI * 2.0);
+        offhandAttackCarry = Math.IEEEremainder(offhand.weaponRotation
+                - offhandBase.weaponRotation, Math.PI * 2.0);
+        primaryReachCarryX = primary.weaponX - primaryBase.weaponX;
+        primaryReachCarryY = primary.weaponY - primaryBase.weaponY;
+        offhandReachCarryX = offhand.weaponX - offhandBase.weaponX;
+        offhandReachCarryY = offhand.weaponY - offhandBase.weaponY;
         attackMotionCarry = currentAttackMotion();
         attackAnimationDuration = Math.max(0.12, Double.isFinite(duration) ? duration : 0.34);
         attackAnimationTime = attackAnimationDuration;
         attackSequence++;
         attackWeaponStyle = weaponStyleFor(definition);
+        attackSkillId = definition == null ? "" : definition.getId();
+        activeAbility = definition;
         guardianSkillId = definition == null ? "" : definition.getId();
         attackStrikeProgress = definition == null ? ("greatshield".equals(defaultWeaponStyle) ? 0.52 : 0.43)
-                : AbilityAnimationTiming.releaseProgress(definition);
+                : definition.getAbilityClass() == AbilityClass.BLACK_KNIGHT
+                        || definition.getAbilityClass() == AbilityClass.ASSASSIN
+                        ? AbilityAnimationTiming.hitProgress(definition)[0]
+                        : AbilityAnimationTiming.releaseProgress(definition);
         double[] skillHits = definition == null ? null : AbilityAnimationTiming.hitProgress(definition);
         boolean meleeCombo = ("sword_shield".equals(defaultWeaponStyle)
                 || "daggers".equals(defaultWeaponStyle)) && skillHits != null && skillHits.length > 1;
@@ -689,6 +794,15 @@ public abstract class Player {
 
     /** Selection portraits use the same hands, equipment and layers as gameplay. */
     public void drawPreview(Graphics2D graphics, Rectangle bounds) {
+        drawPreview(graphics, bounds, false);
+    }
+
+    /** Class selection samples original body/equipment pixels without image filters. */
+    public void drawPixelArtPreview(Graphics2D graphics, Rectangle bounds) {
+        drawPreview(graphics, bounds, true);
+    }
+
+    private void drawPreview(Graphics2D graphics, Rectangle bounds, boolean sourcePixels) {
         if (bounds.width <= 0 || bounds.height <= 0) {
             return;
         }
@@ -713,7 +827,7 @@ public abstract class Player {
         Graphics2D previewGraphics = (Graphics2D) graphics.create();
         previewGraphics.translate(center.getX(), center.getY());
         previewGraphics.scale(scale, scale);
-        drawCharacter(previewGraphics, 0, 0, 1);
+        drawCharacter(previewGraphics, 0, 0, 1, sourcePixels);
         previewGraphics.dispose();
     }
 
@@ -724,19 +838,25 @@ public abstract class Player {
     }
 
     private void drawCharacter(Graphics2D graphics, int centerX, int centerY, int spriteColumn) {
+        drawCharacter(graphics, centerX, centerY, spriteColumn, false);
+    }
+
+    private void drawCharacter(Graphics2D graphics, int centerX, int centerY, int spriteColumn, boolean sourcePixels) {
         Graphics2D layer = characterLayer.createGraphics();
         try {
+            if (sourcePixels) PixelArtRenderer.configure(layer);
             layer.setComposite(AlphaComposite.Clear);
             layer.fillRect(0, 0, characterLayer.getWidth(), characterLayer.getHeight());
             layer.setComposite(AlphaComposite.SrcOver);
             renderCharacter(layer, characterLayer.getWidth() / 2,
-                    characterLayer.getHeight() / 2, spriteColumn);
+                    characterLayer.getHeight() / 2, spriteColumn, sourcePixels);
         } finally {
             layer.dispose();
         }
         // Resolve motion and equipment on the source grid before enlarging the pixels.
         Graphics2D display = (Graphics2D) graphics.create();
         try {
+            if (sourcePixels) PixelArtRenderer.configure(display);
             display.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
                     RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
             display.drawImage(characterLayer, centerX - characterLayer.getWidth() / 2,
@@ -746,7 +866,7 @@ public abstract class Player {
         }
     }
 
-    private void renderCharacter(Graphics2D graphics, int centerX, int centerY, int spriteColumn) {
+    private void renderCharacter(Graphics2D graphics, int centerX, int centerY, int spriteColumn, boolean sourcePixels) {
         int renderedWidth = spriteWidth * spriteScale;
         int renderedHeight = spriteHeight * spriteScale;
         int playerX = -renderedWidth / 2;
@@ -757,18 +877,24 @@ public abstract class Player {
                 RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
         drawContactShadow(graphics, centerX, centerY, renderedWidth, renderedHeight);
         graphics.transform(characterTransform(centerX, centerY));
+        if (isSkillAnimationActive() && "shadow_step".equals(attackSkillId)) {
+            // Fade across the actual dash; keep the moving body visible as it returns.
+            graphics.setComposite(AlphaComposite.SrcOver.derive((float) blinkOpacity()));
+        }
 
-        drawWeapons(graphics, 0, 0, renderedWidth, renderedHeight, true);
+        drawWeapons(graphics, 0, 0, renderedWidth, renderedHeight, true, sourcePixels);
 
         // A separate frame prevents rotated/scaled sampling from touching adjacent poses.
-        graphics.drawImage(spriteFrames[spriteRow][spriteColumn],
+        BufferedImage frame = (sourcePixels ? previewSpriteFrames : spriteFrames)[spriteRow][spriteColumn];
+        graphics.drawImage(frame,
                 playerX, playerY, renderedWidth, renderedHeight, null);
         if ("greatshield".equals(defaultWeaponStyle)) {
-            drawGuardianArmorGlints(graphics, renderedWidth, renderedHeight);
             drawGuardianShieldArm(graphics, renderedWidth, renderedHeight);
+        } else if (isSkillAnimationActive()) {
+            drawSkillArms(graphics, renderedWidth, renderedHeight, frame);
         }
-        drawWeapons(graphics, 0, 0, renderedWidth, renderedHeight, false);
-        drawGripHands(graphics, 0, 0, renderedWidth, renderedHeight, spriteColumn);
+        drawWeapons(graphics, 0, 0, renderedWidth, renderedHeight, false, sourcePixels);
+        drawGripHands(graphics, 0, 0, renderedWidth, renderedHeight, spriteColumn, frame);
         graphics.dispose();
     }
 
@@ -835,6 +961,16 @@ public abstract class Player {
             return pose;
         }
         double elapsedProgress = 1.0 - attackAnimationTime / attackAnimationDuration;
+        if (skillAnimation && hasDistinctSkillMotion()) {
+            pose = skillBodyMotion(elapsedProgress);
+            double carry = attackCarryWeight(elapsedProgress);
+            pose.x += attackMotionCarry.x * carry;
+            pose.y += attackMotionCarry.y * carry;
+            pose.tilt += attackMotionCarry.tilt * carry;
+            pose.stretchX += attackMotionCarry.stretchX * carry;
+            pose.stretchY += attackMotionCarry.stretchY * carry;
+            return pose;
+        }
         double progress = strikeAlignedProgress(elapsedProgress);
         boolean dagger = "daggers".equals(defaultWeaponStyle);
         double effort = dagger ? daggerSwingEffort(elapsedProgress)
@@ -861,6 +997,133 @@ public abstract class Player {
         pose.tilt += attackMotionCarry.tilt * carry;
         pose.stretchX += attackMotionCarry.stretchX * carry;
         pose.stretchY += attackMotionCarry.stretchY * carry;
+        return pose;
+    }
+
+    private boolean hasDistinctSkillMotion() {
+        return switch (attackSkillId) {
+            case "heavy_slash", "shield_bash", "earth_shatter", "knights_wrath",
+                    "shadow_strike", "shadow_step", "death_mark", "twin_fang",
+                    "heal", "holy_bolt", "holy_shield", "divine_light",
+                    "flame_burst", "ice_shard", "lightning_strike", "elemental_storm" -> true;
+            default -> false;
+        };
+    }
+
+    /** A planted preparation, accelerated release, follow-through and soft recovery. */
+    private double skillCurve(double p, double prepare, double strike, double follow) {
+        double hit = Math.max(0.12, Math.min(0.82, attackStrikeProgress));
+        double windup = hit * 0.46;
+        double followTime = hit + (1.0 - hit) * 0.36;
+        double arrivalSpeed = (strike - prepare) / (hit - windup);
+        double followSpeed = (follow - strike) / (followTime - hit);
+        // A cutting blade keeps moving through contact; a thrust or staff lift can plant.
+        double hitSpeed = arrivalSpeed * followSpeed > 0.0
+                ? Math.copySign(Math.min(Math.abs(arrivalSpeed), Math.abs(followSpeed)), arrivalSpeed)
+                : 0.0;
+        if (p < windup) {
+            return WeaponPose.lerp(0.0, prepare, WeaponPose.smoother(p / windup));
+        }
+        if (p < hit) {
+            return hermite(prepare, strike, 0.0, hitSpeed * (hit - windup),
+                    (p - windup) / (hit - windup));
+        }
+        if (p < followTime) {
+            return hermite(strike, follow, hitSpeed * (followTime - hit), 0.0,
+                    (p - hit) / (followTime - hit));
+        }
+        return follow * (1.0 - WeaponPose.smoother((p - followTime) / (1.0 - followTime)));
+    }
+
+    private static double hermite(double from, double to, double fromVelocity,
+            double toVelocity, double value) {
+        double t = Math.max(0.0, Math.min(1.0, value));
+        double t2 = t * t;
+        double t3 = t2 * t;
+        return (2.0 * t3 - 3.0 * t2 + 1.0) * from
+                + (t3 - 2.0 * t2 + t) * fromVelocity
+                + (-2.0 * t3 + 3.0 * t2) * to
+                + (t3 - t2) * toVelocity;
+    }
+
+    private double skillSpin(double p, double turns) {
+        double begin = Math.min(0.16, attackBeatProgress[0] * 0.5);
+        return Math.PI * 2.0 * turns * WeaponPose.smoother((p - begin) / (0.86 - begin));
+    }
+
+    private double skillEnvelope(double p) {
+        return WeaponPose.smoother(p / 0.18)
+                * (1.0 - WeaponPose.smoother((p - 0.78) / 0.22));
+    }
+
+    private double blinkOpacity() {
+        double p = getAttackAnimationProgress();
+        double release = activeAbility == null ? attackStrikeProgress
+                : AbilityAnimationTiming.releaseProgress(activeAbility);
+        double fadeStart = release * 0.52;
+        double fadeOut = WeaponPose.smoother((p - fadeStart)
+                / Math.max(0.04, release - fadeStart));
+        double fadeIn = WeaponPose.smoother((p - release - 0.09) / 0.22);
+        return 1.0 - 0.88 * fadeOut * (1.0 - fadeIn);
+    }
+
+    private MotionPose skillBodyMotion(double p) {
+        MotionPose pose = new MotionPose();
+        double side = heldWeaponSideX;
+        double effort = skillCurve(p, -0.35, 1.0, 0.48);
+        double envelope = skillEnvelope(p);
+        switch (attackSkillId) {
+            case "heavy_slash" -> {
+                pose.x = recentMoveX * effort * 2.8;
+                pose.y = recentMoveY * effort * 0.9;
+                pose.tilt = side * effort * 0.09;
+                pose.stretchY = -skillCurve(p, 0.7, 0.12, 0.0) * 0.026;
+            }
+            case "shield_bash" -> {
+                pose.x = recentMoveX * effort * 3.8;
+                pose.y = recentMoveY * effort * 1.4 + skillCurve(p, 0.7, 0.9, 0.4);
+                pose.tilt = side * effort * 0.09;
+            }
+            case "earth_shatter" -> {
+                pose.x = recentMoveX * effort * 1.5;
+                pose.y = skillCurve(p, 1.3, -2.8, -1.1);
+                pose.tilt = side * skillCurve(p, 0.045, -0.055, -0.025);
+                pose.stretchY = skillCurve(p, -0.024, 0.02, 0.008);
+            }
+            case "knights_wrath", "twin_fang" -> {
+                double spin = skillSpin(p, "knights_wrath".equals(attackSkillId) ? 2.0 : 1.0);
+                pose.x = Math.sin(spin) * envelope * 1.8;
+                pose.y = -Math.abs(Math.sin(spin)) * envelope * 1.4;
+                pose.tilt = side * Math.sin(spin) * envelope * 0.15;
+                pose.stretchX = -Math.abs(Math.sin(spin)) * envelope * 0.055;
+            }
+            case "shadow_strike" -> {
+                pose.x = recentMoveX * effort * 3.1;
+                pose.y = recentMoveY * effort * 1.0 + skillCurve(p, 1.2, -1.0, 0.4);
+                pose.tilt = side * effort * 0.105;
+            }
+            case "shadow_step" -> {
+                pose.x = recentMoveX * effort * 2.2;
+                pose.y = envelope * 1.3;
+                pose.tilt = side * effort * 0.10;
+                pose.stretchY = -envelope * 0.025;
+            }
+            case "death_mark" -> {
+                pose.y = -skillCurve(p, 0.3, 0.7, 0.3);
+                pose.tilt = side * skillCurve(p, -0.025, 0.042, 0.02);
+            }
+            default -> {
+                boolean elementalist = "elemental_staff".equals(defaultWeaponStyle);
+                pose.x = recentMoveX * effort * (elementalist ? 1.5 : 0.65);
+                pose.y = -skillCurve(p, 0.25, elementalist ? 1.25 : 0.7, 0.4);
+                pose.tilt = side * effort * (elementalist ? 0.048 : 0.027);
+                pose.stretchY = skillCurve(p, -0.014, 0.011, 0.003);
+                if ("elemental_storm".equals(attackSkillId)) {
+                    pose.y -= envelope * 1.1;
+                    pose.stretchX += envelope * 0.018;
+                }
+            }
+        }
         return pose;
     }
 
@@ -1104,16 +1367,16 @@ public abstract class Player {
     }
 
     private void drawWeapons(Graphics2D graphics, int centerX, int centerY,
-            int renderedWidth, int renderedHeight, boolean behindCharacter) {
+            int renderedWidth, int renderedHeight, boolean behindCharacter, boolean sourcePixels) {
         drawAttachedWeapon(graphics, centerX, centerY, renderedWidth, renderedHeight,
-                heldPrimarySprite, false, behindCharacter);
+                heldPrimarySprite, false, behindCharacter, sourcePixels);
         drawAttachedWeapon(graphics, centerX, centerY, renderedWidth, renderedHeight,
-                heldOffhandSprite, true, behindCharacter);
+                heldOffhandSprite, true, behindCharacter, sourcePixels);
     }
 
     private void drawAttachedWeapon(Graphics2D graphics, int centerX, int centerY,
             int renderedWidth, int renderedHeight, BufferedImage image,
-            boolean offhand, boolean behindCharacter) {
+            boolean offhand, boolean behindCharacter, boolean sourcePixels) {
         if (offhand && image == null) {
             return;
         }
@@ -1127,14 +1390,15 @@ public abstract class Player {
             attackProgress = attackAnimationDuration <= 0.0 ? 0.0
                     : strikeAlignedProgress(1.0 - attackAnimationTime / attackAnimationDuration);
         }
-        if (attackProgress >= 0.0) {
+        if (attackProgress >= 0.0 && !skillAnimation) {
             pose.drawAttackTrail(graphics, centerX, centerY, attackProgress);
         }
 
         Graphics2D weaponGraphics = (Graphics2D) graphics.create();
         Object previousInterpolation = weaponGraphics.getRenderingHint(RenderingHints.KEY_INTERPOLATION);
+        if (sourcePixels) PixelArtRenderer.configure(weaponGraphics);
         weaponGraphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
-                ("daggers".equals(defaultWeaponStyle) || "greatshield".equals(defaultWeaponStyle))
+                !sourcePixels && ("daggers".equals(defaultWeaponStyle) || "greatshield".equals(defaultWeaponStyle))
                         ? RenderingHints.VALUE_INTERPOLATION_BILINEAR
                         : RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
         AffineTransform transform = new AffineTransform();
@@ -1145,7 +1409,7 @@ public abstract class Player {
             if (!offhand) {
                 drawProceduralWeapon(weaponGraphics, pose.drawHeight, attackAnimationTime > 0.0);
             }
-        } else if ("daggers".equals(defaultWeaponStyle) || "greatshield".equals(defaultWeaponStyle)) {
+        } else if (!sourcePixels && ("daggers".equals(defaultWeaponStyle) || "greatshield".equals(defaultWeaponStyle))) {
             BufferedImage filtered = filteredHeldWeapon(image);
             double scale = pose.drawHeight / (double) filtered.getHeight();
             transform.scale(pose.flipX ? -scale : scale, scale);
@@ -1165,6 +1429,11 @@ public abstract class Player {
             transform.translate(-visibleBounds.x - visibleBounds.width * pose.weaponPivotX,
                     -visibleBounds.y - visibleBounds.height * pose.weaponPivotY);
             weaponGraphics.drawImage(image, transform, null);
+            if (sourcePixels && "greatshield".equals(defaultWeaponStyle) && guardianBlockTime > 0.0) {
+                weaponGraphics.setComposite(AlphaComposite.SrcOver.derive(
+                        (float) (guardianBlockTime / 0.20 * 0.68)));
+                weaponGraphics.drawImage(blockFlashImage(image), transform, null);
+            }
         }
         if (previousInterpolation != null) {
             weaponGraphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, previousInterpolation);
@@ -1369,7 +1638,9 @@ public abstract class Player {
         if (attackAnimationTime > 0.0) {
             double progress = 1.0 - attackAnimationTime / attackAnimationDuration;
             pose.attackDirection = attackBeatDirection(progress);
-            if ("daggers".equals(defaultWeaponStyle)) {
+            if (skillAnimation && hasDistinctSkillMotion()) {
+                applySkillWeaponMotion(pose, offhand, progress, renderedHeight / 64.0);
+            } else if ("daggers".equals(defaultWeaponStyle)) {
                 double extension = daggerSwingEffort(progress);
                 pose.weaponRotation += pose.attackArc * extension;
                 double previous = Math.max(0.0, progress - 0.045 / attackAnimationDuration);
@@ -1382,12 +1653,143 @@ public abstract class Player {
             }
             pose.weaponRotation += (offhand ? offhandAttackCarry : primaryAttackCarry)
                     * attackCarryWeight(progress);
+            pose.weaponX += (offhand ? offhandReachCarryX : primaryReachCarryX)
+                    * attackCarryWeight(progress);
+            pose.weaponY += (offhand ? offhandReachCarryY : primaryReachCarryY)
+                    * attackCarryWeight(progress);
         }
         return pose;
     }
 
+    /** Move each hand and rotate equipment around its calibrated grip, never its center. */
+    private void applySkillWeaponMotion(WeaponPose pose, boolean offhand, double p, double scale) {
+        double side = heldWeaponSideX;
+        double reach = 0.0;
+        double lift = 0.0;
+        double envelope = skillEnvelope(p);
+        switch (attackSkillId) {
+            case "heavy_slash" -> {
+                if (!offhand) {
+                    pose.weaponRotation += pose.attackArc * skillCurve(p, -0.70, 1.18, 1.46);
+                    reach = skillCurve(p, -1.5, 4.0, 2.4);
+                    lift = skillCurve(p, 2.0, -1.8, -2.2);
+                } else {
+                    lift = skillCurve(p, 2.8, 1.8, 0.6);
+                    pose.weaponRotation -= side * envelope * 0.09;
+                }
+            }
+            case "shield_bash" -> {
+                if (offhand) {
+                    reach = skillCurve(p, -3.0, 10.0, 5.5);
+                    lift = skillCurve(p, 2.0, 1.0, 0.0);
+                    pose.weaponRotation += side * skillCurve(p, -0.12, 0.16, 0.08);
+                    pose.behindCharacter = spriteRow == 0;
+                } else {
+                    reach = skillCurve(p, -0.8, -1.6, -0.4);
+                    lift = skillCurve(p, 2.0, 2.8, 0.8);
+                    pose.weaponRotation -= side * envelope * 0.18;
+                }
+            }
+            case "earth_shatter" -> {
+                if (!offhand) {
+                    pose.weaponRotation += side * skillCurve(p, 1.45, -0.46, -0.90);
+                    lift = skillCurve(p, -3.0, 7.0, 5.0);
+                    reach = skillCurve(p, -0.8, 3.0, 2.0);
+                } else {
+                    lift = envelope * 2.5;
+                }
+            }
+            case "knights_wrath" -> {
+                if (!offhand) {
+                    double spin = skillSpin(p, 2.0) * side;
+                    pose.weaponRotation += spin;
+                    pose.weaponX += side * (Math.cos(spin) - 1.0) * envelope * 3.6 * scale;
+                    pose.weaponY += Math.sin(spin) * envelope * 3.2 * scale;
+                    lift = envelope;
+                } else {
+                    lift = envelope * 3.0;
+                    pose.weaponRotation += Math.sin(skillSpin(p, 2.0)) * 0.12;
+                }
+            }
+            case "shadow_strike" -> {
+                double effort = skillCurve(p, -0.65, 1.15, 1.45);
+                pose.weaponRotation += pose.attackArc * effort * (offhand ? 0.6 : 1.2);
+                reach = skillCurve(p, -2.0, offhand ? 3.0 : 8.0, offhand ? 1.5 : 4.0);
+                lift = skillCurve(p, 1.8, 1.0, -0.4);
+            }
+            case "shadow_step" -> {
+                pose.weaponRotation += side * (offhand ? -1.0 : 1.0) * envelope * 0.65;
+                reach = -envelope * 1.6;
+                lift = envelope * 2.0;
+            }
+            case "death_mark" -> {
+                if (!offhand) {
+                    pose.weaponRotation += side * skillCurve(p, -0.2, -0.8, -0.4);
+                    reach = skillCurve(p, -1.0, 4.0, 2.0);
+                    lift = skillCurve(p, 2.0, 3.8, 1.8);
+                }
+            }
+            case "twin_fang" -> {
+                double spin = skillSpin(p, 1.0) * side * (offhand ? -1.0 : 1.0);
+                pose.weaponRotation += spin;
+                double orbit = spin + (offhand ? Math.PI : 0.0);
+                pose.weaponX += Math.sin(orbit) * envelope * 4.0 * scale;
+                pose.weaponY += (Math.cos(orbit) - (offhand ? -1.0 : 1.0)) * envelope * 2.2 * scale;
+                lift = envelope * 2.0;
+                if (spriteRow != 0) pose.behindCharacter = false;
+            }
+            default -> {
+                // The raised staff head remains the spell's source throughout buildup.
+                double height = switch (attackSkillId) {
+                    case "heal" -> 6.0;
+                    case "holy_shield" -> 4.5;
+                    case "divine_light", "lightning_strike" -> 9.5;
+                    case "elemental_storm" -> 8.0;
+                    default -> 7.5;
+                };
+                lift = skillCurve(p, height * 0.65, height, height * 0.56);
+                reach = skillCurve(p, -1.0, "holy_shield".equals(attackSkillId) ? 4.0 : 2.5, 1.0);
+                if ("divine_light".equals(attackSkillId) || "lightning_strike".equals(attackSkillId)) {
+                    pose.weaponRotation += side * skillCurve(p, -0.18, -0.38, -0.20);
+                } else if ("elemental_storm".equals(attackSkillId)) {
+                    pose.weaponRotation += side * skillCurve(p, -0.25, 0.04, 0.28);
+                } else {
+                    pose.weaponRotation += side * skillCurve(p, -0.22, 0.24, 0.12);
+                }
+            }
+        }
+        pose.weaponX += recentMoveX * reach * scale;
+        pose.weaponY += (recentMoveY * reach - lift) * scale;
+    }
+
+    private void drawSkillArms(Graphics2D graphics, int width, int height, BufferedImage frame) {
+        for (int index = 0; index < 2; index++) {
+            boolean offhand = index == 1;
+            if ((offhand ? heldOffhandSprite : heldPrimarySprite) == null) continue;
+            WeaponPose pose = animatedWeaponPose(offhand, width, height);
+            if (pose.behindCharacter) continue;
+            int[] hand = handPixel(offhand);
+            double startX = (hand[0] / (double) spriteWidth - 0.5) * width;
+            double startY = (hand[1] / (double) spriteHeight - 0.5) * height;
+            double distance = Math.hypot(pose.weaponX - startX, pose.weaponY - startY);
+            if (distance < 0.6 * spriteScale) continue;
+            // Extend the existing sleeve pixels, keeping the original art's palette.
+            int sleeve = frame.getRGB(Math.max(0, hand[0] - 1), Math.max(0, hand[1] - 2));
+            if ((sleeve >>> 24) == 0) sleeve = frame.getRGB(hand[0], hand[1]);
+            if ((sleeve >>> 24) == 0) continue;
+            graphics.setColor(new Color(sleeve, true));
+            int steps = Math.max(1, (int) Math.ceil(distance / spriteScale));
+            for (int step = 0; step <= steps; step++) {
+                double t = step / (double) steps;
+                int x = (int) Math.round(WeaponPose.lerp(startX, pose.weaponX, t));
+                int y = (int) Math.round(WeaponPose.lerp(startY, pose.weaponY, t));
+                graphics.fillRect(x - spriteScale, y - spriteScale, spriteScale * 3, spriteScale * 3);
+            }
+        }
+    }
+
     private void drawGripHands(Graphics2D graphics, int centerX, int centerY,
-            int renderedWidth, int renderedHeight, int spriteColumn) {
+            int renderedWidth, int renderedHeight, int spriteColumn, BufferedImage frame) {
         if ("greatshield".equals(defaultWeaponStyle)) {
             // The forearm and hand are behind a greatshield; the actual face remains unpainted.
             return;
@@ -1396,20 +1798,27 @@ public abstract class Player {
             if ((offhand ? heldOffhandSprite : heldPrimarySprite) == null) {
                 continue;
             }
-            WeaponPose pose = getWeaponPose(offhand, renderedWidth, renderedHeight);
+            WeaponPose pose = animatedWeaponPose(offhand, renderedWidth, renderedHeight);
             if (pose.behindCharacter) {
                 continue;
             }
             int[] hand = handPixel(offhand);
             int x = hand[0] - 1;
             int y = hand[1] - 1;
-            int drawX = centerX - renderedWidth / 2 + x * spriteScale;
-            int drawY = centerY - renderedHeight / 2 + y * spriteScale;
+            Point2D.Double grip = gripHandPosition(offhand, renderedWidth, renderedHeight);
+            int drawX = centerX + (int) grip.x - spriteScale;
+            int drawY = centerY + (int) grip.y - spriteScale;
             // Restore fingers/glove pixels over the handle to visibly close the grip.
-            graphics.drawImage(spriteFrames[spriteRow][spriteColumn], drawX, drawY,
+            graphics.drawImage(frame, drawX, drawY,
                     drawX + 3 * spriteScale, drawY + 3 * spriteScale,
                     x, y, x + 3, y + 3, null);
         }
+    }
+
+    /** The hand patch uses the nearest source-grid pixel around the continuous grip. */
+    private Point2D.Double gripHandPosition(boolean offhand, int width, int height) {
+        WeaponPose pose = animatedWeaponPose(offhand, width, height);
+        return new Point2D.Double(Math.round(pose.weaponX), Math.round(pose.weaponY));
     }
 
     private static class WeaponPose {
@@ -1423,7 +1832,7 @@ public abstract class Player {
         private final double weaponPivotX;
         private final double weaponPivotY;
         private final boolean flipX;
-        private final boolean behindCharacter;
+        private boolean behindCharacter;
         private final double attackArc;
         private double attackDirection = 1.0;
         private final Color trailColor;

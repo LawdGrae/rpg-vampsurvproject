@@ -38,6 +38,8 @@ public abstract class Enemy {
     private double markTimer;
     private double markDamageMultiplier = 1.0;
     private double hitReactionTimer;
+    private double hitReactionDuration = 0.18, hitReactionStrength = 8;
+    private boolean spriteImpactOnly;
     private double hitDirectionX = 1.0;
     private double hitDirectionY;
     private DamageElement lastHitElement = DamageElement.PHYSICAL;
@@ -66,6 +68,7 @@ public abstract class Enemy {
 
     public void update(double deltaTime, double targetWorldX, double targetWorldY,
             double targetCollisionRadius) {
+        if (!Double.isFinite(deltaTime) || deltaTime < 0.0) return;
         if (isDead()) {
             deathTime += deltaTime;
             return;
@@ -93,8 +96,9 @@ public abstract class Enemy {
             double distance = Math.sqrt(distanceSquared);
             // Dividing by distance turns the vector into a direction of length 1.
             double effectiveSpeed = speed * slowMultiplier;
-            worldX += differenceX / distance * effectiveSpeed * deltaTime;
-            worldY += differenceY / distance * effectiveSpeed * deltaTime;
+            double travel = Math.min(Math.max(0.0, distance - minimumDistance), effectiveSpeed * deltaTime);
+            worldX += differenceX / distance * travel;
+            worldY += differenceY / distance * travel;
         }
     }
 
@@ -117,7 +121,9 @@ public abstract class Enemy {
     }
 
     public void takeDamage(double damage, DamageElement element, double originX, double originY) {
-        if (!isDead()) {
+        if (!isDead() && Double.isFinite(damage) && damage > 0.0) {
+            spriteImpactOnly = false;
+            hitReactionDuration = 0.18; hitReactionStrength = 8;
             health = Math.max(0, health - damage * markDamageMultiplier);
             lastHitElement = element;
             hitReactionTimer = 0.18;
@@ -132,6 +138,19 @@ public abstract class Enemy {
                 deathElement = element;
             }
         }
+    }
+
+    /** Skill PNGs own the impact artwork; the enemy supplies only physical acting. */
+    public void takeSkillDamage(double damage, DamageElement element, double originX, double originY, String skillId) {
+        takeDamage(damage, element, originX, originY);
+        spriteImpactOnly = true;
+        boolean heavy = skillId.equals("shield_bash") || skillId.equals("earth_shatter")
+                || skillId.equals("earthbreaker") || skillId.equals("iron_charge");
+        hitReactionDuration = heavy ? 0.25 : element == DamageElement.ICE ? 0.23
+                : element == DamageElement.SHADOW ? 0.14 : 0.18;
+        hitReactionStrength = heavy ? 9 : element == DamageElement.ICE ? 3
+                : element == DamageElement.LIGHTNING ? 6 : 5;
+        if (hitReactionTimer > 0) hitReactionTimer = hitReactionDuration;
     }
 
     public void applyPoison(double damagePerSecond, double duration) {
@@ -208,8 +227,7 @@ public abstract class Enemy {
             differenceY = 0.0;
             length = 1.0;
         }
-        worldX += differenceX / length * distance;
-        worldY += differenceY / length * distance;
+        applyDirectionalKnockback(differenceX / length, differenceY / length, distance);
     }
 
     public double getHealthRatio() {
@@ -217,9 +235,9 @@ public abstract class Enemy {
     }
 
     public void applyDirectionalKnockback(double directionX, double directionY, double distance) {
-        if (isDead()) return;
+        if (isDead() || !Double.isFinite(distance) || distance <= 0.0) return;
         double length = Math.hypot(directionX, directionY);
-        if (length <= 0.0001) return;
+        if (!Double.isFinite(length) || length <= 0.0001) return;
         double strength = distance * (1.0 - getKnockbackResistance()) * 18.0;
         knockbackVelocityX = directionX / length * strength;
         knockbackVelocityY = directionY / length * strength;
@@ -315,7 +333,10 @@ public abstract class Enemy {
 
     private void drawEnemy(Graphics2D graphics, int centerX, int centerY,
             double cameraX, double cameraY) {
-        double hitOffset = hitReactionTimer > 0.0 ? hitReactionTimer / 0.18 * 8.0 : 0.0;
+        double hitOffset = hitReactionTimer > 0.0 ? hitReactionTimer / hitReactionDuration * hitReactionStrength : 0.0;
+        if (spriteImpactOnly && lastHitElement == DamageElement.LIGHTNING) {
+            hitOffset *= Math.cos((hitReactionDuration - hitReactionTimer) * 65);
+        }
         int screenX = (int) Math.round(centerX + worldX + cameraX - renderSize / 2.0
                 + hitDirectionX * hitOffset);
         int screenY = (int) Math.round(centerY + worldY + cameraY - renderSize / 2.0
@@ -379,7 +400,7 @@ public abstract class Enemy {
     }
 
     private void drawHitReaction(Graphics2D graphics, int screenX, int screenY) {
-        if (hitReactionTimer <= 0.0) {
+        if (hitReactionTimer <= 0.0 || spriteImpactOnly) {
             return;
         }
         Color color = elementColor(lastHitElement);
@@ -421,6 +442,7 @@ public abstract class Enemy {
     }
 
     protected final void updateStatusEffects(double deltaTime) {
+        if (!Double.isFinite(deltaTime) || deltaTime < 0.0) return;
         double decay = Math.exp(-18.0 * deltaTime);
         worldX += knockbackVelocityX * (1.0 - decay) / 18.0;
         worldY += knockbackVelocityY * (1.0 - decay) / 18.0;
@@ -430,8 +452,9 @@ public abstract class Enemy {
         tauntTimer = Math.max(0.0, tauntTimer - deltaTime);
         if (tauntTimer <= 0.0) tauntedDamageMultiplier = 1.0;
         if (poisonTimer > 0.0) {
+            double poisonStep = Math.min(deltaTime, poisonTimer);
             poisonTimer = Math.max(0.0, poisonTimer - deltaTime);
-            health = Math.max(0.0, health - poisonDamagePerSecond * deltaTime);
+            health = Math.max(0.0, health - poisonDamagePerSecond * poisonStep);
             if (health <= 0.0) {
                 deathElement = DamageElement.POISON;
             }

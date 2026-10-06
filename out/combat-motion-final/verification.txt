@@ -1,0 +1,28 @@
+Combat integration verification - 2026-10-07 (Asia/Manila)
+
+PASS: build.ps1 - 84 Java sources, Java 21
+PASS: CombatSkillSmokeTest - 120 directional locomotion casts, all 20 active skills
+      and five passives, denial/repeat, kills/multiple enemies, recovery/cleanup,
+      real projectile travel, swept contacts, wave arrival, release clock partitions,
+      mark/barrier attachment, continuous knockback and bounded poison.
+PASS: SkillPoseSmokeTest - 16 non-Guardian skills, both facings, grip/source
+      continuity, upward sword arc, shield extension and interruption.
+PASS: GuardianCombatSmokeTest - Guardian timing, charge, defense, taunt and restart.
+PASS: AnimationVfxSmokeTest - animation clocks, draw isolation and VFX lifecycle;
+      explicitly verifies absent reference assets remain invisible.
+PASS: SkillEffectAtlasSmokeTest - temporary parser/render fixtures only.
+PASS: WeaponAttachmentSmokeTest, DaggerPoseSmokeTest, AbilitySystemSmokeTest,
+      SkillLoadoutSmokeTest, RestartSmokeTest and RuntimeStabilitySmokeTest.
+PASS: git diff --check with Windows CRLF handling.
+
+REVIEWED: five motion contact sheets, 240 runtime snapshots of all active skills
+         in both facings across preparation, windup, release, contact and recovery.
+
+UNFINISHED: the two actual source VFX PNGs are unavailable. Production atlas has
+            zero reviewed animations. Crop selection, source transparency, actual
+            artwork timing and gameplay VFX appearance cannot yet be approved.
+            Requested effects have no procedural substitute.
+
+Import instructions: src/main/resources/effects/README.md
+Integration notes: docs/combat-vfx-integration.md
+Pending source report: out/skill-atlas-review/review.txt

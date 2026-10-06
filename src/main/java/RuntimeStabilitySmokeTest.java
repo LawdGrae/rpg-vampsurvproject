@@ -13,7 +13,7 @@ public class RuntimeStabilitySmokeTest {
             }
             gameLogic.startGame();
             if (characterIndex == 4 && !(playerField.get(gameLogic) instanceof Character_Sir_Rakki)) {
-                throw new IllegalStateException("Sir Rakki must use his own character class");
+                throw new IllegalStateException("Sire Rakki must use his own character class");
             }
 
             for (int frame = 0; frame < 900; frame++) {

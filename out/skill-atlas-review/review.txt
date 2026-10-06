@@ -1,0 +1,71 @@
+Loaded animations: 0
+Flame Slash / buildup: awaiting reviewed source crops
+Flame Slash / action: awaiting reviewed source crops
+Flame Slash / impact: awaiting reviewed source crops
+Shield Bash / buildup: awaiting reviewed source crops
+Shield Bash / action: awaiting reviewed source crops
+Shield Bash / impact: awaiting reviewed source crops
+Rising Strike / buildup: awaiting reviewed source crops
+Rising Strike / action: awaiting reviewed source crops
+Rising Strike / impact: awaiting reviewed source crops
+Whirlwind / buildup: awaiting reviewed source crops
+Whirlwind / action: awaiting reviewed source crops
+Whirlwind / impact: awaiting reviewed source crops
+Berserker's Will / passive: awaiting reviewed source crops
+Shadow Strike / buildup: awaiting reviewed source crops
+Shadow Strike / travel: awaiting reviewed source crops
+Shadow Strike / action: awaiting reviewed source crops
+Shadow Strike / impact: awaiting reviewed source crops
+Blink Step / buildup: awaiting reviewed source crops
+Blink Step / travel: awaiting reviewed source crops
+Blink Step / action: awaiting reviewed source crops
+Blink Step / impact: awaiting reviewed source crops
+Death Mark / buildup: awaiting reviewed source crops
+Death Mark / action: awaiting reviewed source crops
+Death Mark / impact: awaiting reviewed source crops
+Spiral Cut / buildup: awaiting reviewed source crops
+Spiral Cut / action: awaiting reviewed source crops
+Spiral Cut / impact: awaiting reviewed source crops
+Assassin's Instinct / passive: awaiting reviewed source crops
+Healing Touch / buildup: awaiting reviewed source crops
+Healing Touch / travel: awaiting reviewed source crops
+Healing Touch / action: awaiting reviewed source crops
+Healing Touch / impact: awaiting reviewed source crops
+Holy Light / buildup: awaiting reviewed source crops
+Holy Light / action: awaiting reviewed source crops
+Holy Light / impact: awaiting reviewed source crops
+Divine Barrier / buildup: awaiting reviewed source crops
+Divine Barrier / action: awaiting reviewed source crops
+Divine Barrier / barrier_block: awaiting reviewed source crops
+Judgment / buildup: awaiting reviewed source crops
+Judgment / action: awaiting reviewed source crops
+Judgment / impact: awaiting reviewed source crops
+Faith / passive: awaiting reviewed source crops
+Fire Storm / buildup: awaiting reviewed source crops
+Fire Storm / travel: awaiting reviewed source crops
+Fire Storm / action: awaiting reviewed source crops
+Fire Storm / impact: awaiting reviewed source crops
+Ice Spear / buildup: awaiting reviewed source crops
+Ice Spear / travel: awaiting reviewed source crops
+Ice Spear / action: awaiting reviewed source crops
+Ice Spear / impact: awaiting reviewed source crops
+Thunder Break / buildup: awaiting reviewed source crops
+Thunder Break / action: awaiting reviewed source crops
+Thunder Break / impact: awaiting reviewed source crops
+Elemental Nova / buildup: awaiting reviewed source crops
+Elemental Nova / action: awaiting reviewed source crops
+Elemental Nova / impact: awaiting reviewed source crops
+Elemental Mastery / passive: awaiting reviewed source crops
+Shield Fortress / buildup: awaiting reviewed source crops
+Shield Fortress / action: awaiting reviewed source crops
+Shield Fortress / barrier_block: awaiting reviewed source crops
+Iron Charge / buildup: awaiting reviewed source crops
+Iron Charge / action: awaiting reviewed source crops
+Iron Charge / impact: awaiting reviewed source crops
+Earthbreaker / buildup: awaiting reviewed source crops
+Earthbreaker / action: awaiting reviewed source crops
+Earthbreaker / impact: awaiting reviewed source crops
+Guardian's Roar / buildup: awaiting reviewed source crops
+Guardian's Roar / action: awaiting reviewed source crops
+Guardian's Roar / impact: awaiting reviewed source crops
+Unbreakable / passive: awaiting reviewed source crops

@@ -1,6 +1,7 @@
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
+import java.awt.geom.Point2D;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Arrays;
@@ -12,13 +13,16 @@ public class DaggerPoseSmokeTest {
     private static final double STEP = 1.0 / 240.0;
     private static final Method POSE;
     private static final Method BOUNDS;
+    private static final Method GRIP_HAND;
 
     static {
         try {
             POSE = Player.class.getDeclaredMethod("animatedWeaponPose", boolean.class, int.class, int.class);
             BOUNDS = Player.class.getDeclaredMethod("visibleWeaponBounds", BufferedImage.class);
+            GRIP_HAND = Player.class.getDeclaredMethod("gripHandPosition", boolean.class, int.class, int.class);
             POSE.setAccessible(true);
             BOUNDS.setAccessible(true);
+            GRIP_HAND.setAccessible(true);
         } catch (ReflectiveOperationException exception) {
             throw new ExceptionInInitializerError(exception);
         }
@@ -40,7 +44,8 @@ public class DaggerPoseSmokeTest {
                 player.update(STEP);
                 for (boolean offhand : new boolean[]{false, true}) {
                     Object pose = pose(player, offhand);
-                    assertAttached(pose, direction + " " + frame);
+                    assertSourceWrist(pose, direction + " " + frame);
+                    assertAttached(player, offhand, direction + " " + frame);
                     BufferedImage blade = (BufferedImage) field(player,
                             offhand ? "heldOffhandSprite" : "heldPrimarySprite");
                     Rectangle bounds = (Rectangle) BOUNDS.invoke(null, blade);
@@ -100,7 +105,7 @@ public class DaggerPoseSmokeTest {
                     player.update(STEP);
                     double[] after = angles(player);
                     assertAngleStep(before, after, 0.20, direction + " " + id + " frame " + frame);
-                    for (boolean offhand : new boolean[]{false, true}) assertAttached(pose(player, offhand), id);
+                    for (boolean offhand : new boolean[]{false, true}) assertAttached(player, offhand, id);
                 }
             }
         }
@@ -160,10 +165,20 @@ public class DaggerPoseSmokeTest {
                 number(pose(player, true), "weaponRotation")};
     }
 
-    private static void assertAttached(Object pose, String context) throws Exception {
+    private static void assertSourceWrist(Object pose, String context) throws Exception {
         require(Math.abs(number(pose, "weaponX") - number(pose, "handAnchorX")) < 0.000001
                         && Math.abs(number(pose, "weaponY") - number(pose, "handAnchorY")) < 0.000001,
                 context + ": animated dagger handle must stay at the hand");
+    }
+
+    private static void assertAttached(Player player, boolean offhand, String context) throws Exception {
+        Object pose = pose(player, offhand);
+        // Skill arms move the source-frame wrist. Compare with the hand patch position
+        // used by drawGripHands; its pixel snapping can differ by at most half a pixel.
+        Point2D grip = (Point2D) GRIP_HAND.invoke(player, offhand, 64, 64);
+        require(Math.abs(number(pose, "weaponX") - grip.getX()) <= 0.500001
+                        && Math.abs(number(pose, "weaponY") - grip.getY()) <= 0.500001,
+                context + ": dagger pivot must remain inside the actually rendered grip hand pixel");
     }
 
     private static void assertAngleStep(double[] before, double[] after, double maximum, String context) {

@@ -56,8 +56,10 @@ public class GuardianCombatSmokeTest {
         near(front.getHealth(), 1000.0, "Earthbreaker cannot hit during windup");
         require(!front.isKnockedDown(), "Earthbreaker cannot knock down before impact");
         fixture.tick(EPSILON * 2.0);
-        near(front.getHealth(), 974.0, "Earthbreaker single impact damage");
-        require(front.isKnockedDown() && front.isStunned(), "Earthbreaker must knock enemies down");
+        near(front.getHealth(), 1000.0, "Earthbreaker wave must travel from shield impact to front enemy");
+        fixture.tick(0.5);
+        near(front.getHealth(), 974.0, "Earthbreaker single wave contact damage");
+        require(front.isKnockedDown() && front.isStunned(), "Earthbreaker knocks down when its wave arrives");
         near(behind.getHealth(), 1000.0, "Earthbreaker fan excludes enemies far behind the shield");
         double afterImpact = front.getHealth();
         for (int frame = 0; frame < 180; frame++) fixture.tick(1.0 / 120.0);

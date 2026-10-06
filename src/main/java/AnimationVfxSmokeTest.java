@@ -22,7 +22,13 @@ public class AnimationVfxSmokeTest {
         verifySkillCannotBeInterruptedByAutoAttack();
         verifySkillTakeoverCancelsPendingMelee();
         verifyIntegratedRendering();
-        System.out.println("Animation timing, grips and all ability VFX lifecycle checks passed");
+        long missing = SkillEffectAtlas.getMetadata().stream().filter(skill ->
+                SkillEffectAtlas.getAnimation(skill.id(), skill.passive() ? "passive" : "action") == null
+                || ((skill.id().equals("flame_burst") || skill.id().equals("ice_shard"))
+                && SkillEffectAtlas.getAnimation(skill.id(), "travel") == null)).count();
+        System.out.println("Animation timing, grips, draw isolation and ability VFX lifecycle checks passed");
+        if (missing > 0) System.out.println("PNG visual QA pending: " + missing
+                + " reference skill mappings have unresolved core source tracks; absence checks passed");
     }
 
     private static void verifyCharacterTiming() throws Exception {
@@ -127,11 +133,18 @@ public class AnimationVfxSmokeTest {
             BufferedImage growing = render(effect);
             effect.update(duration * 0.47);
             BufferedImage peak = render(effect);
-            require(nontransparentPixels(growing) > 0 && nontransparentPixels(peak) > 0,
-                    definition.getId() + " needs visible live VFX");
-            require(!Arrays.equals(pixels(first), pixels(growing))
-                            && !Arrays.equals(pixels(growing), pixels(peak)),
-                    definition.getId() + " VFX must evolve between frames");
+            if (SkillEffectAtlas.getMetadata(definition.getId()) == null) {
+                require(nontransparentPixels(growing) > 0 && nontransparentPixels(peak) > 0,
+                        definition.getId() + " needs visible legacy VFX");
+                require(!Arrays.equals(pixels(first), pixels(growing))
+                                && !Arrays.equals(pixels(growing), pixels(peak)),
+                        definition.getId() + " legacy VFX must evolve between frames");
+            } else {
+                verifyReferenceTracks(definition);
+                if (!hasBodyTrack(definition)) require(nontransparentPixels(first) == 0
+                                && nontransparentPixels(growing) == 0 && nontransparentPixels(peak) == 0,
+                        definition.getId() + " cannot substitute procedural art for missing PNG frames");
+            }
             identical(peak, render(effect), definition.getId() + " draw must be deterministic");
             assertGraphicsIsolation((graphics) -> effect.draw(graphics, 128, 128, 0, 0),
                     definition.getId() + " effect draw");
@@ -144,8 +157,14 @@ public class AnimationVfxSmokeTest {
                     10.25, -3.75, 10.25, -3.75, 72, new Color(180, 160, 255), duration);
             coincident.setCasterPosition(10.25, -3.75);
             coincident.update(duration * 0.65);
-            require(nontransparentPixels(render(coincident)) > 0,
-                    definition.getId() + " must render safely at a coincident cast and target point");
+            BufferedImage coincidentImage = render(coincident);
+            if (SkillEffectAtlas.getMetadata(definition.getId()) == null) {
+                require(nontransparentPixels(coincidentImage) > 0,
+                        definition.getId() + " must render safely at a coincident cast and target point");
+            } else if (!hasBodyTrack(definition)) {
+                require(nontransparentPixels(coincidentImage) == 0,
+                        definition.getId() + " missing PNG remains absent at a coincident anchor");
+            }
             effect.update(2.0);
             require(effect.isExpired(), definition.getId() + " must expire");
             require(nontransparentPixels(render(effect)) == 0,
@@ -159,13 +178,53 @@ public class AnimationVfxSmokeTest {
         persistent.update(2.0);
         BufferedImage heldShield = render(persistent);
         persistent.update(0.2);
-        require(nontransparentPixels(heldShield) > 0 && nontransparentPixels(render(persistent)) > 0,
-                "A long shield aura must stay visible after its initial cast completes");
-        require(!Arrays.equals(pixels(heldShield), pixels(render(persistent))),
-                "A sustained shield aura must continue pulsing instead of freezing");
+        SkillEffectAtlas.SkillAnimation barrier = SkillEffectAtlas.getAnimation("holy_shield", "action");
+        if (barrier == null) {
+            require(nontransparentPixels(heldShield) == 0 && nontransparentPixels(render(persistent)) == 0,
+                    "Unresolved Divine Barrier cannot be replaced with a procedural aura");
+        } else if (barrier.isLooping()) {
+            require(nontransparentPixels(heldShield) > 0 && nontransparentPixels(render(persistent)) > 0,
+                    "Reviewed looping barrier remains attached through its defense duration");
+        }
         persistent.update(5.0);
         require(persistent.isExpired() && nontransparentPixels(render(persistent)) == 0,
                 "Sustained shields must disappear when their full lifetime ends");
+    }
+
+    private static boolean hasBodyTrack(AbilityDefinition definition) {
+        if (definition.isPassive()) return false;
+        if (SkillEffectAtlas.getAnimation(definition.getId(), "buildup") != null) return true;
+        return !definition.getId().equals("flame_burst") && !definition.getId().equals("ice_shard")
+                && SkillEffectAtlas.getAnimation(definition.getId(), "action") != null;
+    }
+
+    /** Check actual authored frame times; a partially imported sheet need not draw in every phase. */
+    private static void verifyReferenceTracks(AbilityDefinition definition) {
+        if (definition.isPassive()) return; // GameLogic draws passive tracks separately.
+        double duration = AbilityAnimationTiming.duration(definition);
+        double release = AbilityAnimationTiming.releaseProgress(definition) * duration;
+        for (String track : List.of("buildup", "action", "travel")) {
+            SkillEffectAtlas.SkillAnimation animation = SkillEffectAtlas.getAnimation(definition.getId(), track);
+            if (animation == null) continue;
+            boolean projectile = definition.getId().equals("flame_burst") || definition.getId().equals("ice_shard");
+            if (track.equals("travel") && !projectile) continue;
+            if (track.equals("action") && projectile) continue;
+            double elapsed = animation.getStartDelaySeconds() + (track.equals("action") ? release : 0);
+            int visibleSamples = 0;
+            for (SkillEffectAtlas.FrameMetadata frame : animation.getFrames()) {
+                double sample = elapsed + frame.durationSeconds() * 0.5;
+                double lifetime = Math.max(duration, sample + 0.5);
+                AbilityVisualEffect effect = new AbilityVisualEffect(definition, -60.25, 0.75, 55.5, -20.25,
+                        72, Color.ORANGE, lifetime);
+                if (track.equals("travel")) effect.setProjectilePosition(30, 0, 0);
+                effect.freezeImpactOrigin(55.5, -20.25);
+                effect.update(sample);
+                visibleSamples += nontransparentPixels(render(effect)) > 0 ? 1 : 0;
+                elapsed += frame.durationSeconds();
+            }
+            require(visibleSamples > 0, definition.getId() + " / " + track
+                    + " reviewed source sequence must render at an authored frame time");
+        }
     }
 
     private static void verifyIntegratedRendering() throws Exception {

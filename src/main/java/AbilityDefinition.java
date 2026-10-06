@@ -99,7 +99,10 @@ public class AbilityDefinition {
 
     /** Passive traits appear in the skill list but cannot occupy an active slot. */
     public boolean isPassive() {
-        return "unbreakable".equals(id);
+        return switch (id) {
+            case "iron_guard", "shadow_assassin", "blessing", "cataclysm", "unbreakable" -> true;
+            default -> false;
+        };
     }
 
     public static List<AbilityDefinition> createAll() {
@@ -139,37 +142,37 @@ public class AbilityDefinition {
 
     private static void addAssassin(List<AbilityDefinition> abilities) {
         add(abilities, "shadow_strike", "Shadow Strike", AbilityClass.ASSASSIN, AbilityEffectType.SINGLE_TARGET, "Blink damage to the nearest enemy.", 1, 6, 10, 16, 240, 0);
-        add(abilities, "twin_fang", "Twin Fang", AbilityClass.ASSASSIN, AbilityEffectType.AREA_DAMAGE, "Two quick cuts around the hero.", 1, 8, 14, 14, 115, 0);
+        add(abilities, "twin_fang", "Spiral Cut", AbilityClass.ASSASSIN, AbilityEffectType.AREA_DAMAGE, "Two rotating dagger cuts around the hero.", 1, 8, 14, 14, 115, 0);
         add(abilities, "poison_blade", "Poison Blade", AbilityClass.ASSASSIN, AbilityEffectType.POISON, "Poison nearby enemies.", 3, 10, 16, 5, 150, 5);
         add(abilities, "smoke_veil", "Smoke Veil", AbilityClass.ASSASSIN, AbilityEffectType.SLOW, "Smoke slows enemies and softens incoming hits.", 4, 14, 20, 2, 180, 4);
-        add(abilities, "shadow_step", "Shadow Step", AbilityClass.ASSASSIN, AbilityEffectType.DASH, "Dash through danger and cut nearby foes.", 1, 9, 16, 12, 120, 0.4);
+        add(abilities, "shadow_step", "Blink Step", AbilityClass.ASSASSIN, AbilityEffectType.DASH, "Fade into a rapid shadow step, then cut at arrival.", 1, 9, 16, 12, 120, 0.4);
         add(abilities, "venom_burst", "Venom Burst", AbilityClass.ASSASSIN, AbilityEffectType.POISON, "A larger poison detonation.", 6, 16, 26, 8, 230, 6);
         add(abilities, "phantom_clone", "Phantom Clone", AbilityClass.ASSASSIN, AbilityEffectType.SUMMON, "A phantom burst distracts and damages enemies.", 7, 22, 32, 20, 210, 5);
-        add(abilities, "death_mark", "Death Mark", AbilityClass.ASSASSIN, AbilityEffectType.MARK, "Mark enemies to take extra damage.", 8, 18, 28, 8, 250, 6);
+        add(abilities, "death_mark", "Death Mark", AbilityClass.ASSASSIN, AbilityEffectType.MARK, "Attach a shadow mark to the selected enemy to amplify damage.", 1, 18, 28, 8, 250, 6);
         add(abilities, "silent_execution", "Silent Execution", AbilityClass.ASSASSIN, AbilityEffectType.EXECUTE, "Heavy damage, executing weakened targets.", 1, 25, 34, 44, 220, 0);
-        add(abilities, "shadow_assassin", "Shadow Assassin", AbilityClass.ASSASSIN, AbilityEffectType.ULTIMATE, "A lethal storm of shadow cuts.", 10, 45, 52, 58, 300, 3);
+        add(abilities, "shadow_assassin", "Assassin's Instinct", AbilityClass.ASSASSIN, AbilityEffectType.BUFF, "Passive: faster movement and stronger skill strikes.", 1, 0, 0, 0, 0, 0);
     }
 
     private static void addBlackKnight(List<AbilityDefinition> abilities) {
         add(abilities, "heavy_slash", "Flame Slash", AbilityClass.BLACK_KNIGHT, AbilityEffectType.AREA_DAMAGE, "A broad close-range slash.", 1, 7, 10, 18, 125, 0);
         add(abilities, "shield_bash", "Shield Bash", AbilityClass.BLACK_KNIGHT, AbilityEffectType.STUN, "Stun enemies in front of the hero.", 1, 10, 14, 10, 140, 1.5);
-        add(abilities, "iron_guard", "Iron Guard", AbilityClass.BLACK_KNIGHT, AbilityEffectType.SHIELD, "Gain temporary armor.", 3, 14, 16, 0, 0, 5);
+        add(abilities, "iron_guard", "Berserker's Will", AbilityClass.BLACK_KNIGHT, AbilityEffectType.BUFF, "Passive: resist damage and strengthen attacks below 40% health.", 1, 0, 0, 0, 0, 0);
         add(abilities, "dark_taunt", "Dark Taunt", AbilityClass.BLACK_KNIGHT, AbilityEffectType.SLOW, "Slow enemies in a wide dark aura.", 4, 15, 22, 4, 230, 4);
         add(abilities, "shield_charge", "Shield Charge", AbilityClass.BLACK_KNIGHT, AbilityEffectType.DASH, "Charge forward and slam nearby enemies.", 5, 12, 22, 18, 150, 0.4);
-        add(abilities, "earth_shatter", "Ground Slam", AbilityClass.BLACK_KNIGHT, AbilityEffectType.STUN, "Crack the ground and stun enemies.", 1, 20, 26, 22, 230, 1.8);
+        add(abilities, "earth_shatter", "Rising Strike", AbilityClass.BLACK_KNIGHT, AbilityEffectType.STUN, "An upward sword arc staggers enemies within blade reach.", 1, 20, 26, 22, 130, 1.8);
         add(abilities, "counter_strike", "Counter Strike", AbilityClass.BLACK_KNIGHT, AbilityEffectType.BUFF, "Prepare a damage-boosting counter stance.", 7, 18, 24, 0, 0, 6);
         add(abilities, "blood_armor", "Blood Armor", AbilityClass.BLACK_KNIGHT, AbilityEffectType.SHIELD, "Gain stronger armor and recover health.", 8, 24, 34, 12, 160, 7);
-        add(abilities, "knights_wrath", "Knight's Wrath", AbilityClass.BLACK_KNIGHT, AbilityEffectType.AREA_DAMAGE, "Release a punishing wrath wave.", 1, 28, 38, 45, 270, 0);
+        add(abilities, "knights_wrath", "Whirlwind", AbilityClass.BLACK_KNIGHT, AbilityEffectType.AREA_DAMAGE, "Four controlled rotating sword strikes around the hero.", 1, 28, 38, 45, 150, 0);
         add(abilities, "dark_fortress", "Dark Fortress", AbilityClass.BLACK_KNIGHT, AbilityEffectType.ULTIMATE, "Become a fortress and crush nearby enemies.", 10, 48, 56, 52, 320, 8);
     }
 
     private static void addPriest(List<AbilityDefinition> abilities) {
-        add(abilities, "holy_bolt", "Holy Bolt", AbilityClass.PRIEST, AbilityEffectType.SINGLE_TARGET, "Holy damage to the nearest enemy.", 1, 5, 9, 14, 280, 0);
-        add(abilities, "heal", "Heal", AbilityClass.PRIEST, AbilityEffectType.HEAL, "Restore health.", 1, 10, 16, 20, 0, 0);
-        add(abilities, "blessing", "Divine Blessing", AbilityClass.PRIEST, AbilityEffectType.BUFF, "Bless the hero with stronger damage.", 3, 16, 18, 0, 0, 7);
-        add(abilities, "holy_shield", "Holy Shield", AbilityClass.PRIEST, AbilityEffectType.SHIELD, "Gain a holy shield.", 1, 18, 20, 0, 0, 6);
+        add(abilities, "holy_bolt", "Holy Light", AbilityClass.PRIEST, AbilityEffectType.SINGLE_TARGET, "Gather light through the staff, then descend upon the selected enemy.", 1, 5, 9, 14, 280, 0);
+        add(abilities, "heal", "Healing Touch", AbilityClass.PRIEST, AbilityEffectType.HEAL, "Raise the staff and channel healing back to the hero.", 1, 10, 16, 20, 0, 0);
+        add(abilities, "blessing", "Faith", AbilityClass.PRIEST, AbilityEffectType.BUFF, "Passive: stronger healing and faster mana regeneration.", 1, 0, 0, 0, 0, 0);
+        add(abilities, "holy_shield", "Divine Barrier", AbilityClass.PRIEST, AbilityEffectType.SHIELD, "Form a protective barrier from the holy staff.", 1, 18, 20, 0, 0, 6);
         add(abilities, "purify", "Purify", AbilityClass.PRIEST, AbilityEffectType.AREA_DAMAGE, "Burn nearby enemies with cleansing light.", 5, 14, 22, 20, 180, 0);
-        add(abilities, "divine_light", "Divine Light", AbilityClass.PRIEST, AbilityEffectType.HEAL, "Heal and damage nearby enemies.", 1, 22, 30, 28, 210, 0);
+        add(abilities, "divine_light", "Judgment", AbilityClass.PRIEST, AbilityEffectType.STUN, "Mark the target area, then deliver a descending holy strike.", 1, 22, 30, 28, 100, 0.8);
         add(abilities, "prayer", "Prayer", AbilityClass.PRIEST, AbilityEffectType.BUFF, "Regenerate mana faster for a short time.", 7, 26, 32, 0, 0, 8);
         add(abilities, "sanctuary", "Sanctuary", AbilityClass.PRIEST, AbilityEffectType.SLOW, "Create a slowing sanctuary field.", 8, 28, 52, 18, 260, 6);
         add(abilities, "resurrection", "Resurrection", AbilityClass.PRIEST, AbilityEffectType.HEAL, "Emergency burst heal.", 9, 35, 65, 60, 0, 0);
@@ -205,14 +208,14 @@ public class AbilityDefinition {
     private static void addElementalist(List<AbilityDefinition> abilities) {
         add(abilities, "fire_bolt", "Fire Bolt", AbilityClass.ELEMENTALIST, AbilityEffectType.SINGLE_TARGET, "Fire damage to the nearest enemy.", 1, 5, 9, 15, 300, 0);
         add(abilities, "ice_shard", "Ice Spear", AbilityClass.ELEMENTALIST, AbilityEffectType.SLOW, "Shard of ice slows nearby enemies.", 1, 8, 14, 12, 170, 3);
-        add(abilities, "lightning_strike", "Lightning Strike", AbilityClass.ELEMENTALIST, AbilityEffectType.STUN, "Lightning briefly stuns enemies.", 1, 12, 18, 22, 190, 1.2);
-        add(abilities, "flame_burst", "Fire Burst", AbilityClass.ELEMENTALIST, AbilityEffectType.AREA_DAMAGE, "Burst of flame around the hero.", 1, 13, 20, 26, 210, 0);
+        add(abilities, "lightning_strike", "Thunder Break", AbilityClass.ELEMENTALIST, AbilityEffectType.STUN, "Gather branching lightning above the target area before striking.", 1, 12, 18, 22, 100, 1.2);
+        add(abilities, "flame_burst", "Fire Storm", AbilityClass.ELEMENTALIST, AbilityEffectType.AREA_DAMAGE, "Launch three accelerating fire projectiles with contact explosions.", 1, 13, 20, 26, 300, 0);
         add(abilities, "frost_nova", "Frost Nova", AbilityClass.ELEMENTALIST, AbilityEffectType.SLOW, "Freeze the ground in a circle.", 5, 16, 38, 16, 260, 5);
         add(abilities, "thunder_chain", "Thunder Chain", AbilityClass.ELEMENTALIST, AbilityEffectType.AREA_DAMAGE, "Chained thunder hits the pack.", 6, 18, 44, 34, 240, 0);
         add(abilities, "meteor", "Meteor", AbilityClass.ELEMENTALIST, AbilityEffectType.AREA_DAMAGE, "A meteor hits the nearest enemy.", 7, 25, 58, 48, 270, 0);
         add(abilities, "blizzard", "Blizzard", AbilityClass.ELEMENTALIST, AbilityEffectType.SLOW, "A blizzard damages and slows.", 8, 30, 64, 36, 330, 7);
-        add(abilities, "elemental_storm", "Elemental Storm", AbilityClass.ELEMENTALIST, AbilityEffectType.ULTIMATE, "Fire, frost, and lightning converge.", 1, 42, 44, 56, 350, 4);
-        add(abilities, "cataclysm", "Cataclysm", AbilityClass.ELEMENTALIST, AbilityEffectType.ULTIMATE, "An overwhelming elemental collapse.", 10, 58, 100, 72, 390, 5);
+        add(abilities, "elemental_storm", "Elemental Nova", AbilityClass.ELEMENTALIST, AbilityEffectType.AREA_DAMAGE, "Build elemental energy, then expand a wave that hits each enemy on contact.", 1, 42, 30, 56, 260, 0);
+        add(abilities, "cataclysm", "Elemental Mastery", AbilityClass.ELEMENTALIST, AbilityEffectType.BUFF, "Passive: increase elemental skill power.", 1, 0, 0, 0, 0, 0);
     }
 
     private static void add(List<AbilityDefinition> abilities, String id,

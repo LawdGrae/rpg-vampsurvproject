@@ -97,12 +97,6 @@ public class RegionalEnemy extends Enemy {
     }
 
     @Override
-    public void knockAwayFrom(double originX, double originY, double distance) {
-        double resistedDistance = distance * (1.0 - definition.getKnockbackResistance());
-        super.knockAwayFrom(originX, originY, resistedDistance);
-    }
-
-    @Override
     protected double getKnockbackResistance() {
         return definition.getKnockbackResistance();
     }

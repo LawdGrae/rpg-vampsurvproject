@@ -22,13 +22,20 @@ public class AbilityVisualEffect {
     private static final Color STEEL = new Color(195, 212, 228);
     private final AbilityDefinition definition;
     private double startX, startY, casterX, casterY;
-    private final double worldX, worldY, radius, maxLife, actionDuration, aimAngle;
+    private double worldX, worldY;
+    private final double radius, maxLife, actionDuration, aimAngle;
     private final double[] hits;
     private final Color color;
     private final int variant;
     private final Layer layer;
     private final GuardianVisualEffect guardian;
     private double life;
+    private double sourceAngle, waveRadius = -1, blockAge = 1, impactX, impactY;
+    private boolean mirrored, projectileDriven, impactFrozen;
+    private Enemy attachedTarget;
+    private final double[] trailX = new double[8], trailY = new double[8], trailBirth = new double[8];
+    private double previousCasterX, previousCasterY, nextTrailTime;
+    private int trailCount, trailIndex;
 
     public AbilityVisualEffect(AbilityDefinition definition, double startX,
             double startY, double worldX, double worldY, double radius,
@@ -36,6 +43,7 @@ public class AbilityVisualEffect {
         this.definition = definition;
         this.startX = this.casterX = startX;
         this.startY = this.casterY = startY;
+        previousCasterX = startX; previousCasterY = startY;
         this.worldX = worldX;
         this.worldY = worldY;
         this.radius = Math.max(40, Math.min(420, radius));
@@ -44,10 +52,11 @@ public class AbilityVisualEffect {
         this.life = this.maxLife;
         this.actionDuration = AbilityAnimationTiming.duration(definition);
         this.hits = AbilityAnimationTiming.hitProgress(definition);
+        nextTrailTime = AbilityAnimationTiming.releaseProgress(definition) * actionDuration;
         this.aimAngle = Math.atan2(worldY - startY, worldX - startX);
         this.variant = definition.getId().hashCode();
         this.layer = switch (definition.getId()) {
-            case "earth_shatter", "heal", "blessing", "holy_shield", "sanctuary",
+            case "heal", "blessing", "holy_shield", "sanctuary",
                     "flame_burst", "frost_nova", "elemental_storm", "dark_taunt",
                     "smoke_veil", "venom_burst", "iron_guard", "earthbreaker",
                     "guardians_roar" -> Layer.GROUND;
@@ -59,16 +68,39 @@ public class AbilityVisualEffect {
     }
 
     public void update(double deltaTime) {
-        if (Double.isFinite(deltaTime) && deltaTime > 0) life = Math.max(0, life - deltaTime);
+        if (!Double.isFinite(deltaTime) || deltaTime < 0) return;
+        double previousAge = age();
+        if (Double.isFinite(deltaTime) && deltaTime > 0 && !projectileDriven) life = Math.max(0, life - deltaTime);
+        if (definition.getId().equals("shadow_strike") || definition.getId().equals("shadow_step")) {
+            while (nextTrailTime <= Math.min(age(), hits[0] * actionDuration) + 1e-10) {
+                double fraction = deltaTime <= 0 ? 1 : Math.max(0, Math.min(1, (nextTrailTime - previousAge) / deltaTime));
+                trailX[trailIndex] = previousCasterX + (casterX - previousCasterX) * fraction;
+                trailY[trailIndex] = previousCasterY + (casterY - previousCasterY) * fraction;
+                trailBirth[trailIndex] = nextTrailTime;
+                trailIndex = (trailIndex + 1) % trailX.length; trailCount = Math.min(trailX.length, trailCount + 1);
+                nextTrailTime += 0.028;
+            }
+        }
+        previousCasterX = casterX; previousCasterY = casterY;
+        blockAge += Math.max(0, deltaTime);
+        if (attachedTarget != null) {
+            if (attachedTarget.isDead()) { if (definition.getId().equals("death_mark")) expire(); }
+            else if (!impactFrozen) { worldX = attachedTarget.getWorldX(); worldY = attachedTarget.getWorldY(); }
+        }
         if (guardian != null) guardian.update(deltaTime);
     }
     public boolean isExpired() { return life <= 0; }
-    public Layer getLayer() { return layer; }
+    public Layer getLayer() { return projectileDriven ? Layer.FRONT : layer; }
     public void setCasterPosition(double x, double y) {
         if (Double.isFinite(x) && Double.isFinite(y)) { casterX = x; casterY = y; }
         if (guardian != null) guardian.setCasterPosition(x, y);
     }
     public void setCastOrigin(double x, double y) {
+        if (projectileDriven) return;
+        if (AbilityAnimationTiming.isReferenceSkill(definition.getId())) {
+            if (Double.isFinite(x) && Double.isFinite(y)) { startX = x; startY = y; }
+            return;
+        }
         if (guardian != null) {
             guardian.setShieldPosition(x, y);
             return;
@@ -82,11 +114,27 @@ public class AbilityVisualEffect {
     }
     /** Pins a physical ground slam or released force wave to its combat event. */
     public void freezeImpactOrigin(double x, double y) {
+        if (!impactFrozen) { impactX = x; impactY = y; impactFrozen = true; }
         if (guardian != null) guardian.freezeImpactOrigin(x, y);
+    }
+
+    public void setSourcePose(double angle, boolean mirror) {
+        if (!projectileDriven && Double.isFinite(angle)) { sourceAngle = angle; mirrored = mirror; }
+    }
+    public void attachTarget(Enemy target) { attachedTarget = target; }
+    public void expire() { life = 0; }
+    public void setWaveRadius(double radius) { waveRadius = Math.max(0, radius); }
+    public void setProjectilePosition(double x, double y, double angle) {
+        projectileDriven = true; worldX = x; worldY = y; sourceAngle = angle;
+    }
+    public void setProjectilePosition(double x, double y, double angle, double elapsed) {
+        setProjectilePosition(x, y, angle);
+        life = Math.max(0, maxLife - elapsed);
     }
 
     /** Brief contact sparks on the live shield barrier when it blocks damage. */
     public void flashBarrier(double x, double y) {
+        if (definition.getId().equals("holy_shield") || definition.getId().equals("shield_fortress")) blockAge = 0;
         if (guardian != null) guardian.flashBarrier(x, y);
     }
     private double age() { return maxLife - life; }
@@ -107,6 +155,10 @@ public class AbilityVisualEffect {
 
     public void draw(Graphics2D graphics, int centerX, int centerY, double cameraX, double cameraY) {
         if (isExpired()) return;
+        if (AbilityAnimationTiming.isReferenceSkill(definition.getId())) {
+            drawSourceFrames(graphics, centerX + cameraX, centerY + cameraY);
+            return;
+        }
         if (guardian != null) {
             guardian.draw(graphics, centerX, centerY, cameraX, cameraY);
             return;
@@ -133,6 +185,87 @@ public class AbilityVisualEffect {
                 anticipation * 0.4, 0.7);
         drawAbility(g, p, a);
         g.dispose();
+    }
+
+    /** Tracks attach to physical sources; a missing source is never replaced with a shape. */
+    private void drawSourceFrames(Graphics2D graphics, double cameraX, double cameraY) {
+        String id = definition.getId();
+        if (definition.isPassive()) return; // The selected trait is drawn by GameLogic.
+        double releaseAge = AbilityAnimationTiming.releaseProgress(definition) * actionDuration;
+        double hitAge = hits[0] * actionDuration;
+        double elapsed = age();
+        if (projectileDriven) {
+            drawTrack(graphics, "travel", worldX + cameraX, worldY + cameraY, radius,
+                    sourceAngle, elapsed, 1 - smooth((elapsed / maxLife - 0.85) / 0.15), false);
+            return;
+        }
+        double buildup = smooth(elapsed / 0.12) * (1 - smooth((elapsed - releaseAge + 0.08) / 0.08));
+        drawTrack(graphics, "buildup", startX + cameraX, startY + cameraY,
+                20 + 28 * smooth(elapsed / Math.max(0.01, releaseAge)), 0, elapsed, buildup, mirrored);
+        if (elapsed < releaseAge) return;
+        if (id.equals("death_mark") && elapsed < hitAge) return;
+        for (int i = 0; i < trailCount; i++) {
+            double age = elapsed - trailBirth[i];
+            if (age < 0 || age >= 0.20) continue;
+            drawTrack(graphics, "travel", trailX[i] + cameraX, trailY[i] + cameraY,
+                    62, 0, age, (1 - age / 0.20) * 0.35, mirrored);
+        }
+        if (id.equals("flame_burst") || id.equals("ice_shard")) {
+            // A forming projectile is attached to the staff; released shots own travel.
+            drawTrack(graphics, "action", startX + cameraX, startY + cameraY, 38,
+                    sourceAngle, elapsed - releaseAge, 1 - smooth((elapsed / actionDuration - 0.65) / 0.15), false);
+            return;
+        }
+        double fade = 1 - smooth((elapsed / maxLife - 0.78) / 0.22);
+        double grow = smooth((elapsed - releaseAge) / Math.max(0.05, hitAge - releaseAge));
+        double x = worldX, y = worldY, width = Math.min(220, radius), angle = 0;
+        boolean mirror = false;
+        if (id.equals("heavy_slash") || id.equals("earth_shatter") || id.equals("shield_bash")
+                || id.equals("shadow_strike") || id.equals("twin_fang") || id.equals("knights_wrath")) {
+            x = startX; y = startY; width = Math.min(125, radius); angle = sourceAngle;
+        } else if (id.equals("shadow_step")) {
+            x = casterX; y = casterY; width = 76; mirror = mirrored;
+        } else if (id.equals("heal")) {
+            x = startX + (casterX - startX) * grow;
+            y = startY + (casterY - startY) * grow; width = 70;
+            if (elapsed < hitAge) {
+                drawTrack(graphics, "travel", x + cameraX, y + cameraY, 36, 0, elapsed - releaseAge, fade, false);
+                return;
+            }
+            x = casterX; y = casterY;
+        } else if (id.equals("holy_shield") || id.equals("shield_fortress")) {
+            x = startX + (casterX - startX) * grow;
+            y = startY + (casterY - startY) * grow;
+            width = 35 + 60 * grow;
+        } else if (id.equals("iron_charge")) {
+            x = startX; y = startY; width = 90; mirror = mirrored;
+        } else if (id.equals("earthbreaker") || id.equals("guardians_roar") || id.equals("elemental_storm")) {
+            x = impactFrozen ? impactX : casterX; y = impactFrozen ? impactY : casterY;
+            width = waveRadius >= 0 ? Math.max(1, waveRadius * 2) : 40 + grow * 30;
+            if (id.equals("guardians_roar") && elapsed >= hitAge) width = Math.max(1, radius * 2 * Math.min(1, (elapsed - hitAge) / 0.55));
+        } else if (id.equals("death_mark")) { width = 45; }
+        else if (id.equals("holy_bolt") || id.equals("divine_light") || id.equals("lightning_strike")) {
+            x = impactFrozen ? impactX : worldX; y = impactFrozen ? impactY : worldY;
+            width = 25 + 80 * grow;
+        }
+        drawTrack(graphics, "action", x + cameraX, y + cameraY, width, angle,
+                elapsed - releaseAge, fade * smooth((elapsed - releaseAge) / 0.07), mirror);
+        if (blockAge < 0.24) drawTrack(graphics, "barrier_block", x + cameraX, y + cameraY,
+                46, 0, blockAge, 1 - blockAge / 0.24, false);
+    }
+
+    private void drawTrack(Graphics2D graphics, String track, double x, double y, double width,
+            double angle, double elapsed, double alpha, boolean mirror) {
+        SkillEffectAtlas.SkillAnimation animation = SkillEffectAtlas.getAnimation(definition.getId(), track);
+        if (animation == null || alpha <= 0) return;
+        boolean held = track.equals("action") && (definition.getId().equals("death_mark")
+                || definition.getId().equals("holy_shield") || definition.getId().equals("shield_fortress"));
+        if (held && !animation.isLooping()) {
+            elapsed = Math.min(elapsed, animation.getStartDelaySeconds() + animation.getDurationSeconds() - 1e-9);
+            alpha *= 0.94 + 0.06 * Math.sin(age() * 3.5);
+        }
+        animation.drawAt(graphics, x, y, width, animation.isDirectional() ? angle : 0,
+                elapsed, alpha, mirror);
     }
 
     private void drawAbility(Graphics2D g, double p, double a) {

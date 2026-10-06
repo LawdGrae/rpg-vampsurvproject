@@ -18,6 +18,8 @@ public class Projectile {
     private final DamageElement damageElement;
     private double worldX;
     private double worldY;
+    private double previousWorldX;
+    private double previousWorldY;
     private final double velocityX;
     private final double velocityY;
     private double lifetime;
@@ -48,6 +50,8 @@ public class Projectile {
             double animationSpeed, double maxDrawSize, DamageElement damageElement) {
         this.worldX = worldX;
         this.worldY = worldY;
+        this.previousWorldX = worldX;
+        this.previousWorldY = worldY;
         this.speed = speed;
         this.damage = damage;
         this.radius = radius;
@@ -57,7 +61,7 @@ public class Projectile {
         this.damageElement = damageElement;
 
         int calculatedFrameWidth = sprite.getWidth();
-        if (sprite.getWidth() > sprite.getHeight()) {
+        if (animationSpeed > 0.0 && sprite.getWidth() > sprite.getHeight()) {
             int maxFrames = sprite.getWidth() / Math.max(1, sprite.getHeight());
             if (maxFrames > 1) {
                 calculatedFrameWidth = sprite.getWidth() / maxFrames;
@@ -74,10 +78,14 @@ public class Projectile {
     }
 
     public void update(double deltaTime) {
-        lifetime += deltaTime;
-        animationTime += deltaTime;
-        worldX += velocityX * speed * deltaTime;
-        worldY += velocityY * speed * deltaTime;
+        if (!Double.isFinite(deltaTime) || deltaTime < 0.0) return;
+        previousWorldX = worldX;
+        previousWorldY = worldY;
+        double step = Math.min(deltaTime, Math.max(0.0, MAX_LIFETIME - lifetime));
+        lifetime += step;
+        animationTime += step;
+        worldX += velocityX * speed * step;
+        worldY += velocityY * speed * step;
     }
 
     public boolean isExpired() {
@@ -85,18 +93,45 @@ public class Projectile {
     }
 
     public boolean hits(Enemy enemy) {
-        double differenceX = enemy.getWorldX() - worldX;
-        double differenceY = enemy.getWorldY() - worldY;
-        double hitDistance = radius + enemy.getCollisionRadius();
-        return differenceX * differenceX + differenceY * differenceY
-                <= hitDistance * hitDistance;
+        return !enemy.isDead() && Double.isFinite(getCollisionFraction(enemy));
     }
 
     public boolean hitsPlayer(double playerX, double playerY, double playerCollisionRadius) {
-        double differenceX = playerX - worldX;
-        double differenceY = playerY - worldY;
-        double hitDistance = radius + playerCollisionRadius;
-        return differenceX * differenceX + differenceY * differenceY <= hitDistance * hitDistance;
+        return Double.isFinite(getPlayerCollisionFraction(playerX, playerY, playerCollisionRadius));
+    }
+
+    /** Earliest swept contact in the latest update, or infinity when the segment misses. */
+    public double getCollisionFraction(Enemy enemy) {
+        return enemy.isDead() ? Double.POSITIVE_INFINITY
+                : collisionFraction(enemy.getWorldX(), enemy.getWorldY(), radius + enemy.getCollisionRadius());
+    }
+
+    public double getPlayerCollisionFraction(double playerX, double playerY, double playerCollisionRadius) {
+        return collisionFraction(playerX, playerY, radius + playerCollisionRadius);
+    }
+
+    public double getContactWorldX(double fraction) {
+        return previousWorldX + (worldX - previousWorldX) * Math.max(0.0, Math.min(1.0, fraction));
+    }
+
+    public double getContactWorldY(double fraction) {
+        return previousWorldY + (worldY - previousWorldY) * Math.max(0.0, Math.min(1.0, fraction));
+    }
+
+    private double collisionFraction(double targetX, double targetY, double hitRadius) {
+        double offsetX = previousWorldX - targetX;
+        double offsetY = previousWorldY - targetY;
+        double c = offsetX * offsetX + offsetY * offsetY - hitRadius * hitRadius;
+        if (c <= 0.0) return 0.0;
+        double dx = worldX - previousWorldX;
+        double dy = worldY - previousWorldY;
+        double a = dx * dx + dy * dy;
+        if (a <= 0.000000001) return Double.POSITIVE_INFINITY;
+        double b = 2.0 * (offsetX * dx + offsetY * dy);
+        double discriminant = b * b - 4.0 * a * c;
+        if (discriminant < 0.0) return Double.POSITIVE_INFINITY;
+        double fraction = (-b - Math.sqrt(discriminant)) / (2.0 * a);
+        return fraction >= 0.0 && fraction <= 1.0 ? fraction : Double.POSITIVE_INFINITY;
     }
 
     public void draw(Graphics2D graphics, int centerX, int centerY,
@@ -131,8 +166,7 @@ public class Projectile {
 
         Graphics2D rotatedGraphics = (Graphics2D) graphics.create();
         rotatedGraphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
-                staffMote ? RenderingHints.VALUE_INTERPOLATION_BILINEAR
-                        : RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+                RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
         rotatedGraphics.translate(screenCenterX, screenCenterY);
         rotatedGraphics.rotate(angle);
         if (staffMote) {

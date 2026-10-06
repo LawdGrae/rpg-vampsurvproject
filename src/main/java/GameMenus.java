@@ -199,7 +199,7 @@ final class GameMenus {
             case 4 -> new Character_Sir_Rakki();
             default -> throw new IllegalArgumentException("Unknown hero " + key);
         });
-        player.drawPreview(g, bounds);
+        player.drawPixelArtPreview(g, bounds);
     }
 
     private void drawSelectedHero(Graphics2D g) {
@@ -326,7 +326,8 @@ final class GameMenus {
         GameUiTheme.glow(g, r.getCenterX(), r.getCenterY(), r.width * 0.85, accent, 0.08 + focus * 0.18);
         selectionFrame(g, r, focus, false);
         int inset = r.width > 80 ? 13 : 11;
-        image(g, ability.getIcon(), new Rectangle(r.x + inset, r.y + inset, r.width - inset * 2, r.height - inset * 2));
+        PixelArtRenderer.drawImage(g, ability.getIcon(),
+                new Rectangle(r.x + inset, r.y + inset, r.width - inset * 2, r.height - inset * 2));
         selectionDiamond(g, (int) r.getCenterX(), r.y, r.width > 80 ? 6 : 4, GOLD);
     }
 

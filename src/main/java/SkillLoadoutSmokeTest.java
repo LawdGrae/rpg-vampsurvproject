@@ -7,15 +7,15 @@ public class SkillLoadoutSmokeTest {
         GameLogic gameLogic = new GameLogic();
         List<List<String>> expectedLoadouts = List.of(
                 List.of("heavy_slash", "shield_bash", "earth_shatter", "knights_wrath"),
-                List.of("shadow_strike", "twin_fang", "shadow_step", "silent_execution"),
-                List.of("holy_bolt", "heal", "holy_shield", "divine_light"),
+                List.of("shadow_strike", "shadow_step", "death_mark", "twin_fang"),
+                List.of("heal", "holy_bolt", "holy_shield", "divine_light"),
                 List.of("flame_burst", "ice_shard", "lightning_strike", "elemental_storm"),
                 List.of("shield_fortress", "iron_charge", "earthbreaker", "guardians_roar")
         );
         List<String> expectedPassives = List.of(
-                "Iron Guard",
+                "Berserker's Will",
                 "Assassin's Instinct",
-                "Divine Blessing",
+                "Faith",
                 "Elemental Mastery",
                 "Unbreakable"
         );
@@ -33,7 +33,7 @@ public class SkillLoadoutSmokeTest {
             }
             gameLogic.startGame();
             if (characterIndex == 4 && !(playerField.get(gameLogic) instanceof Character_Sir_Rakki)) {
-                throw new IllegalStateException("Sir Rakki must use his own character class");
+                throw new IllegalStateException("Sire Rakki must use his own character class");
             }
 
             RpgAbility[] equipped = gameLogic.getAbilityManager().getEquippedAbilities();
@@ -51,7 +51,7 @@ public class SkillLoadoutSmokeTest {
                             + definition.getId());
                 }
                 if (characterIndex == 4 && definition.getAbilityClass() != AbilityClass.GUARDIAN) {
-                    throw new IllegalStateException("Sir Rakki must equip Guardian active skills");
+                    throw new IllegalStateException("Sire Rakki must equip Guardian active skills");
                 }
                 if (!expected.get(slot).equals(definition.getId())) {
                     throw new IllegalStateException("Wrong skill in slot " + slot
@@ -67,8 +67,8 @@ public class SkillLoadoutSmokeTest {
                     throw new IllegalStateException("Mana cost is outside the balanced range: "
                             + definition.getId() + " costs " + definition.getManaCost());
                 }
-                // Battlefield VFX may be procedural. AnimationVfxSmokeTest verifies
-                // that each equipped skill actually renders and evolves over time.
+                // PNG frame visibility is verified only after the user's atlas is imported.
+                // CombatSkillSmokeTest independently verifies contact and recovery timing.
             }
 
             if (!expectedPassives.get(characterIndex)

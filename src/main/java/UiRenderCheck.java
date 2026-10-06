@@ -80,7 +80,7 @@ public class UiRenderCheck {
             render(panel);
         }
         int selected = logic.getSelectedCharacterIndex();
-        require("Sir Rakki".equals(logic.getSelectedCharacterName()), "Sir Rakki must be selectable from the roster");
+        require("Sire Rakki".equals(logic.getSelectedCharacterName()), "Sire Rakki must be selectable from the roster");
         click(panel, menus.backBounds());
         require(logic.isMainMenuOpen(), "Roster back must return to main menu");
         click(panel, menus.mainButton(0));

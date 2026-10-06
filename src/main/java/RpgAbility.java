@@ -45,7 +45,7 @@ public class RpgAbility extends Ability {
 
     public boolean trigger(GameLogic gameLogic, AbilityManager manager, int playerLevel) {
         if (definition.isPassive()) return false;
-        if (definition.getAbilityClass() == AbilityClass.GUARDIAN && gameLogic.isGuardianActionLocked()) {
+        if (gameLogic.isSkillActionLocked()) {
             gameLogic.showAbilityDenied(definition);
             return false;
         }
