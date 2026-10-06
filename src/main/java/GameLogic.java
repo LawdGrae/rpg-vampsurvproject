@@ -5,8 +5,10 @@ import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 
 public class GameLogic {
     // The panel width is used to keep new enemies outside the visible area.
@@ -64,70 +66,70 @@ public class GameLogic {
             "Haze",
             "Yuexin",
             "Ziea",
-            "coming soon..."
+            "Sir Rakki"
     );
     private final List<String> characterClassNames = Arrays.asList(
             "BLACK KNIGHT",
             "ASSASSIN",
             "PRIEST",
             "ELEMENTALIST",
-            ""
+            "GUARDIAN"
     );
     private final List<String> characterRoles = Arrays.asList(
             "Melee / Tank",
             "Melee / Burst",
             "Support / Holy Magic",
             "Magic / AoE",
-            ""
+            "Tank / Defense / Crowd Control"
     );
     private final List<String> characterWeapons = Arrays.asList(
             "Long Sword + Shield",
             "Twin Daggers",
             "Holy Staff",
             "Elemental Staff",
-            "coming soon..."
+            "Aegis Greatshield"
     );
     private final List<String> characterPortraitPaths = Arrays.asList(
             "/main/resources/character/CharEumann.png",
             "/main/resources/character/CharHaze.png",
             "/main/resources/character/CharYuexin.png",
             "/main/resources/character/CharacterZiea.png",
-            "/main/resources/portrait_coming_soon.png"
+            "/main/resources/character/CharSirRakki.png"
     );
     private final List<List<String>> characterWeaponImagePaths = Arrays.asList(
             Arrays.asList("/main/resources/weapons/long_sword.png", "/main/resources/weapons/shield.png"),
             Arrays.asList("/main/resources/weapons/twin_daggers.png"),
             Arrays.asList("/main/resources/weapons/holy_staff.png"),
             Arrays.asList("/main/resources/weapons/elemental_staff.png"),
-            Arrays.asList()
+            Arrays.asList("/main/resources/weapons/aegis_greatshield.png")
     );
     private final List<AbilityClass> characterAbilityClasses = Arrays.asList(
             AbilityClass.BLACK_KNIGHT,
             AbilityClass.ASSASSIN,
             AbilityClass.PRIEST,
             AbilityClass.ELEMENTALIST,
-            null
+            AbilityClass.GUARDIAN
     );
     private final List<List<String>> characterActiveSkillIds = Arrays.asList(
             Arrays.asList("heavy_slash", "shield_bash", "earth_shatter", "knights_wrath"),
             Arrays.asList("shadow_strike", "twin_fang", "shadow_step", "silent_execution"),
             Arrays.asList("holy_bolt", "heal", "holy_shield", "divine_light"),
             Arrays.asList("flame_burst", "ice_shard", "lightning_strike", "elemental_storm"),
-            Arrays.asList()
+            Arrays.asList("shield_fortress", "iron_charge", "earthbreaker", "guardians_roar")
     );
     private final List<String> characterPassiveSkillIds = Arrays.asList(
             "iron_guard",
             "shadow_assassin",
             "blessing",
             "cataclysm",
-            ""
+            "unbreakable"
     );
     private final List<String> characterPassiveNames = Arrays.asList(
             "Iron Guard",
             "Assassin's Instinct",
             "Divine Blessing",
             "Elemental Mastery",
-            ""
+            "Unbreakable"
     );
     private int selectedCharacterIndex;
     private double whenToSpawn = INITIAL_SPAWN_DELAY;
@@ -156,7 +158,7 @@ public class GameLogic {
     private boolean settingsOpen;
     private boolean skillMenuOpen;
     private boolean soundEnabled = true;
-    private boolean debugInfoVisible = true;
+    private boolean debugInfoVisible;
     private boolean gameOver;
     private double gameOverTimer;
     private double damageReductionTimer;
@@ -166,7 +168,10 @@ public class GameLogic {
     private double passiveDamageTakenMultiplier = 1.0;
     private double passiveAbilityPowerMultiplier = 1.0;
     private double passiveHealingMultiplier = 1.0;
-    private double hitStopRemaining;
+    private double guardianFortressRemaining;
+    private double guardianBlockFeedbackRemaining;
+    private GuardianCharge guardianCharge;
+    private GuardianRoar guardianRoar;
     private double screenShakeTime;
     private double screenShakeDuration;
     private double screenShakeStrength;
@@ -192,15 +197,6 @@ public class GameLogic {
         }
 
         if (upgradeMenuOpen) {
-            return;
-        }
-
-        if (hitStopRemaining > 0.0) {
-            hitStopRemaining = Math.max(0.0, hitStopRemaining - deltaTime);
-            abilityManager.update(deltaTime);
-            updateAbilityVisualEffects(deltaTime);
-            updateFloatingTexts(deltaTime);
-            updateFeedback(deltaTime);
             return;
         }
 
@@ -281,11 +277,11 @@ public class GameLogic {
             }
 
             // Damage is time-based, so the amount does not depend on frame rate.
-            if (enemy.isCollidingWith(player.getWorldX(), player.getWorldY(),
+            if (!enemy.isStunned() && enemy.isCollidingWith(player.getWorldX(), player.getWorldY(),
                     player.getCollisionRadius())) {
                 if (enemy instanceof TemplateEnemyMinion minion) {
-                    player.takeDamage(minion.getDamage() * deltaTime
-                            * damageReductionMultiplier * passiveDamageTakenMultiplier);
+                    applyIncomingDamage(minion.getDamage() * deltaTime, minion,
+                            minion.getWorldX(), minion.getWorldY());
                     player.applySlow(TemplateEnemyMinion.SLOW_DURATION,
                             TemplateEnemyMinion.SLOW_MULTIPLIER);
                     if (minion.shouldExplodeOnContact(player.getWorldX(), player.getWorldY(),
@@ -294,8 +290,8 @@ public class GameLogic {
                         continue;
                     }
                 } else {
-                    player.takeDamage(enemy.getDamage() * deltaTime
-                            * damageReductionMultiplier * passiveDamageTakenMultiplier);
+                    applyIncomingDamage(enemy.getDamage() * deltaTime, enemy,
+                            enemy.getWorldX(), enemy.getWorldY());
                 }
             }
         }
@@ -320,17 +316,23 @@ public class GameLogic {
 
         Enemy target = findAutoAttackTarget();
         Projectile projectile = null;
+        if (player.isAimLocked() && weapon instanceof AutoFireWeapon autoFireWeapon) {
+            autoFireWeapon.tickCooldown(deltaTime);
+        }
         if (!player.isAimLocked()) {
             if (weapon instanceof AutoFireWeapon autoFireWeapon) {
-                if (autoFireWeapon.isRangedAttack()) {
-                    projectile = autoFireWeapon.updateRangedAttack(deltaTime,
-                            player.getWeaponCastWorldX(), player.getWeaponCastWorldY(),
-                            target, player.getRecentMoveX(), player.getRecentMoveY());
-                    if (projectile != null) {
+                if (player.isSkillAnimationActive()) {
+                    // Keep the cooldown moving while a skill owns the character's pose.
+                    autoFireWeapon.tickCooldown(deltaTime);
+                } else if (autoFireWeapon.isRangedAttack()) {
+                    if (autoFireWeapon.canAttack(deltaTime)) {
                         if (target != null) {
                             player.faceToward(target.getWorldX(), target.getWorldY());
                         }
                         player.playAttackAnimation(null, autoFireWeapon.getSwingDuration());
+                        projectile = autoFireWeapon.createRangedAttack(
+                                player.getWeaponCastWorldX(), player.getWeaponCastWorldY(),
+                                target, player.getRecentMoveX(), player.getRecentMoveY());
                     }
                 } else {
                     Enemy hitTarget = autoFireWeapon.updateMeleeAttack(deltaTime,
@@ -403,7 +405,7 @@ public class GameLogic {
                     8.0 + random.nextDouble() * 12.0,
                     0.5 + random.nextDouble() * 0.6));
         }
-        player.takeDamage(minion.getExplosionDamage() * passiveDamageTakenMultiplier);
+        applyIncomingDamage(minion.getExplosionDamage(), minion, explosionX, explosionY);
         minion.takeDamage(Double.MAX_VALUE);
     }
 
@@ -432,9 +434,13 @@ public class GameLogic {
             }
         }
 
+        updateGuardianActions(deltaTime);
+
         Iterator<AbilityVisualEffect> effectIterator = abilityVisualEffects.iterator();
         while (effectIterator.hasNext()) {
             AbilityVisualEffect effect = effectIterator.next();
+            effect.setCasterPosition(player.getWorldX(), player.getWorldY());
+            effect.setCastOrigin(player.getWeaponCastWorldX(), player.getWeaponCastWorldY());
             effect.update(deltaTime);
             if (effect.isExpired()) {
                 effectIterator.remove();
@@ -472,6 +478,9 @@ public class GameLogic {
     }
 
     private void updatePlayerBuffs(double deltaTime) {
+        guardianFortressRemaining = Math.max(0.0, guardianFortressRemaining - deltaTime);
+        guardianBlockFeedbackRemaining = Math.max(0.0, guardianBlockFeedbackRemaining - deltaTime);
+        player.setGuardianFortressRemaining(guardianFortressRemaining);
         if (damageReductionTimer > 0.0) {
             damageReductionTimer = Math.max(0.0, damageReductionTimer - deltaTime);
             if (damageReductionTimer <= 0.0) {
@@ -648,6 +657,7 @@ public class GameLogic {
 
     private void spawnEnemyProjectiles(double deltaTime) {
         for (Enemy enemy : enemies) {
+            if (enemy.isDead() || enemy.isStunned()) continue;
             if (enemy instanceof RegionalEnemy regionalEnemy) {
                 if (regionalEnemy.canFireAt(player.getWorldX(), player.getWorldY())) {
                     Projectile projectile = regionalEnemy.fireAt(player.getWorldX(), player.getWorldY());
@@ -721,7 +731,8 @@ public class GameLogic {
                     regionalEnemy.onProjectileDestroyed();
                 }
                 if (hitPlayer) {
-                    player.takeDamage(projectile.getDamage());
+                    applyIncomingDamage(projectile.getDamage(), projectile.getOwner(),
+                            projectile.getWorldX(), projectile.getWorldY());
                 }
                 projectileIterator.remove();
             }
@@ -820,7 +831,7 @@ public class GameLogic {
 
     private void updateFinalBossScript(double deltaTime) {
         FinalBossEnemy finalBoss = getAliveFinalBoss();
-        if (finalBoss == null) {
+        if (finalBoss == null || finalBoss.isStunned()) {
             return;
         }
 
@@ -1258,6 +1269,10 @@ public class GameLogic {
         floatingTexts.clear();
         spawnQueue.clear();
         pendingMeleeAttack = null;
+        guardianCharge = null;
+        guardianRoar = null;
+        guardianFortressRemaining = 0.0;
+        guardianBlockFeedbackRemaining = 0.0;
         whenToSpawn = INITIAL_SPAWN_DELAY;
         secretCycleIndex = 0;
         bossSpawned = false;
@@ -1284,7 +1299,6 @@ public class GameLogic {
         passiveDamageTakenMultiplier = 1.0;
         passiveAbilityPowerMultiplier = 1.0;
         passiveHealingMultiplier = 1.0;
-        hitStopRemaining = 0.0;
         screenShakeTime = 0.0;
         screenShakeDuration = 0.0;
         screenShakeStrength = 0.0;
@@ -1301,6 +1315,7 @@ public class GameLogic {
             case 1 -> new Character_Haze();
             case 2 -> new Character_Yuexin();
             case 3 -> new Character_Ziea();
+            case 4 -> new Character_Sir_Rakki();
             default -> new Character_Eumann();
         };
     }
@@ -1439,6 +1454,10 @@ public class GameLogic {
             combatImpactEffects.clear();
             floatingTexts.clear();
             pendingMeleeAttack = null;
+            guardianCharge = null;
+            guardianRoar = null;
+            guardianFortressRemaining = 0.0;
+            guardianBlockFeedbackRemaining = 0.0;
         }
     }
 
@@ -1712,6 +1731,7 @@ public class GameLogic {
     }
 
     public void applyAbilityEffect(AbilityDefinition definition) {
+        if (definition == null || definition.isPassive()) return;
         Color color = colorFor(definition);
         double damage = definition.getDamage() * damageBoostMultiplier
                 * passiveAbilityPowerMultiplier;
@@ -1720,7 +1740,14 @@ public class GameLogic {
         Enemy target = findNearestLivingEnemyInRange(Math.max(radius, 420.0));
         if (target != null) {
             player.faceToward(target.getWorldX(), target.getWorldY());
+        } else if (definition.getAbilityClass() == AbilityClass.GUARDIAN) {
+            player.faceToward(player.getWorldX() + player.getRecentMoveX(),
+                    player.getWorldY() + player.getRecentMoveY());
         }
+        double animationDuration = animationDurationFor(definition);
+        // A replaced automatic swing must not land invisibly during the skill's windup.
+        pendingMeleeAttack = null;
+        player.playAttackAnimation(definition, animationDuration);
         double originX = abilityOriginX(definition);
         double originY = abilityOriginY(definition);
         double fallbackDistance = fallbackEffectDistance(definition);
@@ -1729,9 +1756,12 @@ public class GameLogic {
         double effectY = target == null ? originY + player.getRecentMoveY() * fallbackDistance
                 : target.getWorldY();
         double visualRadius = Math.max(90.0, radius);
-        double animationDuration = animationDurationFor(definition);
         triggerCastFeedback(definition);
-        player.playAttackAnimation(definition, animationDuration);
+
+        if (definition.getAbilityClass() == AbilityClass.GUARDIAN) {
+            applyGuardianAbility(definition, damage, animationDuration);
+            return;
+        }
 
         switch (definition.getEffectType()) {
             case SINGLE_TARGET -> {
@@ -1822,6 +1852,188 @@ public class GameLogic {
         }
     }
 
+    public boolean isGuardianActionLocked() {
+        return player instanceof Character_Sir_Rakki && player.isSkillAnimationActive();
+    }
+
+    private void applyGuardianAbility(AbilityDefinition definition, double damage, double animationDuration) {
+        if (definition.isPassive()) return;
+        double directionX = player.getRecentMoveX();
+        double directionY = player.getRecentMoveY();
+        double length = Math.hypot(directionX, directionY);
+        if (length < 0.0001) { directionX = player.getHeldWeaponSideX(); directionY = 0; length = 1; }
+        directionX /= length;
+        directionY /= length;
+        double originX = player.getWeaponCastWorldX();
+        double originY = player.getWeaponCastWorldY();
+        double radius = Math.max(90.0, definition.getRadius());
+        double life = switch (definition.getId()) {
+            case "shield_fortress" -> hitTimesFor(definition)[0] + definition.getDuration();
+            case "earthbreaker" -> animationDuration + 0.65;
+            case "guardians_roar" -> animationDuration + 0.35;
+            default -> animationDuration;
+        };
+        AbilityVisualEffect visual = addAbilityVisual(definition, originX, originY,
+                originX + directionX * radius, originY + directionY * radius,
+                radius, colorFor(definition), life);
+        ScheduledAbilityImpact impact = new ScheduledAbilityImpact(definition, null,
+                originX, originY, originX + directionX * radius, originY + directionY * radius,
+                radius, damage, DamageElement.PHYSICAL, hitTimesFor(definition));
+        impact.visual = visual;
+        scheduledAbilityImpacts.add(impact);
+    }
+
+    private void fireGuardianImpact(ScheduledAbilityImpact impact) {
+        AbilityDefinition definition = impact.definition;
+        double overdue = Math.max(0.0, impact.elapsed - impact.hitTimes[0]);
+        double directionX = impact.effectX - impact.originX;
+        double directionY = impact.effectY - impact.originY;
+        double length = Math.max(0.0001, Math.hypot(directionX, directionY));
+        directionX /= length;
+        directionY /= length;
+        switch (definition.getId()) {
+            case "shield_fortress" -> {
+                guardianFortressRemaining = Math.max(0.0, definition.getDuration() - overdue);
+                player.setGuardianFortressRemaining(guardianFortressRemaining);
+            }
+            case "iron_charge" -> guardianCharge = new GuardianCharge(directionX, directionY,
+                    definition.getDuration(), impact.damage, overdue);
+            case "earthbreaker" -> {
+                double originX = player.getWeaponCastWorldX();
+                double originY = player.getWeaponCastWorldY();
+                impact.visual.freezeImpactOrigin(originX, originY);
+                // A broad fan from the shield's ground contact, not a target-centered circle.
+                for (Enemy enemy : enemiesInRadius(originX, originY, definition.getRadius())) {
+                    double dx = enemy.getWorldX() - originX;
+                    double dy = enemy.getWorldY() - originY;
+                    double distance = Math.hypot(dx, dy);
+                    if (distance <= 42.0 || (dx * directionX + dy * directionY) / Math.max(0.001, distance) >= -0.2) {
+                        damageEnemy(enemy, impact.damage, DamageElement.PHYSICAL, originX, originY);
+                        enemy.applyKnockdown(definition.getDuration());
+                        enemy.applyDirectionalKnockback(dx + directionX * 20, dy + directionY * 20, 48.0);
+                    }
+                }
+                combatImpactEffects.add(new CombatImpactEffect(originX, originY, DamageElement.PHYSICAL));
+                addScreenShake(0.22, 4.5);
+            }
+            case "guardians_roar" -> {
+                double originX = player.getWorldX();
+                double originY = player.getWorldY();
+                impact.visual.freezeImpactOrigin(originX, originY);
+                guardianRoar = new GuardianRoar(originX, originY, definition.getRadius(),
+                        definition.getDuration(), overdue);
+                addScreenShake(0.18, 2.5);
+            }
+            default -> { }
+        }
+    }
+
+    private void updateGuardianActions(double deltaTime) {
+        if (guardianCharge != null) {
+            GuardianCharge charge = guardianCharge;
+            double step = charge.firstFrameTime >= 0.0 ? charge.firstFrameTime : deltaTime;
+            charge.firstFrameTime = -1.0;
+            double previous = charge.elapsed / charge.duration;
+            charge.elapsed = Math.min(charge.duration, charge.elapsed + step);
+            double progress = charge.elapsed / charge.duration;
+            double distance = 160.0 * (smoothStep(progress) - smoothStep(previous));
+            double beforeX = player.getWeaponCastWorldX();
+            double beforeY = player.getWeaponCastWorldY();
+            player.applyGuardianChargeMovement(charge.directionX * distance, charge.directionY * distance, step);
+            double afterX = player.getWeaponCastWorldX();
+            double afterY = player.getWeaponCastWorldY();
+            // Swept shield collision prevents tunneling; each enemy is struck once per charge.
+            int enemyCount = enemies.size();
+            for (int enemyIndex = 0; enemyIndex < enemyCount; enemyIndex++) {
+                Enemy enemy = enemies.get(enemyIndex);
+                if (enemy.isDead() || charge.hitEnemies.contains(enemy)) continue;
+                double hitRadius = enemy.getCollisionRadius() + 24.0;
+                if (distanceToSegmentSquared(enemy.getWorldX(), enemy.getWorldY(), beforeX, beforeY, afterX, afterY)
+                        <= hitRadius * hitRadius) {
+                    charge.hitEnemies.add(enemy);
+                    damageEnemy(enemy, charge.damage, DamageElement.PHYSICAL, beforeX - charge.directionX * 20,
+                            beforeY - charge.directionY * 20);
+                    enemy.applyStun(0.55);
+                    enemy.applyDirectionalKnockback(charge.directionX, charge.directionY, 56.0);
+                }
+            }
+            if (charge.elapsed >= charge.duration) guardianCharge = null;
+        }
+        if (guardianRoar != null) {
+            GuardianRoar roar = guardianRoar;
+            double step = roar.firstFrameTime >= 0.0 ? roar.firstFrameTime : deltaTime;
+            roar.firstFrameTime = -1.0;
+            roar.elapsed = Math.min(0.55, roar.elapsed + step);
+            double waveRadius = roar.radius * roar.elapsed / 0.55;
+            for (Enemy enemy : enemiesInRadius(roar.originX, roar.originY, waveRadius)) {
+                if (roar.hitEnemies.add(enemy)) {
+                    enemy.applyTaunt(roar.duration, 0.65);
+                    enemy.applyStun(0.4);
+                    enemy.applyDirectionalKnockback(enemy.getWorldX() - roar.originX,
+                            enemy.getWorldY() - roar.originY, 12.0);
+                }
+            }
+            if (roar.elapsed >= 0.55) guardianRoar = null;
+        }
+    }
+
+    private static double smoothStep(double progress) {
+        double value = Math.max(0.0, Math.min(1.0, progress));
+        return value * value * (3.0 - 2.0 * value);
+    }
+
+    private static double distanceToSegmentSquared(double x, double y, double x1, double y1, double x2, double y2) {
+        double dx = x2 - x1;
+        double dy = y2 - y1;
+        double squaredLength = dx * dx + dy * dy;
+        double projection = squaredLength <= 0.0001 ? 0.0
+                : Math.max(0.0, Math.min(1.0, ((x - x1) * dx + (y - y1) * dy) / squaredLength));
+        double offsetX = x - x1 - projection * dx;
+        double offsetY = y - y1 - projection * dy;
+        return offsetX * offsetX + offsetY * offsetY;
+    }
+
+    private static final class GuardianCharge {
+        private final double directionX, directionY, duration, damage;
+        private final Set<Enemy> hitEnemies = new HashSet<>();
+        private double elapsed, firstFrameTime;
+        private GuardianCharge(double directionX, double directionY, double duration, double damage, double overdue) {
+            this.directionX = directionX; this.directionY = directionY;
+            this.duration = Math.max(0.05, duration); this.damage = damage;
+            this.firstFrameTime = overdue;
+        }
+    }
+
+    private static final class GuardianRoar {
+        private final double originX, originY, radius, duration;
+        private final Set<Enemy> hitEnemies = new HashSet<>();
+        private double elapsed, firstFrameTime;
+        private GuardianRoar(double originX, double originY, double radius, double duration, double overdue) {
+            this.originX = originX; this.originY = originY; this.radius = radius; this.duration = duration;
+            this.firstFrameTime = overdue;
+        }
+    }
+
+    private void applyIncomingDamage(double damage, Enemy source, double hitX, double hitY) {
+        if (damage <= 0.0) return;
+        double multiplier = damageReductionMultiplier * passiveDamageTakenMultiplier;
+        if (source != null) multiplier *= source.getAttackDamageMultiplier();
+        if (player instanceof Character_Sir_Rakki) {
+            if (player.getHealth() < player.getMaxHealth() * 0.4) multiplier *= 0.70;
+            if (guardianFortressRemaining > 0.0) {
+                multiplier *= 0.20;
+                if (guardianBlockFeedbackRemaining <= 0.0) {
+                    guardianBlockFeedbackRemaining = 0.12;
+                    player.playGuardianBlock();
+                    for (AbilityVisualEffect effect : abilityVisualEffects) {
+                        effect.flashBarrier(hitX, hitY);
+                    }
+                }
+            }
+        }
+        player.takeDamage(damage * multiplier);
+    }
+
     private void scheduleAbilityImpact(AbilityDefinition definition, Enemy target,
             double originX, double originY, double effectX, double effectY,
             double radius, double damage, DamageElement element) {
@@ -1832,6 +2044,10 @@ public class GameLogic {
 
     private void fireAbilityImpact(ScheduledAbilityImpact impact, int hitIndex) {
         AbilityDefinition definition = impact.definition;
+        if (definition.getAbilityClass() == AbilityClass.GUARDIAN) {
+            fireGuardianImpact(impact);
+            return;
+        }
         double targetX = impact.target != null && !impact.target.isDead()
                 ? impact.target.getWorldX() : impact.effectX;
         double targetY = impact.target != null && !impact.target.isDead()
@@ -1956,46 +2172,11 @@ public class GameLogic {
     }
 
     private double animationDurationFor(AbilityDefinition definition) {
-        return switch (definition.getId()) {
-            case "heavy_slash", "shield_bash", "holy_bolt", "fire_bolt" -> 0.64;
-            case "earth_shatter", "silent_execution", "divine_light",
-                    "lightning_strike", "flame_burst" -> 0.9;
-            case "knights_wrath", "elemental_storm", "shadow_assassin",
-                    "cataclysm" -> 1.25;
-            case "iron_guard", "holy_shield", "blessing" -> 0.95;
-            case "shadow_strike", "shadow_step", "ice_shard" -> 0.72;
-            case "twin_fang" -> 0.76;
-            case "heal" -> 0.82;
-            default -> switch (definition.getEffectType()) {
-                case ULTIMATE -> 1.15;
-                case EXECUTE, SUMMON -> 0.95;
-                case DASH, SINGLE_TARGET -> 0.68;
-                case SHIELD, BUFF, HEAL -> 0.85;
-                default -> 0.75;
-            };
-        };
+        return AbilityAnimationTiming.duration(definition);
     }
 
     private double[] hitTimesFor(AbilityDefinition definition) {
-        double duration = animationDurationFor(definition);
-        double[] ratios = switch (definition.getId()) {
-            case "twin_fang" -> new double[] {0.34, 0.58};
-            case "silent_execution" -> new double[] {0.26, 0.42, 0.58, 0.74};
-            case "knights_wrath" -> new double[] {0.2, 0.36, 0.52, 0.74};
-            case "elemental_storm" -> new double[] {0.34, 0.54, 0.78};
-            case "shadow_assassin" -> new double[] {0.32, 0.5, 0.68};
-            case "heavy_slash", "shield_bash", "shadow_strike",
-                    "holy_bolt", "fire_bolt", "ice_shard" -> new double[] {0.62};
-            case "earth_shatter", "lightning_strike", "divine_light",
-                    "flame_burst" -> new double[] {0.56};
-            case "iron_guard", "holy_shield", "blessing", "heal" -> new double[] {0.48};
-            default -> new double[] {0.55};
-        };
-        double[] times = new double[ratios.length];
-        for (int index = 0; index < ratios.length; index++) {
-            times[index] = Math.max(0.05, ratios[index] * duration);
-        }
-        return times;
+        return AbilityAnimationTiming.hitTimes(definition);
     }
 
     private double fallbackEffectDistance(AbilityDefinition definition) {
@@ -2018,6 +2199,7 @@ public class GameLogic {
         private final double damage;
         private final DamageElement element;
         private final double[] hitTimes;
+        private AbilityVisualEffect visual;
         private double elapsed;
         private int nextHitIndex;
 
@@ -2073,12 +2255,13 @@ public class GameLogic {
     }
 
     private void damageEnemiesInMeleeArc(double range, double damage) {
-        double originX = player.getWorldX();
-        double originY = player.getWorldY();
+        boolean shieldAttack = "greatshield".equals(player.getDefaultWeaponStyle());
+        double originX = shieldAttack ? player.getWeaponCastWorldX() : player.getWorldX();
+        double originY = shieldAttack ? player.getWeaponCastWorldY() : player.getWorldY();
         double directionX = player.getRecentMoveX();
         double directionY = player.getRecentMoveY();
         double directionLength = Math.hypot(directionX, directionY);
-        if (Math.abs(directionX) <= 0.001) {
+        if (!shieldAttack && Math.abs(directionX) <= 0.001) {
             directionX = player.getHeldWeaponSideX() * 0.85;
             directionLength = Math.hypot(directionX, directionY);
         }
@@ -2092,7 +2275,7 @@ public class GameLogic {
 
         double maxRange = range + 28.0;
         double maxRangeSquared = maxRange * maxRange;
-        double arcCosine = Math.cos(Math.toRadians(82.0));
+        double arcCosine = Math.cos(Math.toRadians(shieldAttack ? 58.0 : 82.0));
         List<Enemy> hitEnemies = new ArrayList<>();
         for (Enemy enemy : enemies) {
             if (enemy.isDead()) {
@@ -2112,12 +2295,19 @@ public class GameLogic {
         }
         for (Enemy enemy : hitEnemies) {
             damageEnemy(enemy, damage, DamageElement.PHYSICAL, originX, originY);
-            enemy.knockAwayFrom(originX, originY, 12.0);
+            if (shieldAttack) {
+                enemy.applyDirectionalKnockback(directionX, directionY, 34.0);
+                enemy.applyStun(0.25);
+            } else {
+                enemy.knockAwayFrom(originX, originY, 12.0);
+            }
         }
     }
 
     private void scheduleMeleeAttack(double range, double damage, double swingDuration) {
-        double hitDelay = Math.max(0.06, swingDuration * 0.43);
+        double hitProgress = weapon instanceof AutoFireWeapon autoFireWeapon
+                ? autoFireWeapon.getImpactProgress() : 0.43;
+        double hitDelay = Math.max(0.06, swingDuration * hitProgress);
         pendingMeleeAttack = new PendingMeleeAttack(range, damage, hitDelay);
     }
 
@@ -2208,11 +2398,15 @@ public class GameLogic {
         damageBoostTimer = Math.max(damageBoostTimer, duration);
     }
 
-    private void addAbilityVisual(AbilityDefinition definition, double startX,
+    private AbilityVisualEffect addAbilityVisual(AbilityDefinition definition, double startX,
             double startY, double targetX, double targetY, double radius,
             Color color, double maxLife) {
-        abilityVisualEffects.add(new AbilityVisualEffect(definition, startX, startY,
-                targetX, targetY, radius, color, maxLife));
+        AbilityVisualEffect effect = new AbilityVisualEffect(definition, startX, startY,
+                targetX, targetY, radius, color, maxLife);
+        effect.setCasterPosition(player.getWorldX(), player.getWorldY());
+        effect.setCastOrigin(player.getWeaponCastWorldX(), player.getWeaponCastWorldY());
+        abilityVisualEffects.add(effect);
+        return effect;
     }
 
     private double abilityOriginX(AbilityDefinition definition) {
@@ -2265,6 +2459,7 @@ public class GameLogic {
                 abilityManager.setPassiveManaRegenMultiplier(1.22);
             }
             case "cataclysm" -> passiveAbilityPowerMultiplier = 1.12;
+            case "unbreakable" -> passiveDamageTakenMultiplier = 0.80;
             default -> {
             }
         }
@@ -2275,19 +2470,13 @@ public class GameLogic {
             AbilitySoundPlayer.play(definition);
         }
         double shake = switch (definition.getEffectType()) {
-            case ULTIMATE -> 10.0;
-            case EXECUTE, SUMMON -> 7.0;
-            case AREA_DAMAGE, STUN, DASH -> 5.0;
-            default -> 2.5;
+            case ULTIMATE -> 4.0;
+            case EXECUTE, SUMMON -> 2.5;
+            case AREA_DAMAGE, STUN, DASH -> 1.8;
+            default -> 0.8;
         };
-        double stop = switch (definition.getEffectType()) {
-            case ULTIMATE -> 0.12;
-            case EXECUTE -> 0.1;
-            case SINGLE_TARGET, AREA_DAMAGE, STUN -> 0.06;
-            default -> 0.035;
-        };
-        addScreenShake(0.2, shake);
-        hitStopRemaining = Math.max(hitStopRemaining, stop);
+        // Let anticipation and VFX advance together instead of freezing the caster at release.
+        addScreenShake(0.14, shake);
     }
 
     private void addFloatingText(String text, double worldX, double worldY, Color color) {
@@ -2364,6 +2553,7 @@ public class GameLogic {
             case RANGER -> new Color(90, 220, 120);
             case WARLOCK -> new Color(150, 65, 210);
             case ELEMENTALIST -> new Color(90, 190, 255);
+            case GUARDIAN -> new Color(224, 180, 86);
         };
     }
 

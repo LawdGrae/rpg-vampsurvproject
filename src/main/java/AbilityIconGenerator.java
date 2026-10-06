@@ -21,8 +21,13 @@ public class AbilityIconGenerator {
     public static void main(String[] args) throws IOException {
         Path outputDirectory = Path.of("src", "main", "resources", "abilities");
         Files.createDirectories(outputDirectory);
+        AbilityClass requestedClass = args.length == 0 ? null
+                : AbilityClass.valueOf(args[0].toUpperCase(java.util.Locale.ROOT));
         int index = 0;
         for (AbilityDefinition definition : AbilityDefinition.createAll()) {
+            if (requestedClass != null && definition.getAbilityClass() != requestedClass) {
+                continue;
+            }
             BufferedImage image = createIcon(definition, index);
             ImageIO.write(image, "png",
                     outputDirectory.resolve(definition.getId() + ".png").toFile());
@@ -40,7 +45,8 @@ public class AbilityIconGenerator {
         graphics.setComposite(AlphaComposite.SrcOver);
 
         Color primary = primaryColor(definition.getAbilityClass());
-        Color secondary = secondaryColor(definition.getEffectType());
+        Color secondary = definition.getAbilityClass() == AbilityClass.GUARDIAN
+                ? new Color(255, 226, 158) : secondaryColor(definition.getEffectType());
         int variant = Math.abs(definition.getId().hashCode());
 
         drawGlow(graphics, primary, secondary, variant);
@@ -79,6 +85,10 @@ public class AbilityIconGenerator {
 
     private static void drawSigil(Graphics2D graphics, AbilityDefinition definition,
             Color primary, Color secondary, int variant) {
+        if (definition.getAbilityClass() == AbilityClass.GUARDIAN) {
+            drawGuardianSigil(graphics, definition, primary, secondary);
+            return;
+        }
         graphics.setStroke(new BasicStroke(38f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
         graphics.setColor(withAlpha(Color.BLACK, 90));
         drawEffectShape(graphics, definition.getEffectType(), 12, variant);
@@ -141,6 +151,10 @@ public class AbilityIconGenerator {
                 graphics.drawOval(326, 326, 372, 372);
                 graphics.drawLine(512, 230, 512, 794);
             }
+            case GUARDIAN -> {
+                graphics.drawArc(290, 252, 444, 536, 25, 130);
+                graphics.drawLine(512, 272, 512, 756);
+            }
             default -> {
             }
         }
@@ -153,6 +167,151 @@ public class AbilityIconGenerator {
         path.curveTo(650, 440, 560, 600, 420 + offset, 780 - offset);
         path.closePath();
         graphics.fill(path);
+    }
+
+    /** Guardian icons keep distinct physical shield, charge, rock and roar silhouettes. */
+    private static void drawGuardianSigil(Graphics2D graphics,
+            AbilityDefinition definition, Color gold, Color highlight) {
+        graphics.setStroke(new BasicStroke(20f, BasicStroke.CAP_ROUND,
+                BasicStroke.JOIN_ROUND));
+        switch (definition.getId()) {
+            case "shield_fortress" -> {
+                graphics.setColor(withAlpha(gold, 180));
+                Path2D barrier = new Path2D.Double();
+                barrier.moveTo(278, 286);
+                barrier.lineTo(512, 226);
+                barrier.lineTo(746, 286);
+                barrier.lineTo(716, 588);
+                barrier.lineTo(512, 806);
+                barrier.lineTo(308, 588);
+                barrier.closePath();
+                graphics.draw(barrier);
+                drawGuardianShield(graphics, 512, 496, 0.75, 0, gold, highlight);
+                graphics.setColor(highlight);
+                graphics.drawLine(282, 464, 230, 448);
+                graphics.drawLine(744, 464, 794, 448);
+                graphics.drawLine(336, 280, 306, 232);
+                graphics.drawLine(688, 280, 718, 232);
+            }
+            case "iron_charge" -> {
+                graphics.setColor(gold);
+                graphics.setStroke(new BasicStroke(34f, BasicStroke.CAP_ROUND,
+                        BasicStroke.JOIN_ROUND));
+                graphics.drawLine(246, 426, 492, 426);
+                graphics.drawLine(200, 512, 490, 512);
+                graphics.drawLine(246, 598, 492, 598);
+                drawGuardianShield(graphics, 616, 508, 0.6, -0.18, gold, highlight);
+                graphics.setColor(highlight);
+                graphics.drawLine(730, 392, 806, 508);
+                graphics.drawLine(806, 508, 730, 624);
+            }
+            case "earthbreaker" -> {
+                graphics.setColor(new Color(176, 150, 110));
+                graphics.setStroke(new BasicStroke(22f, BasicStroke.CAP_ROUND,
+                        BasicStroke.JOIN_ROUND));
+                graphics.drawLine(240, 710, 388, 710);
+                graphics.drawLine(638, 710, 790, 710);
+                graphics.setColor(highlight);
+                Path2D crack = new Path2D.Double();
+                crack.moveTo(514, 666);
+                crack.lineTo(416, 746);
+                crack.lineTo(442, 774);
+                crack.lineTo(348, 826);
+                crack.moveTo(514, 666);
+                crack.lineTo(608, 744);
+                crack.lineTo(584, 768);
+                crack.lineTo(676, 814);
+                graphics.draw(crack);
+                drawGuardianShield(graphics, 514, 482, 0.64, 0, gold, highlight);
+                graphics.setColor(gold);
+                graphics.fillPolygon(new int[] {270, 312, 346, 300},
+                        new int[] {530, 484, 586, 624}, 4);
+                graphics.fillPolygon(new int[] {690, 744, 776, 724},
+                        new int[] {544, 480, 580, 616}, 4);
+                graphics.drawLine(326, 696, 270, 654);
+                graphics.drawLine(700, 696, 766, 654);
+            }
+            case "guardians_roar" -> {
+                graphics.setColor(gold);
+                graphics.setStroke(new BasicStroke(28f, BasicStroke.CAP_ROUND,
+                        BasicStroke.JOIN_ROUND));
+                graphics.drawArc(254, 286, 516, 452, 300, 120);
+                graphics.drawArc(194, 234, 636, 556, 300, 120);
+                graphics.drawArc(294, 300, 436, 416, 120, 120);
+                graphics.setColor(new Color(53, 61, 70));
+                Path2D helm = new Path2D.Double();
+                helm.moveTo(432, 700);
+                helm.lineTo(392, 420);
+                helm.lineTo(452, 306);
+                helm.lineTo(566, 306);
+                helm.lineTo(626, 418);
+                helm.lineTo(610, 524);
+                helm.lineTo(678, 560);
+                helm.lineTo(604, 598);
+                helm.lineTo(584, 700);
+                helm.closePath();
+                graphics.fill(helm);
+                graphics.setColor(highlight);
+                graphics.draw(helm);
+                graphics.drawLine(428, 438, 600, 438);
+                graphics.drawLine(548, 458, 548, 606);
+                graphics.drawLine(580, 568, 646, 568);
+            }
+            case "unbreakable" -> {
+                drawGuardianShield(graphics, 512, 508, 0.72, 0, gold, highlight);
+                graphics.setColor(highlight);
+                graphics.setStroke(new BasicStroke(22f, BasicStroke.CAP_ROUND,
+                        BasicStroke.JOIN_ROUND));
+                graphics.drawLine(512, 374, 512, 646);
+                graphics.drawLine(448, 460, 576, 460);
+                graphics.setColor(gold);
+                graphics.drawArc(270, 240, 484, 552, 42, 96);
+                graphics.drawLine(326, 310, 294, 268);
+                graphics.drawLine(698, 310, 730, 268);
+                graphics.drawLine(512, 220, 512, 182);
+            }
+            default -> drawGuardianShield(graphics, 512, 508, 0.72, 0,
+                    gold, highlight);
+        }
+    }
+
+    private static void drawGuardianShield(Graphics2D graphics, double x, double y,
+            double scale, double rotation, Color gold, Color highlight) {
+        AffineTransform saved = graphics.getTransform();
+        graphics.translate(x, y);
+        graphics.rotate(rotation);
+        graphics.scale(scale, scale);
+        Path2D shield = new Path2D.Double();
+        shield.moveTo(0, -296);
+        shield.lineTo(194, -240);
+        shield.lineTo(188, 82);
+        shield.lineTo(130, 214);
+        shield.lineTo(0, 326);
+        shield.lineTo(-130, 214);
+        shield.lineTo(-188, 82);
+        shield.lineTo(-194, -240);
+        shield.closePath();
+        graphics.setPaint(new GradientPaint(-194, -240, new Color(98, 112, 130),
+                194, 240, new Color(32, 40, 54)));
+        graphics.fill(shield);
+        graphics.setStroke(new BasicStroke(28f, BasicStroke.CAP_ROUND,
+                BasicStroke.JOIN_ROUND));
+        graphics.setColor(gold);
+        graphics.draw(shield);
+        graphics.setStroke(new BasicStroke(9f, BasicStroke.CAP_ROUND,
+                BasicStroke.JOIN_ROUND));
+        graphics.setColor(highlight);
+        graphics.draw(shield);
+        graphics.setColor(gold);
+        graphics.drawLine(0, -230, 0, 248);
+        graphics.setColor(new Color(252, 216, 130));
+        graphics.fillPolygon(new int[] {0, 80, 62, 0, -62, -80},
+                new int[] {-154, -104, -14, 58, -14, -104}, 6);
+        graphics.setColor(new Color(48, 38, 28));
+        graphics.fillOval(-44, -94, 22, 14);
+        graphics.fillOval(22, -94, 22, 14);
+        graphics.fillPolygon(new int[] {-24, 24, 0}, new int[] {-48, -48, -24}, 3);
+        graphics.setTransform(saved);
     }
 
     private static void drawBurst(Graphics2D graphics, int offset, int variant) {
@@ -295,6 +454,7 @@ public class AbilityIconGenerator {
             case RANGER -> new Color(80, 215, 118);
             case WARLOCK -> new Color(125, 42, 170);
             case ELEMENTALIST -> new Color(70, 180, 255);
+            case GUARDIAN -> new Color(235, 170, 52);
         };
     }
 

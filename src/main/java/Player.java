@@ -2,9 +2,14 @@ import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.BasicStroke;
 import java.awt.Graphics2D;
+import java.awt.GradientPaint;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.NoninvertibleTransformException;
+import java.awt.geom.Ellipse2D;
+import java.awt.geom.Path2D;
+import java.awt.geom.Point2D;
 import java.awt.image.BufferedImage;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
@@ -15,6 +20,44 @@ public abstract class Player {
     private static final int HEALTH_BAR_HEIGHT = 5;
     private static final int HEALTH_BAR_GAP = 4;
     private static final Map<BufferedImage, Rectangle> WEAPON_BOUNDS_CACHE = new IdentityHashMap<>();
+    private static final Map<BufferedImage, BufferedImage[]> HELD_WEAPON_IMAGES = new IdentityHashMap<>();
+    private static final Map<BufferedImage, BufferedImage> FILTERED_HELD_WEAPONS = new IdentityHashMap<>();
+    private static final Map<BufferedImage, BufferedImage> BLOCK_FLASH_IMAGES = new IdentityHashMap<>();
+    private static final Map<BufferedImage, BufferedImage> BODY_WITHOUT_STAFF = new IdentityHashMap<>();
+    // Source-frame wrist pixels: rows up/right/down/left, columns walk/idle/walk.
+    // Each entry contains the primary hand followed by the offhand.
+    private static final int[][][][] SWORD_HANDS = {
+        {{{43, 40}, {20, 35}}, {{44, 42}, {21, 42}}, {{44, 40}, {21, 40}}},
+        {{{34, 40}, {37, 36}}, {{32, 42}, {37, 38}}, {{34, 40}, {37, 36}}},
+        {{{20, 40}, {44, 40}}, {{20, 42}, {44, 42}}, {{20, 40}, {44, 40}}},
+        {{{27, 40}, {39, 35}}, {{29, 36}, {41, 36}}, {{27, 40}, {39, 35}}}
+    };
+    private static final int[][][][] DAGGER_HANDS = {
+        {{{24, 40}, {40, 40}}, {{24, 40}, {40, 40}}, {{24, 40}, {40, 40}}},
+        {{{34, 40}, {40, 40}}, {{34, 40}, {40, 40}}, {{34, 40}, {40, 40}}},
+        {{{24, 41}, {40, 41}}, {{24, 41}, {40, 41}}, {{24, 41}, {40, 41}}},
+        {{{29, 40}, {24, 40}}, {{29, 40}, {24, 40}}, {{29, 40}, {24, 40}}}
+    };
+    private static final int[][][] HOLY_STAFF_HANDS = {
+        {{44, 43}, {44, 43}, {44, 43}},
+        {{37, 43}, {37, 43}, {37, 43}},
+        {{21, 39}, {21, 39}, {21, 39}},
+        {{28, 43}, {28, 43}, {28, 43}}
+    };
+    private static final int[][][] ELEMENTAL_STAFF_HANDS = {
+        {{45, 46}, {45, 46}, {45, 46}},
+        {{38, 43}, {37, 40}, {38, 43}},
+        {{19, 40}, {19, 40}, {19, 40}},
+        {{27, 40}, {27, 40}, {31, 42}}
+    };
+    // Aegis uses Rakki's left forearm, measured independently in all twelve frames.
+    // Rows are up/right/down/left; the pivot is the shield's central arm strap.
+    private static final int[][][] GREATSHIELD_HANDS = {
+        {{15, 36}, {16, 37}, {15, 36}},
+        {{37, 41}, {37, 42}, {38, 41}},
+        {{43, 40}, {43, 41}, {43, 40}},
+        {{26, 41}, {26, 42}, {25, 41}}
+    };
     private static final Color SWORD_TRAIL_COLOR = new Color(255, 224, 150);
     private static final Color DAGGER_TRAIL_COLOR = new Color(205, 95, 255);
     private static final Color HOLY_TRAIL_COLOR = new Color(255, 242, 150);
@@ -27,14 +70,22 @@ public abstract class Player {
     protected final int spriteWidth;
     protected final int spriteHeight;
     protected final BufferedImage spriteSheet;
+    private final BufferedImage[][] spriteFrames;
+    private final BufferedImage characterLayer;
     protected final BufferedImage weaponSprite;
     protected final BufferedImage offhandWeaponSprite;
     protected final String defaultWeaponStyle;
+    private final BufferedImage heldPrimarySprite;
+    private final BufferedImage heldOffhandSprite;
 
     private final Set<String> pressedKeys = new HashSet<>();
     private double worldOffsetX;
     private double worldOffsetY;
     private double animationTime;
+    private double visualTime;
+    private double locomotionBlend;
+    private double motionDirectionX;
+    private double motionDirectionY;
     private int spriteRow = 2;
     private double maxHealth;
     private double health;
@@ -53,6 +104,21 @@ public abstract class Player {
     private double attackAnimationDuration = 0.34;
     private int attackSequence;
     private String attackWeaponStyle = "sword";
+    private boolean skillAnimation;
+    private double attackStrikeProgress = 0.43;
+    private double[] attackBeatProgress = {0.43};
+    private boolean autoStaffRecoil;
+    private double primaryAttackCarry;
+    private double offhandAttackCarry;
+    private double daggerPrimaryTurnCarry;
+    private double daggerOffhandTurnCarry;
+    private MotionPose attackMotionCarry = new MotionPose();
+    private String guardianSkillId = "";
+    private double guardianFortressRemaining;
+    private double guardianFortressBlend;
+    private double guardianBlockTime;
+    private double guardianChargeVisualTime;
+    private GuardianMotion guardianMotionCarry = new GuardianMotion();
 
     protected Player(String spritePath, double speed, double animationSpeed,
             int spriteScale, int spriteWidth, int spriteHeight, double maxHealth) {
@@ -78,21 +144,102 @@ public abstract class Player {
             int spriteScale, int spriteWidth, int spriteHeight, double maxHealth) {
         this.speed = speed;
         this.animationSpeed = animationSpeed;
+        // Begin on the planted idle frame before easing into the first footstep.
+        this.animationTime = 1.0 / Math.max(1.0, animationSpeed);
         this.spriteScale = spriteScale;
         this.spriteWidth = spriteWidth;
         this.spriteHeight = spriteHeight;
         this.maxHealth = maxHealth;
         this.health = maxHealth;
         this.pickupRadius = 50.0;
-        this.spriteSheet = loadSpriteSheet(spritePath);
-        this.weaponSprite = weaponPath == null ? null : ResourceLoader.loadImage(weaponPath);
-        this.offhandWeaponSprite = offhandWeaponPath == null ? null : ResourceLoader.loadImage(offhandWeaponPath);
+        BufferedImage loadedSheet = loadSpriteSheet(spritePath);
+        BufferedImage bodySheet = "elemental_staff".equals(defaultWeaponStyle)
+                ? withoutEmbeddedStaff(loadedSheet) : loadedSheet;
+        this.spriteSheet = CharacterSpriteImages.prepareSheet(bodySheet, spriteWidth, spriteHeight);
+        spriteFrames = new BufferedImage[spriteSheet.getHeight() / spriteHeight]
+                [spriteSheet.getWidth() / spriteWidth];
+        for (int row = 0; row < spriteFrames.length; row++) {
+            for (int column = 0; column < spriteFrames[row].length; column++) {
+                spriteFrames[row][column] = spriteSheet.getSubimage(column * spriteWidth,
+                        row * spriteHeight, spriteWidth, spriteHeight);
+            }
+        }
+        // Leave room for held weapons and attack poses around the source frame.
+        characterLayer = new BufferedImage(spriteWidth * spriteScale * 3,
+                spriteHeight * spriteScale * 3, BufferedImage.TYPE_INT_ARGB);
+        BufferedImage[] heldImages = heldWeaponImages(
+                weaponPath == null ? null : ResourceLoader.loadImage(weaponPath), defaultWeaponStyle);
+        this.weaponSprite = heldImages[0];
+        this.offhandWeaponSprite = heldImages[1] != null ? heldImages[1]
+                : offhandWeaponPath == null ? null : ResourceLoader.loadImage(offhandWeaponPath);
         this.defaultWeaponStyle = defaultWeaponStyle;
         this.attackWeaponStyle = defaultWeaponStyle;
+        heldPrimarySprite = weaponSprite;
+        heldOffhandSprite = offhandWeaponSprite;
     }
 
     private BufferedImage loadSpriteSheet(String spritePath) {
         return ResourceLoader.loadImage(spritePath);
+    }
+
+    private BufferedImage withoutEmbeddedStaff(BufferedImage source) {
+        synchronized (BODY_WITHOUT_STAFF) {
+            return BODY_WITHOUT_STAFF.computeIfAbsent(source, this::removeEmbeddedStaff);
+        }
+    }
+
+    private BufferedImage removeEmbeddedStaff(BufferedImage source) {
+        BufferedImage body = new BufferedImage(source.getWidth(), source.getHeight(),
+                BufferedImage.TYPE_INT_ARGB);
+        Graphics2D graphics = body.createGraphics();
+        graphics.drawImage(source, 0, 0, null);
+        graphics.dispose();
+        // Ziea's original frames include a violet staff. Remove only its pixels from
+        // the runtime body layer before drawing the equipped staff in the same hand.
+        for (int row = 1; row < 4; row++) {
+            for (int column = 0; column < 3; column++) {
+                int left = row == 1 ? 28 : row == 2 ? 9 : column == 2 ? 12 : 8;
+                int right = row == 1 ? 59 : row == 2 ? 24 : column == 2 ? 38 : 34;
+                int top = row == 2 ? 13 : column == 2 && row == 3 ? 18 : 16;
+                for (int y = top; y < spriteHeight; y++) {
+                    for (int x = left; x <= right; x++) {
+                        int pixelX = column * spriteWidth + x;
+                        int pixelY = row * spriteHeight + y;
+                        int rgb = body.getRGB(pixelX, pixelY);
+                        int red = (rgb >>> 16) & 255;
+                        int green = (rgb >>> 8) & 255;
+                        int blue = rgb & 255;
+                        if (blue > red * 1.10 && blue > green * 1.18) {
+                            body.setRGB(pixelX, pixelY, 0);
+                        }
+                    }
+                }
+            }
+        }
+        return body;
+    }
+
+    private static synchronized BufferedImage[] heldWeaponImages(BufferedImage image, String style) {
+        if (image == null) {
+            return new BufferedImage[] {null, null};
+        }
+        return HELD_WEAPON_IMAGES.computeIfAbsent(image, source -> {
+            if ("daggers".equals(style)) {
+                int halfWidth = source.getWidth() / 2;
+                return new BufferedImage[] {
+                    source.getSubimage(0, 0, halfWidth, source.getHeight()),
+                    source.getSubimage(halfWidth, 0, source.getWidth() - halfWidth, source.getHeight())
+                };
+            }
+            if ("holy_staff".equals(style)) {
+                // Exclude the neighboring purple icon fragment at the left edge of the asset.
+                int left = (int) Math.round(source.getWidth() * 48.0 / 435.0);
+                return new BufferedImage[] {
+                    source.getSubimage(left, 0, source.getWidth() - left, source.getHeight()), null
+                };
+            }
+            return new BufferedImage[] {source, null};
+        });
     }
 
     public void setKeyPressed(String direction, boolean pressed) {
@@ -105,7 +252,11 @@ public abstract class Player {
     }
 
     public void update(double deltaTime) {
+        if (!Double.isFinite(deltaTime) || deltaTime < 0.0) {
+            return;
+        }
         attackAnimationTime = Math.max(0.0, attackAnimationTime - deltaTime);
+        advanceGuardianState(deltaTime);
         slowTime = Math.max(0.0, slowTime - deltaTime);
         if (slowTime <= 0) {
             slowMultiplier = 1.0;
@@ -126,64 +277,194 @@ public abstract class Player {
 
         int horizontal = horizontalInput();
         int vertical = verticalInput();
-        if (movementLocked) {
+        if (isMovementLocked()) {
             horizontal = 0;
             vertical = 0;
         }
 
         // Sprite rows: 0 = up, 1 = right, 2 = down, 3 = left.
-        if (vertical < 0) {
-            spriteRow = 0;
-        } else if (horizontal > 0) {
-            spriteRow = 1;
-        } else if (vertical > 0) {
-            spriteRow = 2;
-        } else if (horizontal < 0) {
-            spriteRow = 3;
+        if (!isAimLocked() && attackAnimationTime <= 0.0) {
+            if (vertical < 0) {
+                setSpriteRow(0);
+            } else if (horizontal > 0) {
+                setSpriteRow(1);
+            } else if (vertical > 0) {
+                setSpriteRow(2);
+            } else if (horizontal < 0) {
+                setSpriteRow(3);
+            }
         }
 
         double length = Math.sqrt(horizontal * horizontal + vertical * vertical);
         if (length > 0) {
-            double effectiveSpeed = speed * slowMultiplier;
+            double effectiveSpeed = speed * slowMultiplier
+                    * ("greatshield".equals(defaultWeaponStyle)
+                    ? 1.0 - guardianFortressBlend * 0.35 : 1.0);
             double moveX = horizontal / length * effectiveSpeed * deltaTime;
             double moveY = vertical / length * effectiveSpeed * deltaTime;
-            recentMoveX = horizontal / length;
-            recentMoveY = vertical / length;
-            if (horizontal != 0) {
-                heldWeaponSideX = horizontal > 0 ? 1 : -1;
+            if (!isAimLocked() && attackAnimationTime <= 0.0) {
+                recentMoveX = horizontal / length;
+                recentMoveY = vertical / length;
+                if (horizontal != 0) {
+                    heldWeaponSideX = horizontal > 0 ? 1 : -1;
+                }
             }
             hasRecentMove = true;
 
             worldOffsetX -= moveX;
             worldOffsetY -= moveY;
-            animationTime += deltaTime;
         } else if (!hasRecentMove) {
             recentMoveX = 1.0;
             recentMoveY = 0.0;
         }
+        boolean charging = guardianChargeVisualTime > 0.0;
+        advanceVisualAnimation(deltaTime, charging ? recentMoveX
+                        : length > 0.0 ? horizontal / length : 0.0,
+                charging ? recentMoveY : length > 0.0 ? vertical / length : 0.0,
+                length > 0.0 || charging);
+    }
+
+    /** Advance selection portraits without moving the player or changing combat state. */
+    public void updatePreview(double deltaTime) {
+        if (!Double.isFinite(deltaTime) || deltaTime < 0.0) {
+            return;
+        }
+        attackAnimationTime = Math.max(0.0, attackAnimationTime - deltaTime);
+        advanceGuardianState(deltaTime);
+        advanceVisualAnimation(deltaTime, 0.0, 0.0, false);
+    }
+
+    private void advanceGuardianState(double deltaTime) {
+        guardianFortressRemaining = Math.max(0.0, guardianFortressRemaining - deltaTime);
+        guardianBlockTime = Math.max(0.0, guardianBlockTime - deltaTime);
+        guardianChargeVisualTime = Math.max(0.0, guardianChargeVisualTime - deltaTime);
+        double target = guardianFortressRemaining > 0.0 ? 1.0 : 0.0;
+        guardianFortressBlend = target + (guardianFortressBlend - target)
+                * Math.exp(-8.0 * deltaTime);
+    }
+
+    public void setGuardianFortressRemaining(double remaining) {
+        if ("greatshield".equals(defaultWeaponStyle) && remaining > 0.0
+                && guardianFortressRemaining <= 0.0) {
+            slowTime = 0.0;
+            slowMultiplier = 1.0;
+            movementLocked = false;
+            aimLocked = false;
+            movementLockTime = 0.0;
+            aimLockTime = 0.0;
+        }
+        guardianFortressRemaining = Math.max(0.0, remaining);
+    }
+
+    public boolean isGuardianFortressActive() {
+        return "greatshield".equals(defaultWeaponStyle) && guardianFortressRemaining > 0.0;
+    }
+
+    public boolean isGuardianKnockbackImmune() {
+        return isGuardianFortressActive();
+    }
+
+    public double getGuardianResistanceMultiplier() {
+        if (!"greatshield".equals(defaultWeaponStyle)) {
+            return 1.0;
+        }
+        return isGuardianFortressActive() ? 0.0 : health < maxHealth * 0.40 ? 0.35 : 0.65;
+    }
+
+    public void playGuardianBlock() {
+        if ("greatshield".equals(defaultWeaponStyle)) {
+            guardianBlockTime = 0.20;
+        }
+    }
+
+    /** Displacement, rather than velocity: combat integrates the charge and collision sweep. */
+    public void applyGuardianChargeMovement(double differenceX, double differenceY, double deltaTime) {
+        if (!Double.isFinite(differenceX) || !Double.isFinite(differenceY)
+                || !Double.isFinite(deltaTime) || deltaTime < 0.0) {
+            return;
+        }
+        moveWorld(differenceX, differenceY);
+        guardianChargeVisualTime = Math.max(guardianChargeVisualTime, deltaTime * 2.0 + 0.025);
+    }
+
+    private void advanceVisualAnimation(double deltaTime, double directionX,
+            double directionY, boolean moving) {
+        // Both idle waves repeat together every 78.2 seconds; keep phase precision.
+        visualTime = (visualTime + deltaTime) % 78.2;
+        double target = moving ? 1.0 : 0.0;
+        double response = moving ? 12.0 : 9.0;
+        double decay = Math.exp(-response * deltaTime);
+        // Integrate the easing curve so gait timing is identical at any update rate.
+        double gaitTime = target * deltaTime
+                + (locomotionBlend - target) * (1.0 - decay) / response;
+        double gaitPeriod = 4.0 / Math.max(1.0, animationSpeed);
+        animationTime = (animationTime + Math.max(0.0, gaitTime) * 1.55) % gaitPeriod;
+        locomotionBlend = target + (locomotionBlend - target) * decay;
+        double turnDecay = Math.exp(-10.0 * deltaTime);
+        motionDirectionX = directionX + (motionDirectionX - directionX) * turnDecay;
+        motionDirectionY = directionY + (motionDirectionY - directionY) * turnDecay;
+        double wristDecay = Math.exp(-14.0 * deltaTime);
+        daggerPrimaryTurnCarry *= wristDecay;
+        daggerOffhandTurnCarry *= wristDecay;
+    }
+
+    private void setSpriteRow(int nextRow) {
+        if (nextRow == spriteRow) {
+            return;
+        }
+        if (!"daggers".equals(defaultWeaponStyle)) {
+            spriteRow = nextRow;
+            return;
+        }
+        int width = spriteWidth * spriteScale;
+        int height = spriteHeight * spriteScale;
+        double primaryAngle = animatedWeaponPose(false, width, height).weaponRotation;
+        double offhandAngle = animatedWeaponPose(true, width, height).weaponRotation;
+        spriteRow = nextRow;
+        daggerPrimaryTurnCarry = 0.0;
+        daggerOffhandTurnCarry = 0.0;
+        // Keep the wrist angle through a turn; the handle stays on the new sprite's hand.
+        daggerPrimaryTurnCarry = primaryAngle
+                - animatedWeaponPose(false, width, height).weaponRotation;
+        daggerOffhandTurnCarry = offhandAngle
+                - animatedWeaponPose(true, width, height).weaponRotation;
     }
 
     public void applySlow(double duration, double multiplier) {
-        slowTime = Math.max(slowTime, duration);
-        slowMultiplier = Math.min(slowMultiplier, multiplier);
+        double resistance = getGuardianResistanceMultiplier();
+        if (resistance <= 0.0) {
+            return;
+        }
+        slowTime = Math.max(slowTime, duration * resistance);
+        slowMultiplier = Math.min(slowMultiplier, 1.0 - (1.0 - multiplier) * resistance);
     }
 
     public void applyMovementLock(double duration) {
+        duration *= getGuardianResistanceMultiplier();
+        if (duration <= 0.0) {
+            return;
+        }
         movementLocked = true;
         movementLockTime = Math.max(movementLockTime, duration);
     }
 
     public void applyAimLock(double duration) {
+        duration *= getGuardianResistanceMultiplier();
+        if (duration <= 0.0) {
+            return;
+        }
         aimLocked = true;
         aimLockTime = Math.max(aimLockTime, duration);
     }
 
     public boolean isMovementLocked() {
-        return movementLocked || movementLockTime > 0.0;
+        return movementLocked || movementLockTime > 0.0
+                || ("greatshield".equals(defaultWeaponStyle) && isSkillAnimationActive());
     }
 
     public boolean isAimLocked() {
-        return aimLocked || aimLockTime > 0.0;
+        return aimLocked || aimLockTime > 0.0
+                || ("greatshield".equals(defaultWeaponStyle) && attackAnimationTime > 0.0);
     }
 
     public double getWorldOffsetX() {
@@ -253,6 +534,9 @@ public abstract class Player {
     }
 
     public void faceToward(double targetWorldX, double targetWorldY) {
+        if (isAimLocked()) {
+            return;
+        }
         double differenceX = targetWorldX - getWorldX();
         double differenceY = targetWorldY - getWorldY();
         double length = Math.hypot(differenceX, differenceY);
@@ -267,9 +551,9 @@ public abstract class Player {
             heldWeaponSideX = differenceX >= 0.0 ? 1 : -1;
         }
         if (Math.abs(differenceX) >= Math.abs(differenceY)) {
-            spriteRow = differenceX >= 0.0 ? 1 : 3;
+            setSpriteRow(differenceX >= 0.0 ? 1 : 3);
         } else {
-            spriteRow = differenceY >= 0.0 ? 2 : 0;
+            setSpriteRow(differenceY >= 0.0 ? 2 : 0);
         }
     }
 
@@ -297,22 +581,51 @@ public abstract class Player {
     }
 
     public double getWeaponCastWorldX() {
-        double sideOffset = spriteWidth * spriteScale * 0.26;
-        if ("holy_staff".equals(defaultWeaponStyle) || "elemental_staff".equals(defaultWeaponStyle)
-                || "staff".equals(defaultWeaponStyle)) {
-            sideOffset = spriteWidth * spriteScale * 0.18;
-        }
-        return getWorldX() + heldWeaponSideX * sideOffset;
+        return getWorldX() + weaponCastOffset()[0];
     }
 
     public double getWeaponCastWorldY() {
-        if ("holy_staff".equals(defaultWeaponStyle) || "elemental_staff".equals(defaultWeaponStyle)
-                || "staff".equals(defaultWeaponStyle)) {
-            return getWorldY() - spriteHeight * spriteScale * 0.16;
+        return getWorldY() + weaponCastOffset()[1];
+    }
+
+    private double[] weaponCastOffset() {
+        WeaponPose pose = animatedWeaponPose(false, spriteWidth * spriteScale,
+                spriteHeight * spriteScale);
+        double tipX = pose.weaponPivotX;
+        double tipY = pose.weaponPivotY;
+        if ("holy_staff".equals(defaultWeaponStyle)) {
+            tipX = 202.0 / 387.0;
+            tipY = 0.25;
+        } else if ("elemental_staff".equals(defaultWeaponStyle)) {
+            tipX = 0.59;
+            tipY = 0.25;
+        } else if ("staff".equals(defaultWeaponStyle)) {
+            tipY = 0.10;
+        } else if ("greatshield".equals(defaultWeaponStyle)) {
+            // The force and damage originate at the physical rim, not the body center.
+            if ("earthbreaker".equals(guardianSkillId) && attackAnimationTime > 0.0) {
+                tipX = 0.50;
+                tipY = 0.98;
+            } else if (spriteRow == 0 || spriteRow == 2) {
+                tipX = 0.50;
+                tipY = spriteRow == 0 ? 0.12 : 0.72;
+            } else {
+                tipX = 0.96;
+                tipY = 0.50;
+            }
         }
-        double verticalOffset = getFacingY() < 0 ? -spriteHeight * spriteScale * 0.18
-                : spriteHeight * spriteScale * 0.02;
-        return getWorldY() + verticalOffset;
+        Rectangle bounds = heldPrimarySprite == null ? new Rectangle(0, 0, 1, 1)
+                : visibleWeaponBounds(heldPrimarySprite);
+        double scale = pose.drawHeight / (double) bounds.height;
+        double x = (tipX - pose.weaponPivotX) * bounds.width * scale * (pose.flipX ? -1 : 1);
+        double y = (tipY - pose.weaponPivotY) * pose.drawHeight;
+        double cosine = Math.cos(pose.weaponRotation);
+        double sine = Math.sin(pose.weaponRotation);
+        Point2D.Double tip = new Point2D.Double(pose.weaponX + x * cosine - y * sine,
+                pose.weaponY + x * sine + y * cosine);
+        // Use the exact body transform used by rendering, including the foot pivot.
+        characterTransform(0, 0).transform(tip, tip);
+        return new double[] {tip.x, tip.y};
     }
 
     public void playAttackAnimation(AbilityDefinition definition) {
@@ -320,64 +633,491 @@ public abstract class Player {
     }
 
     public void playAttackAnimation(AbilityDefinition definition, double duration) {
-        attackAnimationDuration = Math.max(0.12, duration);
+        if ("greatshield".equals(defaultWeaponStyle)) {
+            // A skill can interrupt a basic bash; ease out of its actual arm/body pose.
+            guardianMotionCarry = guardianMotion();
+            guardianMotionCarry.lift -= guardianFortressBlend * 5.0;
+            guardianMotionCarry.reach -= guardianFortressBlend * 1.5;
+            guardianMotionCarry.rotation -= guardianFortressBlend * -0.06;
+            guardianMotionCarry.crouch -= guardianFortressBlend * 0.7;
+        }
+        int width = spriteWidth * spriteScale;
+        int height = spriteHeight * spriteScale;
+        primaryAttackCarry = animatedWeaponPose(false, width, height).weaponRotation
+                - getWeaponPose(false, width, height).weaponRotation;
+        offhandAttackCarry = animatedWeaponPose(true, width, height).weaponRotation
+                - getWeaponPose(true, width, height).weaponRotation;
+        attackMotionCarry = currentAttackMotion();
+        attackAnimationDuration = Math.max(0.12, Double.isFinite(duration) ? duration : 0.34);
         attackAnimationTime = attackAnimationDuration;
         attackSequence++;
         attackWeaponStyle = weaponStyleFor(definition);
+        guardianSkillId = definition == null ? "" : definition.getId();
+        attackStrikeProgress = definition == null ? ("greatshield".equals(defaultWeaponStyle) ? 0.52 : 0.43)
+                : AbilityAnimationTiming.releaseProgress(definition);
+        double[] skillHits = definition == null ? null : AbilityAnimationTiming.hitProgress(definition);
+        boolean meleeCombo = ("sword_shield".equals(defaultWeaponStyle)
+                || "daggers".equals(defaultWeaponStyle)) && skillHits != null && skillHits.length > 1;
+        attackBeatProgress = meleeCombo ? skillHits : new double[] {attackStrikeProgress};
+        autoStaffRecoil = definition == null && defaultWeaponStyle.contains("staff");
+        skillAnimation = definition != null;
+    }
+
+    public boolean isSkillAnimationActive() {
+        return skillAnimation && attackAnimationTime > 0.0;
     }
 
     public void draw(Graphics2D graphics, int centerX, int centerY) {
-        boolean moving = horizontalInput() != 0 || verticalInput() != 0;
-        // The walk cycle is columns 0, 1, 2, 1; column 1 is the idle frame.
-        int animationFrame = (int) (animationTime * animationSpeed) % 4;
-        int spriteColumn = moving ? (animationFrame == 3 ? 1 : animationFrame) : 1;
-        int sourceX = spriteColumn * spriteWidth;
-        int sourceY = spriteRow * spriteHeight;
+        graphics = (Graphics2D) graphics.create();
+        drawCharacter(graphics, centerX, centerY, currentSpriteColumn());
         int renderedWidth = spriteWidth * spriteScale;
         int renderedHeight = spriteHeight * spriteScale;
         int playerX = centerX - renderedWidth / 2;
         int playerY = centerY - renderedHeight / 2;
+        int healthBarY = playerY + renderedHeight + HEALTH_BAR_GAP;
+        int currentHealthWidth = (int) (renderedWidth * health / maxHealth);
+        if (health < maxHealth) {
+            graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            graphics.setColor(new Color(6, 10, 18, 185));
+            graphics.fillRoundRect(playerX, healthBarY, renderedWidth, HEALTH_BAR_HEIGHT, 4, 4);
+            graphics.setPaint(new GradientPaint(playerX, healthBarY, new Color(148, 55, 72),
+                    playerX + renderedWidth, healthBarY, new Color(231, 107, 101)));
+            graphics.fillRoundRect(playerX, healthBarY, currentHealthWidth, HEALTH_BAR_HEIGHT, 4, 4);
+        }
+        graphics.dispose();
+    }
 
-        Object previousInterpolation = graphics.getRenderingHint(RenderingHints.KEY_INTERPOLATION);
+    /** Selection portraits use the same hands, equipment and layers as gameplay. */
+    public void drawPreview(Graphics2D graphics, Rectangle bounds) {
+        if (bounds.width <= 0 || bounds.height <= 0) {
+            return;
+        }
+        double scale = Math.min(bounds.width / (double) (spriteWidth * spriteScale),
+                bounds.height / (double) (spriteHeight * spriteScale));
+        AffineTransform deviceTransform = graphics.getTransform();
+        double deviceScale = Math.min(Math.hypot(deviceTransform.getScaleX(), deviceTransform.getShearY()),
+                Math.hypot(deviceTransform.getShearX(), deviceTransform.getScaleY()));
+        double pixelScale = scale * spriteScale * deviceScale;
+        // Whole device pixels keep enlarged portraits crisp, including on HiDPI displays.
+        if (pixelScale >= 1.0) {
+            scale = Math.floor(pixelScale + 1e-9) / (spriteScale * deviceScale);
+        }
+        Point2D center = new Point2D.Double(bounds.getCenterX(), bounds.getCenterY());
+        Point2D deviceCenter = deviceTransform.transform(center, null);
+        deviceCenter.setLocation(Math.rint(deviceCenter.getX()), Math.rint(deviceCenter.getY()));
+        try {
+            center = deviceTransform.inverseTransform(deviceCenter, null);
+        } catch (NoninvertibleTransformException ignored) {
+            // Degenerate offscreen transforms have no visible pixels to align.
+        }
+        Graphics2D previewGraphics = (Graphics2D) graphics.create();
+        previewGraphics.translate(center.getX(), center.getY());
+        previewGraphics.scale(scale, scale);
+        drawCharacter(previewGraphics, 0, 0, 1);
+        previewGraphics.dispose();
+    }
+
+    private int currentSpriteColumn() {
+        // The walk cycle is columns 0, 1, 2, 1; column 1 is the idle frame.
+        int animationFrame = (int) (animationTime * animationSpeed) % 4;
+        return locomotionBlend > 0.06 ? (animationFrame == 3 ? 1 : animationFrame) : 1;
+    }
+
+    private void drawCharacter(Graphics2D graphics, int centerX, int centerY, int spriteColumn) {
+        Graphics2D layer = characterLayer.createGraphics();
+        try {
+            layer.setComposite(AlphaComposite.Clear);
+            layer.fillRect(0, 0, characterLayer.getWidth(), characterLayer.getHeight());
+            layer.setComposite(AlphaComposite.SrcOver);
+            renderCharacter(layer, characterLayer.getWidth() / 2,
+                    characterLayer.getHeight() / 2, spriteColumn);
+        } finally {
+            layer.dispose();
+        }
+        // Resolve motion and equipment on the source grid before enlarging the pixels.
+        Graphics2D display = (Graphics2D) graphics.create();
+        try {
+            display.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+                    RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+            display.drawImage(characterLayer, centerX - characterLayer.getWidth() / 2,
+                    centerY - characterLayer.getHeight() / 2, null);
+        } finally {
+            display.dispose();
+        }
+    }
+
+    private void renderCharacter(Graphics2D graphics, int centerX, int centerY, int spriteColumn) {
+        int renderedWidth = spriteWidth * spriteScale;
+        int renderedHeight = spriteHeight * spriteScale;
+        int playerX = -renderedWidth / 2;
+        int playerY = -renderedHeight / 2;
+
+        graphics = (Graphics2D) graphics.create();
         graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
                 RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+        drawContactShadow(graphics, centerX, centerY, renderedWidth, renderedHeight);
+        graphics.transform(characterTransform(centerX, centerY));
 
-        drawWeapons(graphics, centerX, centerY, renderedWidth, renderedHeight, true);
+        drawWeapons(graphics, 0, 0, renderedWidth, renderedHeight, true);
 
-        // Draw only one frame from the larger sprite sheet.
-        graphics.drawImage(spriteSheet,
-                playerX, playerY, playerX + renderedWidth, playerY + renderedHeight,
-                sourceX, sourceY, sourceX + spriteWidth, sourceY + spriteHeight, null);
-        drawWeapons(graphics, centerX, centerY, renderedWidth, renderedHeight, false);
-        if (previousInterpolation == null) {
-            graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
-                    RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-        } else {
-            graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, previousInterpolation);
+        // A separate frame prevents rotated/scaled sampling from touching adjacent poses.
+        graphics.drawImage(spriteFrames[spriteRow][spriteColumn],
+                playerX, playerY, renderedWidth, renderedHeight, null);
+        if ("greatshield".equals(defaultWeaponStyle)) {
+            drawGuardianArmorGlints(graphics, renderedWidth, renderedHeight);
+            drawGuardianShieldArm(graphics, renderedWidth, renderedHeight);
         }
+        drawWeapons(graphics, 0, 0, renderedWidth, renderedHeight, false);
+        drawGripHands(graphics, 0, 0, renderedWidth, renderedHeight, spriteColumn);
+        graphics.dispose();
+    }
 
-        // Draw a black background, then cover part of it with the remaining red health.
-        int healthBarY = playerY + renderedHeight + HEALTH_BAR_GAP;
-        int healthBarWidth = renderedWidth;
-        int currentHealthWidth = (int) (healthBarWidth * health / maxHealth);
-        graphics.setColor(Color.BLACK);
-        graphics.fillRect(playerX, healthBarY, healthBarWidth, HEALTH_BAR_HEIGHT);
-        graphics.setColor(Color.RED);
-        graphics.fillRect(playerX, healthBarY, currentHealthWidth, HEALTH_BAR_HEIGHT);
+    private void drawContactShadow(Graphics2D graphics, int centerX, int centerY,
+            int renderedWidth, int renderedHeight) {
+        Graphics2D shadow = (Graphics2D) graphics.create();
+        shadow.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                RenderingHints.VALUE_ANTIALIAS_ON);
+        double width = renderedWidth * 0.40;
+        double height = renderedHeight * 0.085;
+        double groundY = centerY + renderedHeight * 0.44;
+        // Stay on the ground while the planted sprite breathes or lifts into a step.
+        for (int layer = 0; layer < 3; layer++) {
+            double inset = layer * width * 0.12;
+            shadow.setColor(new Color(0, 0, 0, 15 + layer * 9));
+            shadow.fill(new Ellipse2D.Double(centerX - width / 2.0 + inset,
+                    groundY - height / 2.0 + layer * height * 0.13,
+                    width - inset * 2.0, height * (1.0 - layer * 0.26)));
+        }
+        shadow.dispose();
+    }
+
+    /** Body and held equipment share one pose around planted feet. */
+    private AffineTransform characterTransform(int centerX, int centerY) {
+        double blend = locomotionBlend;
+        double stride = animationTime * animationSpeed * Math.PI / 2.0;
+        double step = Math.sin(stride);
+        double breath = Math.sin(visualTime * Math.PI * 2.0 / 3.4);
+        double weightShift = Math.sin(visualTime * Math.PI * 2.0 / 4.6);
+        boolean caster = defaultWeaponStyle.contains("staff");
+        double size = spriteHeight * spriteScale / 64.0;
+        MotionPose attack = currentAttackMotion();
+        double x = (step * 0.45 * blend + weightShift * 0.28 * (1.0 - blend)
+                + attack.x) * size;
+        double y = (-step * step * 1.15 * blend + attack.y) * size;
+        double tilt = motionDirectionX * 0.036 + step * 0.009 * blend
+                + weightShift * (caster ? 0.014 : 0.010) * (1.0 - blend) + attack.tilt;
+        double stretchX = 1.0 - breath * 0.007 * (1.0 - blend * 0.65)
+                - Math.abs(step) * 0.004 * blend + attack.stretchX;
+        double stretchY = 1.0 + breath * (caster ? 0.018 : 0.014)
+                * (1.0 - blend * 0.65) - Math.abs(step) * 0.006 * blend + attack.stretchY;
+        double feetY = spriteHeight * spriteScale * 0.43;
+        AffineTransform transform = new AffineTransform();
+        transform.translate(centerX + x, centerY + feetY + y);
+        transform.rotate(tilt);
+        transform.scale(stretchX, stretchY);
+        transform.translate(0.0, -feetY);
+        return transform;
+    }
+
+    private MotionPose currentAttackMotion() {
+        MotionPose pose = new MotionPose();
+        if ("greatshield".equals(defaultWeaponStyle)) {
+            GuardianMotion motion = guardianMotion();
+            double effort = motion.lean;
+            pose.x = recentMoveX * effort * 2.8;
+            pose.y = motion.crouch + recentMoveY * effort * 0.8;
+            pose.tilt = recentMoveX * effort * 0.07;
+            pose.stretchX = motion.roar * 0.014;
+            pose.stretchY = -motion.crouch * 0.007 + motion.roar * 0.018;
+            return pose;
+        }
+        if (attackAnimationTime <= 0.0) {
+            return pose;
+        }
+        double elapsedProgress = 1.0 - attackAnimationTime / attackAnimationDuration;
+        double progress = strikeAlignedProgress(elapsedProgress);
+        boolean dagger = "daggers".equals(defaultWeaponStyle);
+        double effort = dagger ? daggerSwingEffort(elapsedProgress)
+                : autoStaffRecoil ? recoilEffort(elapsedProgress) : attackEffort(progress);
+        double windup = progress < 0.24 ? WeaponPose.smoother(progress / 0.24)
+                : 1.0 - WeaponPose.smoother((progress - 0.24) / 0.31);
+        if (dagger) {
+            windup = Math.max(0.0, -effort) * 0.6;
+        }
+        if (autoStaffRecoil) {
+            windup = Math.abs(effort) * 0.3;
+        }
+        boolean caster = attackWeaponStyle.contains("staff");
+        double side = Math.abs(recentMoveX) > 0.15 ? recentMoveX : heldWeaponSideX * 0.60;
+        pose.x = recentMoveX * effort * (caster ? 1.15 : 2.05);
+        pose.y = recentMoveY * effort * (caster ? 0.30 : 0.65);
+        pose.tilt = side * effort * (caster ? 0.038 : 0.075)
+                * (dagger ? 1.0 : attackBeatDirection(elapsedProgress));
+        pose.stretchX = windup * 0.008;
+        pose.stretchY = -windup * (caster ? 0.018 : 0.026);
+        double carry = attackCarryWeight(elapsedProgress);
+        pose.x += attackMotionCarry.x * carry;
+        pose.y += attackMotionCarry.y * carry;
+        pose.tilt += attackMotionCarry.tilt * carry;
+        pose.stretchX += attackMotionCarry.stretchX * carry;
+        pose.stretchY += attackMotionCarry.stretchY * carry;
+        return pose;
+    }
+
+    private static class GuardianMotion {
+        private double lift;
+        private double reach;
+        private double rotation;
+        private double lean;
+        private double crouch;
+        private double roar;
+    }
+
+    /** Shield poses have physical windup, extension, impact and recovery beats. */
+    private GuardianMotion guardianMotion() {
+        GuardianMotion pose = new GuardianMotion();
+        pose.lift = guardianFortressBlend * 5.0;
+        pose.reach = guardianFortressBlend * 1.5;
+        pose.rotation = guardianFortressBlend * -0.06;
+        pose.crouch = guardianFortressBlend * 0.7;
+        if (attackAnimationTime <= 0.0) {
+            return pose;
+        }
+        double p = Math.max(0.0, Math.min(1.0,
+                1.0 - attackAnimationTime / attackAnimationDuration));
+        double side = spriteRow == 3 ? -1.0 : 1.0;
+        switch (guardianSkillId) {
+            case "shield_fortress" -> {
+                double brace = p < attackStrikeProgress
+                        ? WeaponPose.smoother(p / attackStrikeProgress) : 1.0;
+                double recover = guardianFortressRemaining > 0.0 ? 1.0
+                        : 1.0 - WeaponPose.smoother((p - 0.76) / 0.24);
+                double settle = guardianFortressRemaining > 0.0
+                        ? WeaponPose.smoother((p - 0.68) / 0.32) : 0.0;
+                pose.lift = Math.max(pose.lift, brace * recover * WeaponPose.lerp(7.0, 5.0, settle));
+                pose.reach = Math.max(pose.reach, brace * recover * WeaponPose.lerp(2.0, 1.5, settle));
+                pose.rotation -= brace * recover * (1.0 - settle) * 0.04 * side;
+                pose.crouch = Math.max(pose.crouch, brace * recover * WeaponPose.lerp(1.2, 0.7, settle));
+            }
+            case "iron_charge" -> {
+                double prepare = WeaponPose.smoother(p / attackStrikeProgress);
+                double recover = 1.0 - WeaponPose.smoother((p - 0.80) / 0.20);
+                double launch = WeaponPose.smoother((p - attackStrikeProgress) / 0.12);
+                pose.lift -= prepare * recover * 2.2;
+                pose.reach += (prepare * 1.0 + launch * 4.5) * recover;
+                pose.rotation += side * prepare * recover * 0.14;
+                pose.lean = prepare * recover * (0.3 + launch * 1.2);
+                pose.crouch += prepare * recover * 1.5;
+            }
+            case "earthbreaker" -> {
+                double windup = attackStrikeProgress * 0.61;
+                if (p < windup) {
+                    double raise = WeaponPose.smoother(p / windup);
+                    pose.lift += raise * 15.0;
+                    pose.rotation -= side * raise * 0.42;
+                    pose.crouch -= raise * 0.8;
+                } else if (p < attackStrikeProgress) {
+                    double slam = WeaponPose.smoother((p - windup) / (attackStrikeProgress - windup));
+                    pose.lift += WeaponPose.lerp(15.0, -1.8 - guardianFortressBlend * 5.0, slam);
+                    pose.reach += slam * 3.5;
+                    pose.rotation -= side * (1.0 - slam) * 0.42;
+                    pose.crouch += slam * 1.8;
+                    pose.lean = slam * 0.5;
+                } else {
+                    double recover = 1.0 - WeaponPose.smoother((p - attackStrikeProgress)
+                            / (1.0 - attackStrikeProgress));
+                    pose.lift -= (1.8 + guardianFortressBlend * 5.0) * recover;
+                    pose.reach += 3.5 * recover;
+                    pose.crouch += 1.8 * recover;
+                    pose.lean = 0.5 * recover;
+                }
+            }
+            case "guardians_roar" -> {
+                double roar = p < attackStrikeProgress
+                        ? WeaponPose.smoother(p / attackStrikeProgress)
+                        : 1.0 - WeaponPose.smoother((p - attackStrikeProgress) / (1.0 - attackStrikeProgress));
+                pose.lift += roar * 6.0;
+                pose.reach += roar;
+                pose.rotation -= side * roar * 0.10;
+                pose.roar = roar;
+                pose.crouch -= roar * 0.6;
+            }
+            default -> {
+                double aligned = strikeAlignedProgress(p);
+                if (aligned < 0.24) {
+                    double raise = WeaponPose.smoother(aligned / 0.24);
+                    pose.lift += raise * 6.0;
+                    pose.reach -= raise;
+                    pose.rotation -= side * raise * 0.13;
+                    pose.lean = -raise * 0.35;
+                } else if (aligned < 0.55) {
+                    double bash = WeaponPose.smoother((aligned - 0.24) / 0.31);
+                    pose.lift += WeaponPose.lerp(6.0, 1.0, bash);
+                    pose.reach += WeaponPose.lerp(-1.0, 7.0, bash);
+                    pose.rotation += side * WeaponPose.lerp(-0.13, 0.11, bash);
+                    pose.lean = WeaponPose.lerp(-0.35, 1.0, bash);
+                } else {
+                    double recover = 1.0 - WeaponPose.smoother((aligned - 0.55) / 0.45);
+                    pose.lift += recover;
+                    pose.reach += recover * 7.0;
+                    pose.rotation += side * recover * 0.11;
+                    pose.lean = recover;
+                }
+            }
+        }
+        double carry = 1.0 - WeaponPose.smoother(p / 0.18);
+        pose.lift += guardianMotionCarry.lift * carry;
+        pose.reach += guardianMotionCarry.reach * carry;
+        pose.rotation += guardianMotionCarry.rotation * carry;
+        pose.lean += guardianMotionCarry.lean * carry;
+        pose.crouch += guardianMotionCarry.crouch * carry;
+        pose.roar += guardianMotionCarry.roar * carry;
+        return pose;
+    }
+
+    private void drawGuardianArmorGlints(Graphics2D graphics, int width, int height) {
+        double scale = height / 64.0;
+        boolean wounded = health < maxHealth * 0.40;
+        int alpha = wounded ? 135 : 52;
+        graphics.setStroke(new BasicStroke((float) Math.max(0.7, scale)));
+        graphics.setColor(new Color(244, 197, 88, alpha));
+        double chestY = -height * 0.05;
+        // Short armor seams and drifting motes; the passive has no ground aura.
+        graphics.drawLine((int) (-width * 0.18), (int) (chestY - height * 0.06),
+                (int) (-width * 0.12), (int) chestY);
+        graphics.drawLine((int) (width * 0.12), (int) chestY,
+                (int) (width * 0.18), (int) (chestY - height * 0.06));
+        for (int i = 0; i < (wounded ? 5 : 2); i++) {
+            double phase = (visualTime * 0.58 + i * 0.29) % 1.0;
+            int x = (int) Math.round(Math.sin(i * 2.31) * width * 0.25);
+            int y = (int) Math.round(height * 0.23 - phase * height * 0.43);
+            int fade = (int) (Math.sin(phase * Math.PI) * alpha);
+            graphics.setColor(new Color(255, 217, 123, Math.max(0, fade)));
+            graphics.fillRect(x, y, Math.max(1, (int) Math.round(scale)),
+                    Math.max(1, (int) Math.round(scale)));
+        }
+    }
+
+    private void drawGuardianShieldArm(Graphics2D graphics, int width, int height) {
+        WeaponPose pose = animatedWeaponPose(false, width, height);
+        if (pose.behindCharacter) {
+            return;
+        }
+        int[] source = handPixel(false);
+        double startX = (source[0] / (double) spriteWidth - 0.5) * width;
+        double startY = (source[1] / (double) spriteHeight - 0.5) * height;
+        double scale = height / 64.0;
+        graphics.setStroke(new BasicStroke((float) (4.0 * scale),
+                BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        graphics.setColor(new Color(80, 72, 59));
+        graphics.draw(new java.awt.geom.Line2D.Double(startX, startY,
+                pose.weaponX, pose.weaponY));
+        graphics.setStroke(new BasicStroke((float) (2.1 * scale),
+                BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        graphics.setColor(new Color(202, 149, 62));
+        graphics.draw(new java.awt.geom.Line2D.Double(startX, startY,
+                pose.weaponX, pose.weaponY));
+    }
+
+    private static double attackEffort(double progress) {
+        if (progress < 0.24) {
+            return -0.42 * WeaponPose.smoother(progress / 0.24);
+        }
+        if (progress < 0.55) {
+            return WeaponPose.lerp(-0.42, 1.0, WeaponPose.smoother((progress - 0.24) / 0.31));
+        }
+        if (progress < 0.78) {
+            return WeaponPose.lerp(1.0, 0.18, WeaponPose.smoother((progress - 0.55) / 0.23));
+        }
+        return 0.18 * (1.0 - WeaponPose.smoother((progress - 0.78) / 0.22));
+    }
+
+    private static double attackCarryWeight(double progress) {
+        return 1.0 - WeaponPose.smoother(progress / 0.26);
+    }
+
+    private static double recoilEffort(double progress) {
+        // Automatic bolts leave immediately; the body responds with a quick recoil.
+        return progress < 0.15 ? -0.62 * WeaponPose.smoother(progress / 0.15)
+                : -0.62 * (1.0 - WeaponPose.smoother((progress - 0.15) / 0.70));
+    }
+
+    private double strikeAlignedProgress(double progress) {
+        // Each combo returns continuously through its grip before the next strike.
+        // Ranged skills extend on launch, while melee skills extend on damage frames.
+        int beat = attackBeatIndex(progress);
+        double start = beat == 0 ? 0.0
+                : (attackBeatProgress[beat - 1] + attackBeatProgress[beat]) * 0.5;
+        double end = beat == attackBeatProgress.length - 1 ? 1.0
+                : (attackBeatProgress[beat] + attackBeatProgress[beat + 1]) * 0.5;
+        double strike = Math.max(start + 0.025, Math.min(end - 0.025, attackBeatProgress[beat]));
+        return progress <= strike ? (progress - start) / (strike - start) * 0.55
+                : 0.55 + (progress - strike) / (end - strike) * 0.45;
+    }
+
+    private int attackBeatIndex(double progress) {
+        for (int beat = 0; beat < attackBeatProgress.length - 1; beat++) {
+            double boundary = (attackBeatProgress[beat] + attackBeatProgress[beat + 1]) * 0.5;
+            if (progress < boundary) {
+                return beat;
+            }
+        }
+        return attackBeatProgress.length - 1;
+    }
+
+    private double attackBeatDirection(double progress) {
+        return attackBeatIndex(progress) % 2 == 0 ? 1.0 : -1.0;
+    }
+
+    private double daggerSwingEffort(double progress) {
+        double firstHit = attackBeatProgress[0];
+        double windupEnd = firstHit * 0.38;
+        if (progress < windupEnd) {
+            return -0.34 * WeaponPose.smoother(progress / windupEnd);
+        }
+        if (progress < firstHit) {
+            return WeaponPose.lerp(-0.34, 1.0,
+                    WeaponPose.smoother((progress - windupEnd) / (firstHit - windupEnd)));
+        }
+        // Move directly from one blade extension to the next, without squeezing
+        // another full windup/strike/recovery into every short combo interval.
+        for (int beat = 1; beat < attackBeatProgress.length; beat++) {
+            if (progress < attackBeatProgress[beat]) {
+                double from = attackBeatProgress[beat - 1];
+                double to = attackBeatProgress[beat];
+                double previous = beat % 2 == 1 ? 1.0 : -1.0;
+                return WeaponPose.lerp(previous, -previous,
+                        WeaponPose.smoother((progress - from) / (to - from)));
+            }
+        }
+        double lastHit = attackBeatProgress[attackBeatProgress.length - 1];
+        double lastExtension = attackBeatProgress.length % 2 == 1 ? 1.0 : -1.0;
+        return lastExtension * (1.0 - WeaponPose.smoother((progress - lastHit) / (1.0 - lastHit)));
+    }
+
+    private static class MotionPose {
+        private double x;
+        private double y;
+        private double tilt;
+        private double stretchX;
+        private double stretchY;
     }
 
     private void drawWeapons(Graphics2D graphics, int centerX, int centerY,
             int renderedWidth, int renderedHeight, boolean behindCharacter) {
         drawAttachedWeapon(graphics, centerX, centerY, renderedWidth, renderedHeight,
-                weaponSprite, false, behindCharacter);
+                heldPrimarySprite, false, behindCharacter);
         drawAttachedWeapon(graphics, centerX, centerY, renderedWidth, renderedHeight,
-                offhandWeaponSprite, true, behindCharacter);
+                heldOffhandSprite, true, behindCharacter);
     }
 
     private void drawAttachedWeapon(Graphics2D graphics, int centerX, int centerY,
             int renderedWidth, int renderedHeight, BufferedImage image,
             boolean offhand, boolean behindCharacter) {
-        WeaponPose pose = getWeaponPose(offhand, renderedWidth, renderedHeight);
+        if (offhand && image == null) {
+            return;
+        }
+        WeaponPose pose = animatedWeaponPose(offhand, renderedWidth, renderedHeight);
         if (pose.behindCharacter != behindCharacter) {
             return;
         }
@@ -385,8 +1125,7 @@ public abstract class Player {
         double attackProgress = -1.0;
         if (attackAnimationTime > 0.0) {
             attackProgress = attackAnimationDuration <= 0.0 ? 0.0
-                    : 1.0 - attackAnimationTime / attackAnimationDuration;
-            pose.applyAttackProgress(attackProgress, heldWeaponSideX, getFacingY());
+                    : strikeAlignedProgress(1.0 - attackAnimationTime / attackAnimationDuration);
         }
         if (attackProgress >= 0.0) {
             pose.drawAttackTrail(graphics, centerX, centerY, attackProgress);
@@ -395,7 +1134,9 @@ public abstract class Player {
         Graphics2D weaponGraphics = (Graphics2D) graphics.create();
         Object previousInterpolation = weaponGraphics.getRenderingHint(RenderingHints.KEY_INTERPOLATION);
         weaponGraphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
-                RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+                ("daggers".equals(defaultWeaponStyle) || "greatshield".equals(defaultWeaponStyle))
+                        ? RenderingHints.VALUE_INTERPOLATION_BILINEAR
+                        : RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
         AffineTransform transform = new AffineTransform();
         transform.translate(centerX + pose.weaponX, centerY + pose.weaponY);
         transform.rotate(pose.weaponRotation);
@@ -404,19 +1145,26 @@ public abstract class Player {
             if (!offhand) {
                 drawProceduralWeapon(weaponGraphics, pose.drawHeight, attackAnimationTime > 0.0);
             }
+        } else if ("daggers".equals(defaultWeaponStyle) || "greatshield".equals(defaultWeaponStyle)) {
+            BufferedImage filtered = filteredHeldWeapon(image);
+            double scale = pose.drawHeight / (double) filtered.getHeight();
+            transform.scale(pose.flipX ? -scale : scale, scale);
+            transform.translate(-filtered.getWidth() * pose.weaponPivotX,
+                    -filtered.getHeight() * pose.weaponPivotY);
+            weaponGraphics.drawImage(filtered, transform, null);
+            if ("greatshield".equals(defaultWeaponStyle) && guardianBlockTime > 0.0) {
+                weaponGraphics.setComposite(AlphaComposite.SrcOver.derive(
+                        (float) (guardianBlockTime / 0.20 * 0.68)));
+                weaponGraphics.drawImage(blockFlashImage(filtered), transform, null);
+            }
         } else {
             Rectangle visibleBounds = visibleWeaponBounds(image);
             pose.weaponScale = pose.drawHeight / (double) visibleBounds.height;
             transform.scale(pose.flipX ? -pose.weaponScale : pose.weaponScale,
                     pose.weaponScale);
-            weaponGraphics.transform(transform);
-            int drawX = (int) Math.round(-visibleBounds.width * pose.weaponPivotX);
-            int drawY = (int) Math.round(-visibleBounds.height * pose.weaponPivotY);
-            weaponGraphics.drawImage(image,
-                    drawX, drawY, drawX + visibleBounds.width, drawY + visibleBounds.height,
-                    visibleBounds.x, visibleBounds.y,
-                    visibleBounds.x + visibleBounds.width,
-                    visibleBounds.y + visibleBounds.height, null);
+            transform.translate(-visibleBounds.x - visibleBounds.width * pose.weaponPivotX,
+                    -visibleBounds.y - visibleBounds.height * pose.weaponPivotY);
+            weaponGraphics.drawImage(image, transform, null);
         }
         if (previousInterpolation != null) {
             weaponGraphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, previousInterpolation);
@@ -463,77 +1211,205 @@ public abstract class Player {
         }
     }
 
-    private WeaponPose getWeaponPose(boolean offhand, int renderedWidth, int renderedHeight) {
-        int facingX = heldWeaponSideX;
-        int facingY = getFacingY();
-        boolean left = facingX < 0;
-        boolean down = facingY > 0;
-
-        if ("sword_shield".equals(attackWeaponStyle)) {
-            if (offhand) {
-                double x = left ? -renderedWidth * 0.12 : renderedWidth * 0.12;
-                double y = renderedHeight * 0.09;
-                if (down) {
-                    x = left ? -renderedWidth * 0.11 : renderedWidth * 0.11;
-                    y = renderedHeight * 0.12;
+    private static BufferedImage filteredHeldWeapon(BufferedImage image) {
+        synchronized (FILTERED_HELD_WEAPONS) {
+            return FILTERED_HELD_WEAPONS.computeIfAbsent(image, source -> {
+                Rectangle bounds = visibleWeaponBounds(source);
+                BufferedImage current = source.getSubimage(bounds.x, bounds.y, bounds.width, bounds.height);
+                int targetHeight = 44;
+                int targetWidth = Math.max(1, (int) Math.round(bounds.width * targetHeight / (double) bounds.height));
+                // Gradual reduction averages fine weapon detail before rotation.
+                while (current.getWidth() != targetWidth || current.getHeight() != targetHeight) {
+                    int width = Math.max(targetWidth, current.getWidth() / 2);
+                    int height = Math.max(targetHeight, current.getHeight() / 2);
+                    BufferedImage smaller = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+                    Graphics2D filter = smaller.createGraphics();
+                    filter.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+                            RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+                    filter.drawImage(current, 0, 0, width, height, null);
+                    filter.dispose();
+                    current = smaller;
                 }
-                return new WeaponPose(x, y, left ? -0.04 : 0.04, 24,
-                        0.50, 0.56, false, false);
-            }
-            double x = left ? -renderedWidth * 0.09 : renderedWidth * 0.09;
-            double y = renderedHeight * 0.02;
-            double angle = left ? Math.toRadians(198) : Math.toRadians(162);
-            if (down) {
-                x = left ? -renderedWidth * 0.08 : renderedWidth * 0.08;
-                y = renderedHeight * 0.06;
-            }
-            return new WeaponPose(x, y, angle, 34, 0.82, 0.17, left, false,
-                    11.0, left ? 0.95 : -0.95, SWORD_TRAIL_COLOR, 4.5);
+                return current;
+            });
+        }
+    }
+
+    private static BufferedImage blockFlashImage(BufferedImage image) {
+        synchronized (BLOCK_FLASH_IMAGES) {
+            return BLOCK_FLASH_IMAGES.computeIfAbsent(image, source -> {
+                BufferedImage flash = new BufferedImage(source.getWidth(), source.getHeight(),
+                        BufferedImage.TYPE_INT_ARGB);
+                for (int y = 0; y < source.getHeight(); y++) {
+                    for (int x = 0; x < source.getWidth(); x++) {
+                        flash.setRGB(x, y, (source.getRGB(x, y) & 0xff000000) | 0x00ffeac0);
+                    }
+                }
+                return flash;
+            });
+        }
+    }
+
+    private WeaponPose getWeaponPose(boolean offhand, int renderedWidth, int renderedHeight) {
+        WeaponPose pose = baseWeaponPose(offhand, renderedWidth, renderedHeight);
+        double breath = Math.sin(visualTime * Math.PI * 2.0 / 3.4);
+        double stride = Math.sin(animationTime * animationSpeed * Math.PI / 2.0);
+        // Tiny wrist counter-motion stays centered on the grip, never on the body center.
+        pose.weaponRotation += breath * 0.010 * (1.0 - locomotionBlend * 0.8)
+                * (offhand ? -0.5 : 1.0)
+                + stride * locomotionBlend * (offhand ? -0.018 : 0.026);
+        if ("daggers".equals(defaultWeaponStyle)) {
+            pose.weaponRotation += offhand ? daggerOffhandTurnCarry : daggerPrimaryTurnCarry;
+        }
+        return pose;
+    }
+
+    private WeaponPose baseWeaponPose(boolean offhand, int renderedWidth, int renderedHeight) {
+        int[] hand = handPixel(offhand);
+        double x = (hand[0] / (double) spriteWidth - 0.5) * renderedWidth;
+        double y = (hand[1] / (double) spriteHeight - 0.5) * renderedHeight;
+        double sizeScale = renderedHeight / 64.0;
+        boolean back = spriteRow == 0;
+        boolean left = spriteRow == 3;
+        boolean handOnLeft = hand[0] < spriteWidth / 2;
+
+        if ("greatshield".equals(defaultWeaponStyle)) {
+            double angle = left ? -0.035 : 0.035;
+            // Grip stays at the central arm strap, never at the texture's corner.
+            return new WeaponPose(x, y, angle, (int) Math.round(40 * sizeScale),
+                    0.50, 0.51, left, back);
         }
 
-        if ("daggers".equals(attackWeaponStyle)) {
-            boolean alternateSlash = attackAnimationTime > 0.0 && attackSequence % 2 == 0;
-            double x = left ? -renderedWidth * 0.06 : renderedWidth * 0.06;
-            double y = renderedHeight * 0.05;
-            double angle = left ? Math.toRadians(12) : Math.toRadians(-12);
-            if (down) {
-                y = renderedHeight * 0.08;
-                angle = left ? Math.toRadians(8) : Math.toRadians(-8);
+        if ("sword_shield".equals(defaultWeaponStyle)) {
+            if (offhand) {
+                return new WeaponPose(x, y, left ? -0.04 : 0.04,
+                        (int) Math.round(22 * sizeScale), 0.50, 0.52, left,
+                        back || spriteRow == 1);
             }
-            if (alternateSlash) {
-                angle += left ? Math.toRadians(-16) : Math.toRadians(16);
-            }
-            double arc = left ? -0.72 : 0.72;
-            if (alternateSlash) {
-                arc = -arc * 0.86;
-            }
-            return new WeaponPose(x, y, angle, 24, 0.50, 0.20, left, false,
-                    8.0, arc, DAGGER_TRAIL_COLOR, 3.5);
+            double angle = Math.toRadians(handOnLeft ? 195 : 165);
+            double arc = switch (spriteRow) {
+                case 0 -> -0.24; // Bring the blade overhead when striking away from the camera.
+                case 2 -> -2.45; // Sweep down in front of the body when facing the camera.
+                default -> handOnLeft ? -0.95 : 0.95;
+            };
+            return new WeaponPose(x, y, angle, (int) Math.round(34 * sizeScale),
+                    0.83, 0.16, handOnLeft, back,
+                    arc, SWORD_TRAIL_COLOR, 3.0);
         }
 
-        if ("holy_staff".equals(attackWeaponStyle) || "elemental_staff".equals(attackWeaponStyle)
-                || "staff".equals(attackWeaponStyle)) {
-            boolean elementalStaff = "elemental_staff".equals(attackWeaponStyle);
-            double sideDistance = elementalStaff ? 0.14 : 0.12;
-            double x = left ? -renderedWidth * sideDistance : renderedWidth * sideDistance;
-            double y = elementalStaff ? renderedHeight * 0.04 : renderedHeight * 0.05;
-            double angle = left ? Math.toRadians(-7) : Math.toRadians(7);
-            if (down) {
-                y = elementalStaff ? renderedHeight * 0.08 : renderedHeight * 0.09;
-                double downSideDistance = elementalStaff ? 0.12 : 0.11;
-                x = left ? -renderedWidth * downSideDistance : renderedWidth * downSideDistance;
-                angle = left ? Math.toRadians(-4) : Math.toRadians(4);
+        if ("daggers".equals(defaultWeaponStyle)) {
+            boolean side = spriteRow == 1 || spriteRow == 3;
+            // The source art has its handle at the top and tip at the bottom.
+            // Turn around the calibrated handle so every stance holds the blade upright.
+            boolean flip = true;
+            double angle = Math.PI + Math.toRadians(handOnLeft ? 12 : -12);
+            double arc = (handOnLeft ? 0.72 : -0.72) * (offhand ? 0.82 : 1.0);
+            if (back) {
+                arc *= 0.35;
+            } else if (spriteRow == 2) {
+                arc *= 0.4;
             }
-            return new WeaponPose(x, y, angle, elementalStaff ? 42 : 38,
-                    0.50, 0.78, left, !elementalStaff,
-                    6.0, left ? -0.42 : 0.42,
+            if (attackSequence % 2 == 0) {
+                arc = -arc;
+            }
+            WeaponPose pose = new WeaponPose(x, y, angle, (int) Math.round(22 * sizeScale),
+                    offhand ? 0.402 : 0.585, 0.17,
+                    flip, back || (offhand && side), arc, DAGGER_TRAIL_COLOR, 3.5);
+            BufferedImage dagger = offhand ? heldOffhandSprite : heldPrimarySprite;
+            Rectangle bounds = visibleWeaponBounds(dagger);
+            // Both asset halves curve in different directions; measure their actual tips.
+            double tipX = offhand ? 0.91 : 0.09;
+            double bladeX = (tipX - pose.weaponPivotX) * bounds.width
+                    * pose.drawHeight / (double) bounds.height * (flip ? -1 : 1);
+            double bladeY = (0.92 - pose.weaponPivotY) * pose.drawHeight;
+            pose.trailBladeAngle = Math.atan2(bladeY, bladeX);
+            pose.trailRadius = Math.hypot(bladeX, bladeY);
+            pose.trailVerticalScale = 1.0;
+            return pose;
+        }
+
+        if ("holy_staff".equals(defaultWeaponStyle) || "elemental_staff".equals(defaultWeaponStyle)) {
+            boolean elementalStaff = "elemental_staff".equals(defaultWeaponStyle);
+            // Preserve an outward lean so the head stays clear of the character's face.
+            double angle = Math.toRadians(handOnLeft ? -8 : 8);
+            return new WeaponPose(x, y, angle, (int) Math.round((elementalStaff ? 42 : 38) * sizeScale),
+                    elementalStaff ? 0.249 : 202.0 / 387.0,
+                    elementalStaff ? 0.654 : 488.0 / 670.0,
+                    handOnLeft, back, handOnLeft ? -0.24 : 0.24,
                     elementalStaff ? ELEMENTAL_TRAIL_COLOR : HOLY_TRAIL_COLOR, 3.0);
         }
 
-        double x = left ? -renderedWidth * 0.34 : renderedWidth * 0.34;
-        double y = renderedHeight * 0.08;
         return new WeaponPose(x, y, left ? -Math.PI * 3.0 / 4.0 : -Math.PI / 4.0,
                 50, 0.50, 0.65, left, false);
+    }
+
+    private int[] handPixel(boolean offhand) {
+        int column = currentSpriteColumn();
+        return switch (defaultWeaponStyle) {
+            case "sword_shield" -> SWORD_HANDS[spriteRow][column][offhand ? 1 : 0];
+            case "daggers" -> DAGGER_HANDS[spriteRow][column][offhand ? 1 : 0];
+            case "holy_staff" -> HOLY_STAFF_HANDS[spriteRow][column];
+            case "elemental_staff" -> ELEMENTAL_STAFF_HANDS[spriteRow][column];
+            case "greatshield" -> GREATSHIELD_HANDS[spriteRow][column];
+            default -> new int[] {spriteWidth * (spriteRow == 3 ? 1 : 3) / 4,
+                    spriteHeight * 5 / 8};
+        };
+    }
+
+    private WeaponPose animatedWeaponPose(boolean offhand, int renderedWidth, int renderedHeight) {
+        WeaponPose pose = getWeaponPose(offhand, renderedWidth, renderedHeight);
+        if ("greatshield".equals(defaultWeaponStyle)) {
+            GuardianMotion motion = guardianMotion();
+            double scale = renderedHeight / 64.0;
+            pose.weaponX += recentMoveX * motion.reach * scale;
+            pose.weaponY += (recentMoveY * motion.reach - motion.lift) * scale;
+            pose.weaponRotation += motion.rotation;
+            return pose;
+        }
+        if (attackAnimationTime > 0.0) {
+            double progress = 1.0 - attackAnimationTime / attackAnimationDuration;
+            pose.attackDirection = attackBeatDirection(progress);
+            if ("daggers".equals(defaultWeaponStyle)) {
+                double extension = daggerSwingEffort(progress);
+                pose.weaponRotation += pose.attackArc * extension;
+                double previous = Math.max(0.0, progress - 0.045 / attackAnimationDuration);
+                pose.trailSweep = pose.attackArc * (extension - daggerSwingEffort(previous));
+                pose.trailOpacity = Math.min(0.46, Math.abs(pose.trailSweep) * 1.1);
+            } else if (autoStaffRecoil) {
+                pose.weaponRotation += pose.attackArc * recoilEffort(progress) * 0.50;
+            } else {
+                pose.applyAttackProgress(strikeAlignedProgress(progress));
+            }
+            pose.weaponRotation += (offhand ? offhandAttackCarry : primaryAttackCarry)
+                    * attackCarryWeight(progress);
+        }
+        return pose;
+    }
+
+    private void drawGripHands(Graphics2D graphics, int centerX, int centerY,
+            int renderedWidth, int renderedHeight, int spriteColumn) {
+        if ("greatshield".equals(defaultWeaponStyle)) {
+            // The forearm and hand are behind a greatshield; the actual face remains unpainted.
+            return;
+        }
+        for (boolean offhand : new boolean[] {false, true}) {
+            if ((offhand ? heldOffhandSprite : heldPrimarySprite) == null) {
+                continue;
+            }
+            WeaponPose pose = getWeaponPose(offhand, renderedWidth, renderedHeight);
+            if (pose.behindCharacter) {
+                continue;
+            }
+            int[] hand = handPixel(offhand);
+            int x = hand[0] - 1;
+            int y = hand[1] - 1;
+            int drawX = centerX - renderedWidth / 2 + x * spriteScale;
+            int drawY = centerY - renderedHeight / 2 + y * spriteScale;
+            // Restore fingers/glove pixels over the handle to visibly close the grip.
+            graphics.drawImage(spriteFrames[spriteRow][spriteColumn], drawX, drawY,
+                    drawX + 3 * spriteScale, drawY + 3 * spriteScale,
+                    x, y, x + 3, y + 3, null);
+        }
     }
 
     private static class WeaponPose {
@@ -548,27 +1424,25 @@ public abstract class Player {
         private final double weaponPivotY;
         private final boolean flipX;
         private final boolean behindCharacter;
-        private final double attackReach;
         private final double attackArc;
+        private double attackDirection = 1.0;
         private final Color trailColor;
         private final double trailWidth;
+        private double trailBladeAngle;
+        private double trailRadius;
+        private double trailVerticalScale = 0.72;
+        private double trailSweep = Double.NaN;
+        private double trailOpacity;
 
         private WeaponPose(double offsetX, double offsetY, double angle, int drawHeight,
                 double pivotX, double pivotY, boolean flipX, boolean behindCharacter) {
             this(offsetX, offsetY, angle, drawHeight, pivotX, pivotY, flipX,
-                    behindCharacter, 0.0, 0.0, null, 0.0);
+                    behindCharacter, 0.0, null, 0.0);
         }
 
         private WeaponPose(double offsetX, double offsetY, double angle, int drawHeight,
                 double pivotX, double pivotY, boolean flipX, boolean behindCharacter,
-                double attackReach, double attackArc) {
-            this(offsetX, offsetY, angle, drawHeight, pivotX, pivotY, flipX,
-                    behindCharacter, attackReach, attackArc, null, 0.0);
-        }
-
-        private WeaponPose(double offsetX, double offsetY, double angle, int drawHeight,
-                double pivotX, double pivotY, boolean flipX, boolean behindCharacter,
-                double attackReach, double attackArc, Color trailColor, double trailWidth) {
+                double attackArc, Color trailColor, double trailWidth) {
             this.handAnchorX = offsetX;
             this.handAnchorY = offsetY;
             this.weaponX = offsetX;
@@ -579,13 +1453,14 @@ public abstract class Player {
             this.weaponPivotY = pivotY;
             this.flipX = flipX;
             this.behindCharacter = behindCharacter;
-            this.attackReach = attackReach;
             this.attackArc = attackArc;
             this.trailColor = trailColor;
             this.trailWidth = trailWidth;
+            this.trailBladeAngle = Math.toRadians(flipX ? 58 : 122);
+            this.trailRadius = drawHeight * 0.94;
         }
 
-        private void applyAttackProgress(double progress, int facingX, int facingY) {
+        private void applyAttackProgress(double progress) {
             if (attackArc == 0.0) {
                 return;
             }
@@ -593,75 +1468,75 @@ public abstract class Player {
             double clamped = Math.max(0.0, Math.min(1.0, progress));
             double rotationOffset;
             if (clamped < 0.24) {
-                rotationOffset = lerp(0.0, -0.72 * attackArc, smooth(clamped / 0.24));
+                rotationOffset = lerp(0.0, -0.72 * attackArc, smoother(clamped / 0.24));
             } else if (clamped < 0.55) {
                 rotationOffset = lerp(-0.72 * attackArc, 1.22 * attackArc,
                         smoother((clamped - 0.24) / 0.31));
             } else if (clamped < 0.78) {
                 rotationOffset = lerp(1.22 * attackArc, 0.42 * attackArc,
-                        smooth((clamped - 0.55) / 0.23));
+                        smoother((clamped - 0.55) / 0.23));
             } else {
-                rotationOffset = lerp(0.42 * attackArc, 0.0, smooth((clamped - 0.78) / 0.22));
+                rotationOffset = lerp(0.42 * attackArc, 0.0, smoother((clamped - 0.78) / 0.22));
             }
 
-            double hitPulse = Math.sin(Math.min(1.0, clamped / 0.72) * Math.PI);
-            double handNudge = hitPulse * Math.min(5.0, attackReach * 0.42);
-            double lift = Math.sin(clamped * Math.PI) * (facingY < 0 ? 1.4 : 2.6);
-            weaponRotation += rotationOffset;
-            weaponX = handAnchorX + facingX * handNudge;
-            weaponY = handAnchorY - lift;
+            weaponRotation += rotationOffset * attackDirection;
+            weaponX = handAnchorX;
+            weaponY = handAnchorY;
         }
 
         private void drawAttackTrail(Graphics2D graphics, int centerX, int centerY,
                 double progress) {
-            if (trailColor == null || attackArc == 0.0) {
+            if (trailColor == null || attackArc == 0.0
+                    || trailColor == HOLY_TRAIL_COLOR || trailColor == ELEMENTAL_TRAIL_COLOR) {
                 return;
             }
             double clamped = Math.max(0.0, Math.min(1.0, progress));
-            if (clamped < 0.20 || clamped > 0.76) {
+            boolean dagger = Double.isFinite(trailSweep);
+            if (!dagger && (clamped < 0.20 || clamped > 0.76)) {
                 return;
             }
 
             double phase = smooth((clamped - 0.20) / 0.56);
-            float alpha = (float) (Math.sin(phase * Math.PI) * 0.48);
+            float alpha = (float) (dagger ? trailOpacity : Math.sin(phase * Math.PI) * 0.48);
             if (alpha <= 0.01f) {
                 return;
             }
 
             double handX = centerX + weaponX;
             double handY = centerY + weaponY;
-            double radius = drawHeight * (0.54 + 0.28 * phase);
-            double middleAngle = weaponRotation - Math.PI / 2.0;
-            double sweep = attackArc * 0.58;
+            double radius = trailRadius;
+            double middleAngle = weaponRotation + trailBladeAngle;
+            double sweep = dagger ? trailSweep : attackArc * attackDirection * 0.58;
             double startAngle = middleAngle - sweep;
-            double endAngle = middleAngle + sweep * 0.22;
+            double endAngle = dagger ? middleAngle : middleAngle + sweep * 0.22;
 
             Graphics2D trailGraphics = (Graphics2D) graphics.create();
             trailGraphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
                     RenderingHints.VALUE_ANTIALIAS_ON);
-            trailGraphics.setComposite(AlphaComposite.SrcOver.derive(alpha));
-            trailGraphics.setStroke(new BasicStroke((float) Math.max(2.0, trailWidth),
-                    BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-            trailGraphics.setColor(trailColor);
-
-            int previousX = (int) Math.round(handX + Math.cos(startAngle) * radius);
-            int previousY = (int) Math.round(handY + Math.sin(startAngle) * radius * 0.72);
-            for (int step = 1; step <= 6; step++) {
-                double ratio = step / 6.0;
+            Path2D.Double ribbon = new Path2D.Double();
+            ribbon.moveTo(handX + Math.cos(startAngle) * radius,
+                    handY + Math.sin(startAngle) * radius * trailVerticalScale);
+            for (int step = 1; step <= 24; step++) {
+                double ratio = step / 24.0;
                 double angle = lerp(startAngle, endAngle, ratio);
-                double taperedRadius = radius * (1.0 - ratio * 0.16);
-                int x = (int) Math.round(handX + Math.cos(angle) * taperedRadius);
-                int y = (int) Math.round(handY + Math.sin(angle) * taperedRadius * 0.72);
-                trailGraphics.drawLine(previousX, previousY, x, y);
-                previousX = x;
-                previousY = y;
+                double taperedRadius = dagger ? radius : radius * (1.0 - ratio * 0.16);
+                ribbon.lineTo(handX + Math.cos(angle) * taperedRadius,
+                        handY + Math.sin(angle) * taperedRadius * trailVerticalScale);
             }
-            trailGraphics.setComposite(AlphaComposite.SrcOver.derive(alpha * 0.65f));
-            trailGraphics.setStroke(new BasicStroke((float) Math.max(1.0, trailWidth * 0.45),
+            trailGraphics.setColor(trailColor);
+            trailGraphics.setComposite(AlphaComposite.SrcOver.derive(alpha * 0.24f));
+            trailGraphics.setStroke(new BasicStroke((float) (trailWidth * 2.1),
                     BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-            trailGraphics.setColor(Color.WHITE);
-            trailGraphics.drawLine((int) Math.round(handX), (int) Math.round(handY),
-                    previousX, previousY);
+            trailGraphics.draw(ribbon);
+            trailGraphics.setComposite(AlphaComposite.SrcOver.derive(alpha));
+            trailGraphics.setStroke(new BasicStroke((float) Math.max(1.0, trailWidth * 0.62),
+                    BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            trailGraphics.draw(ribbon);
+            trailGraphics.setColor(trailColor.brighter());
+            trailGraphics.setComposite(AlphaComposite.SrcOver.derive(alpha * 0.72f));
+            trailGraphics.setStroke(new BasicStroke((float) Math.max(0.7, trailWidth * 0.24),
+                    BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            trailGraphics.draw(ribbon);
             trailGraphics.dispose();
         }
 
@@ -683,6 +1558,9 @@ public abstract class Player {
     }
 
     private String weaponStyleFor(AbilityDefinition definition) {
+        if ("greatshield".equals(defaultWeaponStyle)) {
+            return "greatshield";
+        }
         if (definition == null) {
             return defaultWeaponStyle;
         }

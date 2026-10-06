@@ -50,19 +50,19 @@ public class RedFinalMinion extends Enemy {
     @Override
     public void update(double deltaTime, double targetWorldX, double targetWorldY,
             double targetCollisionRadius) {
+        super.update(deltaTime, targetWorldX, targetWorldY, targetCollisionRadius);
         if (isDead()) {
             return;
         }
         fireCooldown = Math.max(0.0, fireCooldown - deltaTime);
-        super.update(deltaTime, targetWorldX, targetWorldY, targetCollisionRadius);
     }
 
     private static BufferedImage loadSpriteSheet() {
-        return ResourceLoader.loadImage("/main/resources/enemy/REDMINION.png");
+        return EnemySpriteAssets.standaloneSprite("/main/resources/enemy/REDMINION.png");
     }
 
     private static BufferedImage loadDeathSheet() {
-        return ResourceLoader.loadImage("/main/resources/enemy/REDMINION.png");
+        return EnemySpriteAssets.standaloneSprite("/main/resources/enemy/REDMINION.png");
     }
 
     private static BufferedImage loadProjectileSprite() {

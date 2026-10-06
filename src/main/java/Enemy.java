@@ -3,6 +3,7 @@ import java.awt.Composite;
 import java.awt.Graphics2D;
 import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
+import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 
 public abstract class Enemy {
@@ -29,6 +30,11 @@ public abstract class Enemy {
     private double slowTimer;
     private double slowMultiplier = 1.0;
     private double stunTimer;
+    private double knockdownTimer;
+    private double tauntTimer;
+    private double tauntedDamageMultiplier = 1.0;
+    private double knockbackVelocityX;
+    private double knockbackVelocityY;
     private double markTimer;
     private double markDamageMultiplier = 1.0;
     private double hitReactionTimer;
@@ -150,6 +156,38 @@ public abstract class Enemy {
         }
     }
 
+    public boolean isStunned() {
+        return !isDead() && stunTimer > 0.0;
+    }
+
+    public void applyKnockdown(double duration) {
+        if (!isDead()) {
+            knockdownTimer = Math.max(knockdownTimer, duration);
+            applyStun(duration);
+        }
+    }
+
+    public boolean isKnockedDown() {
+        return !isDead() && knockdownTimer > 0.0;
+    }
+
+    // The game has one player target; taunt also makes ranged enemies close in.
+    public void applyTaunt(double duration, double attackMultiplier) {
+        if (!isDead()) {
+            tauntTimer = Math.max(tauntTimer, duration);
+            tauntedDamageMultiplier = Math.min(tauntedDamageMultiplier,
+                    Math.max(0.0, Math.min(1.0, attackMultiplier)));
+        }
+    }
+
+    public boolean isTaunted() {
+        return !isDead() && tauntTimer > 0.0;
+    }
+
+    public double getAttackDamageMultiplier() {
+        return isTaunted() ? tauntedDamageMultiplier : 1.0;
+    }
+
     public void applyMark(double multiplier, double duration) {
         if (isDead()) {
             return;
@@ -176,6 +214,19 @@ public abstract class Enemy {
 
     public double getHealthRatio() {
         return maxHealth <= 0.0 ? 0.0 : health / maxHealth;
+    }
+
+    public void applyDirectionalKnockback(double directionX, double directionY, double distance) {
+        if (isDead()) return;
+        double length = Math.hypot(directionX, directionY);
+        if (length <= 0.0001) return;
+        double strength = distance * (1.0 - getKnockbackResistance()) * 18.0;
+        knockbackVelocityX = directionX / length * strength;
+        knockbackVelocityY = directionY / length * strength;
+    }
+
+    protected double getKnockbackResistance() {
+        return 0.0;
     }
 
     public double getHealth() {
@@ -254,46 +305,77 @@ public abstract class Enemy {
             return;
         }
 
+        Graphics2D enemyGraphics = (Graphics2D) graphics.create();
+        try {
+            drawEnemy(enemyGraphics, centerX, centerY, cameraX, cameraY);
+        } finally {
+            enemyGraphics.dispose();
+        }
+    }
+
+    private void drawEnemy(Graphics2D graphics, int centerX, int centerY,
+            double cameraX, double cameraY) {
         double hitOffset = hitReactionTimer > 0.0 ? hitReactionTimer / 0.18 * 8.0 : 0.0;
-        int screenX = (int) (centerX + worldX + cameraX - renderSize / 2.0
+        int screenX = (int) Math.round(centerX + worldX + cameraX - renderSize / 2.0
                 + hitDirectionX * hitOffset);
-        int screenY = (int) (centerY + worldY + cameraY - renderSize / 2.0
+        int screenY = (int) Math.round(centerY + worldY + cameraY - renderSize / 2.0
                 + hitDirectionY * hitOffset);
         double drawTime = isDead() ? deathTime : animationTime;
-        int animationFrame = isDead() ? (int) (drawTime * animationSpeed) % 5 : 0;
-        int sourceX = animationFrame * frameWidth;
-
-        // The enemy frames are arranged horizontally in one row.
-        BufferedImage imageToDraw = isDead() ? deathSheet : spriteSheet;
         Composite oldComposite = graphics.getComposite();
-
-        if (!isDead() && animationSpeed == 0.0) {
-            sourceX = 0;
-        }
 
         if (isDead()) {
             drawElementalDeath(graphics, screenX, screenY, drawTime);
-            graphics.setComposite(oldComposite);
             return;
         }
 
-        if (facingLeft) {
-            Graphics2D flippedGraphics = (Graphics2D) graphics.create();
-            flippedGraphics.translate(screenX + renderSize, screenY);
-            flippedGraphics.scale(-1, 1);
-            flippedGraphics.drawImage(imageToDraw,
-                0, 0, renderSize, renderSize,
-                sourceX, 0, sourceX + frameWidth, frameHeight, null);
-            flippedGraphics.dispose();
+        if (isKnockedDown()) {
+            Graphics2D fallen = (Graphics2D) graphics.create();
+            fallen.rotate(facingLeft ? -0.65 : 0.65, screenX + renderSize / 2.0, screenY + renderSize * 0.8);
+            drawSpriteFrame(fallen, spriteSheet, screenX, screenY, drawTime, false, facingLeft);
+            fallen.dispose();
         } else {
-            graphics.drawImage(imageToDraw,
-                screenX, screenY, screenX + renderSize, screenY + renderSize,
-                sourceX, 0, sourceX + frameWidth, frameHeight, null);
+            drawSpriteFrame(graphics, spriteSheet, screenX, screenY, drawTime, false, facingLeft);
         }
 
         drawHitReaction(graphics, screenX, screenY);
         graphics.setComposite(oldComposite);
         drawStatusGlow(graphics, screenX, screenY);
+        if (isTaunted()) {
+            graphics.setColor(new Color(255, 197, 76));
+            int indicatorX = screenX + renderSize / 2;
+            graphics.fillRoundRect(indicatorX - 2, screenY - 17, 4, 9, 2, 2);
+            graphics.fillOval(indicatorX - 2, screenY - 5, 4, 4);
+        }
+    }
+
+    protected final void drawSpriteFrame(Graphics2D graphics, BufferedImage image,
+            int screenX, int screenY, double drawTime, boolean dying, boolean flip) {
+        // Atlas crops and the final boss/minions can be standalone images of any size.
+        boolean horizontalSheet = image.getHeight() == frameHeight
+                && image.getWidth() >= frameWidth && image.getWidth() % frameWidth == 0;
+        int sourceWidth = horizontalSheet ? frameWidth : image.getWidth();
+        int sourceHeight = horizontalSheet ? frameHeight : image.getHeight();
+        int frameCount = horizontalSheet ? image.getWidth() / frameWidth : 1;
+        int frame = dying
+                ? Math.min(frameCount - 1, (int) (drawTime / DEATH_DURATION * frameCount))
+                : (int) (drawTime * animationSpeed % frameCount);
+        int sourceX = frame * sourceWidth;
+        double scale = renderSize / (double) Math.max(sourceWidth, sourceHeight);
+        int width = Math.max(1, (int) Math.round(sourceWidth * scale));
+        int height = Math.max(1, (int) Math.round(sourceHeight * scale));
+        int x = screenX + (renderSize - width) / 2;
+        int y = screenY + (renderSize - height) / 2;
+
+        Graphics2D spriteGraphics = (Graphics2D) graphics.create();
+        try {
+            spriteGraphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+                    RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+            spriteGraphics.drawImage(image,
+                    flip ? x + width : x, y, flip ? x : x + width, y + height,
+                    sourceX, 0, sourceX + sourceWidth, sourceHeight, null);
+        } finally {
+            spriteGraphics.dispose();
+        }
     }
 
     private void drawHitReaction(Graphics2D graphics, int screenX, int screenY) {
@@ -321,9 +403,7 @@ public abstract class Enemy {
 
         Graphics2D deathGraphics = (Graphics2D) graphics.create();
         deathGraphics.setComposite(AlphaComposite.SrcOver.derive(alpha / 255.0f));
-        deathGraphics.drawImage(deathSheet,
-                screenX, screenY, screenX + renderSize, screenY + renderSize,
-                0, 0, frameWidth, frameHeight, null);
+        drawSpriteFrame(deathGraphics, deathSheet, screenX, screenY, drawTime, true, facingLeft);
         deathGraphics.dispose();
 
         switch (deathElement) {
@@ -340,7 +420,15 @@ public abstract class Enemy {
         }
     }
 
-    private void updateStatusEffects(double deltaTime) {
+    protected final void updateStatusEffects(double deltaTime) {
+        double decay = Math.exp(-18.0 * deltaTime);
+        worldX += knockbackVelocityX * (1.0 - decay) / 18.0;
+        worldY += knockbackVelocityY * (1.0 - decay) / 18.0;
+        knockbackVelocityX *= decay;
+        knockbackVelocityY *= decay;
+        knockdownTimer = Math.max(0.0, knockdownTimer - deltaTime);
+        tauntTimer = Math.max(0.0, tauntTimer - deltaTime);
+        if (tauntTimer <= 0.0) tauntedDamageMultiplier = 1.0;
         if (poisonTimer > 0.0) {
             poisonTimer = Math.max(0.0, poisonTimer - deltaTime);
             health = Math.max(0.0, health - poisonDamagePerSecond * deltaTime);

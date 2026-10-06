@@ -54,11 +54,18 @@ public class AbilityManager {
     }
 
     public void equip(RpgAbility ability) {
-        if (ability == null) {
+        if (ability == null || ability.getDefinition().isPassive()) {
             return;
         }
-        for (RpgAbility equippedAbility : equipped) {
-            if (equippedAbility == ability) {
+        for (int index = 0; index < equipped.length; index++) {
+            if (equipped[index] == ability) {
+                if (index != selectedEquipSlot) {
+                    // Choosing a held skill for another slot rearranges the loadout.
+                    // Keep both skills equipped instead of making the visible choice a no-op.
+                    equipped[index] = equipped[selectedEquipSlot];
+                    equipped[selectedEquipSlot] = ability;
+                    selectedEquipSlot = (selectedEquipSlot + 1) % equipped.length;
+                }
                 return;
             }
         }
@@ -117,7 +124,7 @@ public class AbilityManager {
                 break;
             }
             RpgAbility ability = getAbilityById(abilityId);
-            if (ability != null) {
+            if (ability != null && !ability.getDefinition().isPassive()) {
                 equipped[slot] = ability;
                 ability.setEquipped(true);
                 ability.cooldownRemaining = 0.0;
@@ -193,7 +200,8 @@ public class AbilityManager {
     private void equipDefaults() {
         int slot = 0;
         for (RpgAbility ability : abilities) {
-            if (ability.getDefinition().getUnlockLevel() == 1 && slot < equipped.length) {
+            if (!ability.getDefinition().isPassive()
+                    && ability.getDefinition().getUnlockLevel() == 1 && slot < equipped.length) {
                 equipped[slot] = ability;
                 ability.setEquipped(true);
                 slot++;

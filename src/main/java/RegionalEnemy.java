@@ -82,7 +82,7 @@ public class RegionalEnemy extends Enemy {
     @Override
     public void update(double deltaTime, double targetWorldX, double targetWorldY,
             double targetCollisionRadius) {
-        double stopRadius = definition.isRanged()
+        double stopRadius = definition.isRanged() && !isTaunted()
                 ? Math.max(targetCollisionRadius, definition.getAttackRange() - collisionRadius)
                 : targetCollisionRadius;
         super.update(deltaTime, targetWorldX, targetWorldY, stopRadius);
@@ -102,8 +102,13 @@ public class RegionalEnemy extends Enemy {
         super.knockAwayFrom(originX, originY, resistedDistance);
     }
 
+    @Override
+    protected double getKnockbackResistance() {
+        return definition.getKnockbackResistance();
+    }
+
     public boolean canFireAt(double targetX, double targetY) {
-        if (isDead() || hasActiveProjectile || fireCooldown > 0.0) {
+        if (isDead() || isStunned() || hasActiveProjectile || fireCooldown > 0.0) {
             return false;
         }
         if (!definition.isRanged() && !definition.isBoss()) {

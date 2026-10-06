@@ -21,9 +21,6 @@ public class BlueFinalMinion extends Enemy {
     @Override
     public void update(double deltaTime, double targetWorldX, double targetWorldY,
             double targetCollisionRadius) {
-        if (isDead()) {
-            return;
-        }
         super.update(deltaTime, targetWorldX, targetWorldY, targetCollisionRadius);
     }
 
@@ -38,11 +35,11 @@ public class BlueFinalMinion extends Enemy {
     }
 
     private static BufferedImage loadSpriteSheet() {
-        return ResourceLoader.loadImage("/main/resources/enemy/BLUEMINION.png");
+        return EnemySpriteAssets.standaloneSprite("/main/resources/enemy/BLUEMINION.png");
     }
 
     private static BufferedImage loadDeathSheet() {
-        return ResourceLoader.loadImage("/main/resources/enemy/BLUEMINION.png");
+        return EnemySpriteAssets.standaloneSprite("/main/resources/enemy/BLUEMINION.png");
     }
 
     @Override

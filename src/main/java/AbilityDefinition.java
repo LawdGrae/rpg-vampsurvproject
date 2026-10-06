@@ -66,6 +66,9 @@ public class AbilityDefinition {
     }
 
     public double getManaCost() {
+        if (isPassive()) {
+            return 0.0;
+        }
         if (effectType == AbilityEffectType.ULTIMATE) {
             return clampManaCost(manaCost, 25.0, 30.0);
         }
@@ -94,6 +97,11 @@ public class AbilityDefinition {
         return playerLevel >= unlockLevel;
     }
 
+    /** Passive traits appear in the skill list but cannot occupy an active slot. */
+    public boolean isPassive() {
+        return "unbreakable".equals(id);
+    }
+
     public static List<AbilityDefinition> createAll() {
         List<AbilityDefinition> abilities = new ArrayList<>();
         addAssassin(abilities);
@@ -102,7 +110,31 @@ public class AbilityDefinition {
         addRanger(abilities);
         addWarlock(abilities);
         addElementalist(abilities);
+        addGuardian(abilities);
         return abilities;
+    }
+
+    private static void addGuardian(List<AbilityDefinition> abilities) {
+        add(abilities, "shield_fortress", "Shield Fortress", AbilityClass.GUARDIAN,
+                AbilityEffectType.SHIELD,
+                "Brace the Aegis Greatshield: greatly reduce damage and resist knockback.",
+                1, 16, 18, 0, 0, 6);
+        add(abilities, "iron_charge", "Iron Charge", AbilityClass.GUARDIAN,
+                AbilityEffectType.DASH,
+                "Charge behind the greatshield, striking and pushing enemies away.",
+                1, 10, 16, 18, 100, 0.5);
+        add(abilities, "earthbreaker", "Earthbreaker", AbilityClass.GUARDIAN,
+                AbilityEffectType.STUN,
+                "Slam the greatshield into the ground to damage and knock down nearby enemies.",
+                1, 18, 24, 26, 180, 2);
+        add(abilities, "guardians_roar", "Guardian's Roar", AbilityClass.GUARDIAN,
+                AbilityEffectType.SLOW,
+                "Taunt nearby enemies and weaken their attacks with a powerful force wave.",
+                1, 22, 20, 0, 230, 5);
+        add(abilities, "unbreakable", "Unbreakable", AbilityClass.GUARDIAN,
+                AbilityEffectType.BUFF,
+                "Passive: increased health, armor and resistance; stronger below 40% health.",
+                1, 0, 0, 0, 0, 0);
     }
 
     private static void addAssassin(List<AbilityDefinition> abilities) {

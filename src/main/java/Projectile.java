@@ -1,6 +1,8 @@
+import java.awt.BasicStroke;
+import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
-import java.awt.geom.AffineTransform;
+import java.awt.geom.Path2D;
 import java.awt.image.BufferedImage;
 
 public class Projectile {
@@ -102,6 +104,12 @@ public class Projectile {
         double screenCenterX = centerX + worldX + cameraX;
         double screenCenterY = centerY + worldY + cameraY;
         double angle = Math.atan2(velocityY, velocityX);
+        boolean staffMote = owner == null && frameCount == 1 && maxDrawSize > 0.0
+                && maxDrawSize <= 28.0
+                && (damageElement == DamageElement.HOLY || damageElement == DamageElement.LIGHTNING);
+        if (staffMote) {
+            drawMagicTrail(graphics, screenCenterX, screenCenterY);
+        }
 
         int sourceX = 0;
         int drawWidth = sprite.getWidth();
@@ -123,9 +131,14 @@ public class Projectile {
 
         Graphics2D rotatedGraphics = (Graphics2D) graphics.create();
         rotatedGraphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
-                RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+                staffMote ? RenderingHints.VALUE_INTERPOLATION_BILINEAR
+                        : RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
         rotatedGraphics.translate(screenCenterX, screenCenterY);
         rotatedGraphics.rotate(angle);
+        if (staffMote) {
+            double pulse = 0.98 + 0.045 * Math.sin(lifetime * 18.0);
+            rotatedGraphics.scale(pulse, pulse);
+        }
         rotatedGraphics.translate(-renderWidth / 2.0, -renderHeight / 2.0);
 
         if (frameCount > 1) {
@@ -136,6 +149,35 @@ public class Projectile {
             rotatedGraphics.drawImage(sprite, 0, 0, renderWidth, renderHeight, null);
         }
         rotatedGraphics.dispose();
+    }
+
+    private void drawMagicTrail(Graphics2D graphics, double x, double y) {
+        double length = Math.min(44.0, lifetime * speed);
+        if (length <= 1.0) {
+            return;
+        }
+        Color tint = damageElement == DamageElement.HOLY
+                ? new Color(255, 218, 115) : new Color(160, 145, 255);
+        Graphics2D trail = (Graphics2D) graphics.create();
+        trail.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        for (int index = 7; index >= 0; index--) {
+            double from = index / 8.0;
+            double to = (index + 1) / 8.0;
+            double wave = Math.sin(lifetime * 17.0 - index * 0.6) * from * 1.2;
+            Path2D segment = new Path2D.Double();
+            segment.moveTo(x - velocityX * length * to - velocityY * wave,
+                    y - velocityY * length * to + velocityX * wave);
+            segment.lineTo(x - velocityX * length * from, y - velocityY * length * from);
+            int alpha = (int) Math.round(65.0 * (1.0 - from) * (1.0 - from));
+            trail.setColor(new Color(tint.getRed(), tint.getGreen(), tint.getBlue(), alpha));
+            trail.setStroke(new BasicStroke((float) (1.0 + 6.0 * (1.0 - from)),
+                    BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            trail.draw(segment);
+            trail.setColor(new Color(255, 250, 225, alpha));
+            trail.setStroke(new BasicStroke(1.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            trail.draw(segment);
+        }
+        trail.dispose();
     }
 
     public double getDamage() {

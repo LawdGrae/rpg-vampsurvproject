@@ -4,7 +4,8 @@ public enum AbilityClass {
     PRIEST("Priest"),
     RANGER("Ranger"),
     WARLOCK("Warlock"),
-    ELEMENTALIST("Elementalist");
+    ELEMENTALIST("Elementalist"),
+    GUARDIAN("Guardian");
 
     private final String displayName;
 

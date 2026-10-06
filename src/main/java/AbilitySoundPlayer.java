@@ -59,6 +59,7 @@ public final class AbilitySoundPlayer {
             case RANGER -> 330.0;
             case WARLOCK -> 146.8;
             case ELEMENTALIST -> 523.3;
+            case GUARDIAN -> 82.4;
         } + Math.floorMod(definition.getId().hashCode(), 40);
     }
 

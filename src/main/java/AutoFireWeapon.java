@@ -1,6 +1,7 @@
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Graphics2D;
+import java.awt.RadialGradientPaint;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 
@@ -148,8 +149,19 @@ public class AutoFireWeapon extends Weapon {
     }
 
     public void setAttackSprite(BufferedImage sprite, String weaponStyle) {
+        boolean wasGuardian = "greatshield".equals(this.weaponStyle);
         this.weaponStyle = weaponStyle == null ? "sword_shield" : weaponStyle;
-        if ("daggers".equals(this.weaponStyle)) {
+        boolean guardian = "greatshield".equals(this.weaponStyle);
+        if (wasGuardian != guardian) {
+            fireInterval = guardian ? 1.25 : FIRE_INTERVAL;
+            projectileDamage = guardian ? 12.0 : PROJECTILE_DAMAGE;
+        }
+        if ("greatshield".equals(this.weaponStyle)) {
+            attackRange = 90.0;
+            attackSprite = PROJECTILE_SPRITE;
+            maxDrawSize = 42.0;
+            damageElement = DamageElement.PHYSICAL;
+        } else if ("daggers".equals(this.weaponStyle)) {
             attackRange = 62.0;
             attackSprite = PROJECTILE_SPRITE;
             maxDrawSize = 42.0;
@@ -177,14 +189,21 @@ public class AutoFireWeapon extends Weapon {
     }
 
     public double getSwingDuration() {
+        if ("greatshield".equals(weaponStyle)) {
+            return 0.65;
+        }
         if ("daggers".equals(weaponStyle)) {
-            return 0.30;
+            return 0.38;
         }
         if ("holy_staff".equals(weaponStyle) || "elemental_staff".equals(weaponStyle)
                 || "staff".equals(weaponStyle)) {
             return 0.38;
         }
         return 0.42;
+    }
+
+    public double getImpactProgress() {
+        return "greatshield".equals(weaponStyle) ? 0.52 : 0.43;
     }
 
     private static BufferedImage loadProjectileSprite() {
@@ -199,17 +218,17 @@ public class AutoFireWeapon extends Weapon {
         graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         graphics.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
 
-        for (int radius = 12; radius >= 4; radius -= 4) {
-            int alpha = 32 + (12 - radius) * 12;
-            graphics.setColor(new Color(glow.getRed(), glow.getGreen(), glow.getBlue(), alpha));
-            graphics.fillOval(center - radius, center - radius, radius * 2, radius * 2);
-        }
-
-        graphics.setColor(new Color(core.getRed(), core.getGreen(), core.getBlue(), 235));
-        graphics.fillOval(center - 4, center - 4, 8, 8);
-        graphics.setColor(new Color(255, 255, 255, 220));
-        graphics.drawLine(center - 8, center, center + 8, center);
-        graphics.drawLine(center, center - 8, center, center + 8);
+        graphics.setPaint(new RadialGradientPaint(center, center, 13.0f,
+                new float[] {0.0f, 0.2f, 0.48f, 1.0f},
+                new Color[] {new Color(255, 255, 255, 245),
+                        new Color(core.getRed(), core.getGreen(), core.getBlue(), 230),
+                        new Color(glow.getRed(), glow.getGreen(), glow.getBlue(), 95),
+                        new Color(glow.getRed(), glow.getGreen(), glow.getBlue(), 0)}));
+        graphics.fillOval(1, 1, 26, 26);
+        graphics.setStroke(new BasicStroke(1.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        graphics.setColor(new Color(255, 255, 255, 155));
+        graphics.drawLine(center - 4, center, center + 4, center);
+        graphics.drawLine(center, center - 4, center, center + 4);
         graphics.dispose();
         return image;
     }

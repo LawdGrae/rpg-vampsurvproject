@@ -77,6 +77,9 @@ public class EliteBossEnemy extends Enemy {
             return;
         }
 
+        updateStatusEffects(deltaTime);
+        if (isDead() || isStunned()) return;
+
         if (shieldDown) {
             shieldHealth = Math.max(0.0, shieldHealth - deltaTime * 0.6);
         } else if (shieldProjectiles.size() == 0) {
@@ -110,7 +113,14 @@ public class EliteBossEnemy extends Enemy {
         double differenceX = targetWorldX - getWorldX();
         double differenceY = targetWorldY - getWorldY();
         double distance = Math.hypot(differenceX, differenceY);
-        if (distance < MIN_DISTANCE) {
+        if (isTaunted()) {
+            double stopDistance = targetCollisionRadius + getCollisionRadius();
+            double step = Math.min(Math.max(0.0, distance - stopDistance), speed * deltaTime);
+            if (distance > 0.0001) {
+                teleportTo(getWorldX() + differenceX / distance * step,
+                        getWorldY() + differenceY / distance * step);
+            }
+        } else if (distance < MIN_DISTANCE) {
             double moveX = (differenceX / (distance + 0.0001)) * (MIN_DISTANCE - distance) * 0.8;
             double moveY = (differenceY / (distance + 0.0001)) * (MIN_DISTANCE - distance) * 0.8;
             teleportTo(getWorldX() - moveX * deltaTime, getWorldY() - moveY * deltaTime);

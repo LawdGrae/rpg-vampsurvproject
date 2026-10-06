@@ -25,18 +25,15 @@ public class GreenFinalMinion extends Enemy {
     @Override
     public void update(double deltaTime, double targetWorldX, double targetWorldY,
             double targetCollisionRadius) {
-        if (isDead()) {
-            return;
-        }
         super.update(deltaTime, targetWorldX, targetWorldY, targetCollisionRadius);
     }
 
     private static BufferedImage loadSpriteSheet() {
-        return ResourceLoader.loadImage("/main/resources/enemy/GREENMINION.png");
+        return EnemySpriteAssets.standaloneSprite("/main/resources/enemy/GREENMINION.png");
     }
 
     private static BufferedImage loadDeathSheet() {
-        return ResourceLoader.loadImage("/main/resources/enemy/GREENMINION.png");
+        return EnemySpriteAssets.standaloneSprite("/main/resources/enemy/GREENMINION.png");
     }
 
     @Override

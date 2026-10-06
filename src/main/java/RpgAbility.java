@@ -37,13 +37,18 @@ public class RpgAbility extends Ability {
     }
 
     public boolean canTrigger(AbilityManager manager, int playerLevel) {
-        return isReady()
+        return !definition.isPassive() && isReady()
                 && !manager.isManaLocked()
                 && definition.isUnlockedAt(playerLevel)
                 && manager.getMana() >= definition.getManaCost();
     }
 
     public boolean trigger(GameLogic gameLogic, AbilityManager manager, int playerLevel) {
+        if (definition.isPassive()) return false;
+        if (definition.getAbilityClass() == AbilityClass.GUARDIAN && gameLogic.isGuardianActionLocked()) {
+            gameLogic.showAbilityDenied(definition);
+            return false;
+        }
         if (!definition.isUnlockedAt(playerLevel) || !isReady()) {
             gameLogic.showAbilityDenied(definition);
             return false;
@@ -61,7 +66,7 @@ public class RpgAbility extends Ability {
 
     @Override
     protected void applyEffect(double originX, double originY, List<Enemy> enemies) {
-        if (enemies == null) {
+        if (definition.isPassive() || enemies == null) {
             return;
         }
         for (Enemy enemy : enemies) {
