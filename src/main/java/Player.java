@@ -82,6 +82,7 @@ public abstract class Player {
     private final Set<String> pressedKeys = new HashSet<>();
     private double worldOffsetX;
     private double worldOffsetY;
+    private WorldCollision worldCollision;
     private double animationTime;
     private double visualTime;
     private double locomotionBlend;
@@ -323,8 +324,7 @@ public abstract class Player {
             }
             hasRecentMove = true;
 
-            worldOffsetX -= moveX;
-            worldOffsetY -= moveY;
+            moveWorld(moveX, moveY);
         } else if (!hasRecentMove) {
             recentMoveX = 1.0;
             recentMoveY = 0.0;
@@ -580,8 +580,23 @@ public abstract class Player {
     }
 
     public void moveWorld(double differenceX, double differenceY) {
-        worldOffsetX -= differenceX;
-        worldOffsetY -= differenceY;
+        if (!Double.isFinite(differenceX) || !Double.isFinite(differenceY)) return;
+        if (worldCollision == null) {
+            worldOffsetX -= differenceX;
+            worldOffsetY -= differenceY;
+            return;
+        }
+        // Use the feet, not the large combat hit circle or the held weapon.
+        double feetOffset = spriteHeight * spriteScale * 0.44;
+        Point2D.Double destination = worldCollision.move(getWorldX(), getWorldY() + feetOffset,
+                differenceX, differenceY, spriteWidth * spriteScale * 0.18,
+                spriteHeight * spriteScale * 0.10);
+        worldOffsetX = -destination.x;
+        worldOffsetY = -(destination.y - feetOffset);
+    }
+
+    public void setWorldCollision(WorldCollision worldCollision) {
+        this.worldCollision = worldCollision;
     }
 
     public BufferedImage getPrimaryWeaponSprite() {

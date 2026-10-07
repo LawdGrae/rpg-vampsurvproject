@@ -346,7 +346,7 @@ public class GameLogic {
                         double swingDuration = autoFireWeapon.getSwingDuration();
                         player.playAttackAnimation(null, swingDuration);
                         scheduleMeleeAttack(autoFireWeapon.getAttackRange(),
-                                autoFireWeapon.getProjectileDamage(), swingDuration);
+                                autoFireWeapon.rollAttackDamage(), swingDuration);
                     }
                 }
             } else {
@@ -664,6 +664,18 @@ public class GameLogic {
 
                     damageEnemy(enemy, projectile.getDamage(), projectile.getDamageElement(),
                             projectile.getContactWorldX(nearestFraction), projectile.getContactWorldY(nearestFraction));
+                    if (projectile.getSplashRadius() > 0.0) {
+                        double splashX = enemy.getWorldX();
+                        double splashY = enemy.getWorldY();
+                        double radiusSquared = projectile.getSplashRadius() * projectile.getSplashRadius();
+                        for (Enemy nearby : enemies) {
+                            if (nearby != enemy && !nearby.isDead()
+                                    && nearby.distanceSquaredTo(splashX, splashY) <= radiusSquared) {
+                                damageEnemy(nearby, projectile.getDamage(), projectile.getDamageElement(),
+                                        splashX, splashY);
+                            }
+                        }
+                    }
                     hitEnemy = true;
             }
 
@@ -1331,7 +1343,7 @@ public class GameLogic {
     }
 
     private Player createSelectedPlayer() {
-        return switch (selectedCharacterIndex) {
+        Player selectedPlayer = switch (selectedCharacterIndex) {
             case 0 -> new Character_Eumann();
             case 1 -> new Character_Haze();
             case 2 -> new Character_Yuexin();
@@ -1339,6 +1351,8 @@ public class GameLogic {
             case 4 -> new Character_Sir_Rakki();
             default -> new Character_Eumann();
         };
+        selectedPlayer.setWorldCollision(WorldCollision.terrain());
+        return selectedPlayer;
     }
 
     private void syncAutoAttackSprite() {
@@ -2538,8 +2552,8 @@ public class GameLogic {
 
     private void damageEnemiesInMeleeArc(double range, double damage) {
         boolean shieldAttack = "greatshield".equals(player.getDefaultWeaponStyle());
-        double originX = shieldAttack ? player.getWeaponCastWorldX() : player.getWorldX();
-        double originY = shieldAttack ? player.getWeaponCastWorldY() : player.getWorldY();
+        double originX = player.getWorldX();
+        double originY = player.getWorldY();
         double directionX = player.getRecentMoveX();
         double directionY = player.getRecentMoveY();
         double directionLength = Math.hypot(directionX, directionY);

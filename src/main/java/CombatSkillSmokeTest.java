@@ -374,6 +374,9 @@ public class CombatSkillSmokeTest {
             logic.selectCharacter(hero);
             logic.startGame();
             player = (Player) value(logic, "player");
+            // This fixture tests skill timing in an empty arena. Terrain movement
+            // and blocked dashes are covered by WorldCollisionSmokeTest.
+            player.setWorldCollision(null);
             manager = logic.getAbilityManager();
             enemies = list("enemies");
             player.faceToward(facing * 100, 0);

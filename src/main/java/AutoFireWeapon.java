@@ -8,7 +8,8 @@ import java.awt.image.BufferedImage;
 public class AutoFireWeapon extends Weapon {
     private static final double FIRE_INTERVAL = 0.7;
     private static final double PROJECTILE_SPEED = 450.0;
-    private static final double PROJECTILE_DAMAGE = 1.0;
+    // Starting-region enemies have 7 HP (melee) or 9 HP (ranged).
+    private static final double PROJECTILE_DAMAGE = 3.5;
     private static final double PROJECTILE_RADIUS = 16.0;
     private static final BufferedImage PROJECTILE_SPRITE = loadProjectileSprite();
     private static final BufferedImage HOLY_PROJECTILE_SPRITE = createStaffMote(
@@ -143,21 +144,22 @@ public class AutoFireWeapon extends Weapon {
     @Override
     protected Projectile createProjectile(double originX, double originY,
             double targetX, double targetY) {
-        return new Projectile(originX, originY, targetX, targetY,
-                projectileSpeed, projectileDamage, PROJECTILE_RADIUS,
+        Projectile projectile = new Projectile(originX, originY, targetX, targetY,
+                projectileSpeed, rollAttackDamage(), PROJECTILE_RADIUS,
                 attackSprite, 0.0, maxDrawSize, damageElement);
+        if ("elemental_staff".equals(weaponStyle)) projectile.setSplashRadius(48.0);
+        return projectile;
     }
 
     public void setAttackSprite(BufferedImage sprite, String weaponStyle) {
-        boolean wasGuardian = "greatshield".equals(this.weaponStyle);
+        double previousBaseDamage = baseDamage(this.weaponStyle);
+        double previousBaseInterval = baseInterval(this.weaponStyle);
         this.weaponStyle = weaponStyle == null ? "sword_shield" : weaponStyle;
-        boolean guardian = "greatshield".equals(this.weaponStyle);
-        if (wasGuardian != guardian) {
-            fireInterval = guardian ? 1.25 : FIRE_INTERVAL;
-            projectileDamage = guardian ? 12.0 : PROJECTILE_DAMAGE;
-        }
+        projectileDamage += baseDamage(this.weaponStyle) - previousBaseDamage;
+        fireInterval = Math.max(0.08,
+                fireInterval * baseInterval(this.weaponStyle) / previousBaseInterval);
         if ("greatshield".equals(this.weaponStyle)) {
-            attackRange = 90.0;
+            attackRange = 40.0;
             attackSprite = PROJECTILE_SPRITE;
             maxDrawSize = 42.0;
             damageElement = DamageElement.PHYSICAL;
@@ -188,12 +190,33 @@ public class AutoFireWeapon extends Weapon {
         return attackRange;
     }
 
+    private static double baseDamage(String style) {
+        return "greatshield".equals(style) ? 12.0
+                : "daggers".equals(style) || "holy_staff".equals(style) ? 3.0
+                : "elemental_staff".equals(style) ? 4.5 : PROJECTILE_DAMAGE;
+    }
+
+    private static double baseInterval(String style) {
+        return "greatshield".equals(style) ? 0.95
+                : "daggers".equals(style) ? 0.45
+                : "elemental_staff".equals(style) ? 1.0 : FIRE_INTERVAL;
+    }
+
+    @Override
+    public double getCritChance() {
+        return Math.min(1.0, super.getCritChance() + ("daggers".equals(weaponStyle) ? 0.30 : 0.0));
+    }
+
+    public double rollAttackDamage() {
+        return projectileDamage * (Math.random() < getCritChance() ? 1.5 : 1.0);
+    }
+
     public double getSwingDuration() {
         if ("greatshield".equals(weaponStyle)) {
             return 0.65;
         }
         if ("daggers".equals(weaponStyle)) {
-            return 0.38;
+            return 0.30;
         }
         if ("holy_staff".equals(weaponStyle) || "elemental_staff".equals(weaponStyle)
                 || "staff".equals(weaponStyle)) {

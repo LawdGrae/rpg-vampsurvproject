@@ -25,6 +25,15 @@ public class Projectile {
     private double lifetime;
     private double animationTime;
     private Enemy owner;
+    private double splashRadius;
+
+    public void setSplashRadius(double splashRadius) {
+        this.splashRadius = Math.max(0.0, splashRadius);
+    }
+
+    public double getSplashRadius() {
+        return splashRadius;
+    }
 
     public Projectile(double worldX, double worldY, double targetX, double targetY,
             double speed, double damage, double radius, BufferedImage sprite) {

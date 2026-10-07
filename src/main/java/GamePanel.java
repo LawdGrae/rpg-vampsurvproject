@@ -227,8 +227,13 @@ public class GamePanel extends JPanel {
         g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
         int tileWidth = grassTile.getWidth();
         int tileHeight = grassTile.getHeight();
-        int startX = Math.floorMod((int) gameLogic.getWorldOffsetX(), tileWidth) - tileWidth;
-        int startY = Math.floorMod((int) gameLogic.getWorldOffsetY(), tileHeight) - tileHeight;
+        // Share the tile origin with collision, including negative world coordinates.
+        int tileOriginX = PANEL_WIDTH / 2 - TerrainLayout.SPAWN_TILE_X;
+        int tileOriginY = PANEL_HEIGHT / 2 - TerrainLayout.SPAWN_TILE_Y;
+        int startX = Math.floorMod((int) Math.floor(gameLogic.getWorldOffsetX()) + tileOriginX,
+                tileWidth) - tileWidth;
+        int startY = Math.floorMod((int) Math.floor(gameLogic.getWorldOffsetY()) + tileOriginY,
+                tileHeight) - tileHeight;
         for (int x = startX; x < PANEL_WIDTH; x += tileWidth) {
             for (int y = startY; y < PANEL_HEIGHT; y += tileHeight) g.drawImage(grassTile, x, y, null);
         }
