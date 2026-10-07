@@ -3,7 +3,9 @@
 The two VFX references shown in chat are contact sheets with headings, portraits,
 unequal frame sizes, and overlapping examples. They are **not a regular sprite
 grid**. The actual PNG files are currently absent from the workspace and attachment
-directory. No source frames have been guessed or replaced with generated art.
+directory. No source frames have been guessed or marked reviewed. Runtime now
+uses separate procedural VFX when an action, travel or impact track is unavailable.
+Reviewed loaded tracks take precedence over those fallbacks.
 
 `skill_effects.properties` lists all 25 requested skills and their existing save IDs.
 Every track starts with `reviewed=false` and empty rectangles. This deliberately
@@ -90,14 +92,18 @@ loop on the actual projectile, and collision starts impact and applies damage.
 
 Barriers and marks play their formation sequence once, then retain the final
 frame with a subtle pulse until expiration. Shadow Strike and Blink Step travel
-tracks create brief afterimages along actual movement. Missing tracks remain
-invisible. Passing parser fixtures does not verify the source artwork.
+tracks create brief afterimages along actual movement. Missing action, travel and
+impact tracks use procedural feedback attached to the corresponding runtime
+actor. This does not admit an unreviewed sprite crop or borrow another skill's
+artwork. Passing parser fixtures does not verify the source artwork.
 
 After compiling with `./build.ps1`, run:
 
 ```powershell
 java '-Djava.awt.headless=true' -cp out/classes SkillEffectAtlasReview src/main/resources/effects/skill_effects.properties out/skill-atlas-review
 java '-Djava.awt.headless=true' -cp out/classes SkillEffectAtlasSmokeTest
+java '-Djava.awt.headless=true' -cp out/classes SkillVfxSmokeTest
+java '-Djava.awt.headless=true' -cp out/classes SkillVfxRenderCheck out/skill-vfx-preview
 ```
 
 The reviewer prints rejected/missing tracks and exports one contact sheet per
@@ -106,6 +112,10 @@ exits with code 2 while the manifest has unresolved tracks. Crop approval still
 requires visual inspection of the actual source: bounds and alpha checks cannot
 identify another skill's artwork automatically.
 
-The smoke test generates tiny colored pixel fixtures only in a temporary test
-directory, checks timing/pivots/mirroring/transparency/nearest-neighbor sampling and
-invalid-manifest rejection, then removes the fixtures. These are not game assets.
+The atlas smoke test generates tiny colored pixel fixtures only in a temporary
+test directory, checks timing/pivots/mirroring/transparency/nearest-neighbor
+sampling and invalid-manifest rejection, then removes the fixtures.
+`SkillVfxSmokeTest` also loads temporary reviewed tracks in an isolated runtime to
+verify source art takes precedence over fallback art. These are not game assets.
+The VFX render check exports contact sheets in both directions and looping GIFs
+of all 20 active skills using their actual gameplay actors.

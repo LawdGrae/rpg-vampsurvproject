@@ -1,14 +1,12 @@
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Graphics2D;
-import java.awt.RadialGradientPaint;
 import java.awt.RenderingHints;
 import java.awt.Shape;
 import java.awt.geom.Arc2D;
 import java.awt.geom.Ellipse2D;
 import java.awt.geom.Line2D;
 import java.awt.geom.Path2D;
-import java.awt.geom.Point2D;
 
 /** Continuous world-space skill effects; static skill icons stay in the HUD. */
 public class AbilityVisualEffect {
@@ -31,6 +29,9 @@ public class AbilityVisualEffect {
     private final GuardianVisualEffect guardian;
     private double life;
     private double sourceAngle, waveRadius = -1, blockAge = 1, impactX, impactY;
+    private double blockX, blockY;
+    private double launchX, launchY, previousSourceX, previousSourceY;
+    private boolean launchFrozen;
     private boolean mirrored, projectileDriven, impactFrozen;
     private Enemy attachedTarget;
     private final double[] trailX = new double[8], trailY = new double[8], trailBirth = new double[8];
@@ -43,6 +44,8 @@ public class AbilityVisualEffect {
         this.definition = definition;
         this.startX = this.casterX = startX;
         this.startY = this.casterY = startY;
+        launchX = previousSourceX = startX;
+        launchY = previousSourceY = startY;
         previousCasterX = startX; previousCasterY = startY;
         this.worldX = worldX;
         this.worldY = worldY;
@@ -71,6 +74,14 @@ public class AbilityVisualEffect {
         if (!Double.isFinite(deltaTime) || deltaTime < 0) return;
         double previousAge = age();
         if (Double.isFinite(deltaTime) && deltaTime > 0 && !projectileDriven) life = Math.max(0, life - deltaTime);
+        double releaseAge = AbilityAnimationTiming.releaseProgress(definition) * actionDuration;
+        if (!projectileDriven && !launchFrozen && age() >= releaseAge) {
+            double fraction = deltaTime <= 0 ? 1 : Math.max(0, Math.min(1, (releaseAge - previousAge) / deltaTime));
+            launchX = previousSourceX + (startX - previousSourceX) * fraction;
+            launchY = previousSourceY + (startY - previousSourceY) * fraction;
+            launchFrozen = true;
+        }
+        previousSourceX = startX; previousSourceY = startY;
         if (definition.getId().equals("shadow_strike") || definition.getId().equals("shadow_step")) {
             while (nextTrailTime <= Math.min(age(), hits[0] * actionDuration) + 1e-10) {
                 double fraction = deltaTime <= 0 ? 1 : Math.max(0, Math.min(1, (nextTrailTime - previousAge) / deltaTime));
@@ -99,6 +110,7 @@ public class AbilityVisualEffect {
         if (projectileDriven) return;
         if (AbilityAnimationTiming.isReferenceSkill(definition.getId())) {
             if (Double.isFinite(x) && Double.isFinite(y)) { startX = x; startY = y; }
+            if (guardian != null) guardian.setShieldPosition(x, y);
             return;
         }
         if (guardian != null) {
@@ -123,7 +135,11 @@ public class AbilityVisualEffect {
     }
     public void attachTarget(Enemy target) { attachedTarget = target; }
     public void expire() { life = 0; }
-    public void setWaveRadius(double radius) { waveRadius = Math.max(0, radius); }
+    public void setWaveRadius(double radius) {
+        if (!Double.isFinite(radius)) return;
+        waveRadius = Math.max(0, radius);
+        if (guardian != null) guardian.setWaveRadius(waveRadius);
+    }
     public void setProjectilePosition(double x, double y, double angle) {
         projectileDriven = true; worldX = x; worldY = y; sourceAngle = angle;
     }
@@ -134,7 +150,10 @@ public class AbilityVisualEffect {
 
     /** Brief contact sparks on the live shield barrier when it blocks damage. */
     public void flashBarrier(double x, double y) {
-        if (definition.getId().equals("holy_shield") || definition.getId().equals("shield_fortress")) blockAge = 0;
+        if (!Double.isFinite(x) || !Double.isFinite(y)) return;
+        if (definition.getId().equals("holy_shield") || definition.getId().equals("shield_fortress")) {
+            blockAge = 0; blockX = x; blockY = y;
+        }
         if (guardian != null) guardian.flashBarrier(x, y);
     }
     private double age() { return maxLife - life; }
@@ -154,8 +173,13 @@ public class AbilityVisualEffect {
     }
 
     public void draw(Graphics2D graphics, int centerX, int centerY, double cameraX, double cameraY) {
-        if (isExpired()) return;
-        if (AbilityAnimationTiming.isReferenceSkill(definition.getId())) {
+        if (isExpired() || definition.isPassive()) return;
+        boolean reference = AbilityAnimationTiming.isReferenceSkill(definition.getId());
+        boolean reviewed = projectileDriven
+                ? SkillEffectAtlas.getAnimation(definition.getId(), "travel") != null
+                : SkillEffectAtlas.getAnimation(definition.getId(),
+                        progress() < AbilityAnimationTiming.releaseProgress(definition) ? "buildup" : "action") != null;
+        if (reference && reviewed) {
             drawSourceFrames(graphics, centerX + cameraX, centerY + cameraY);
             return;
         }
@@ -169,7 +193,13 @@ public class AbilityVisualEffect {
         Graphics2D g = (Graphics2D) graphics.create();
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
         g.translate(centerX + cameraX, centerY + cameraY);
+        if (reference) {
+            drawReferenceAbility(g, p);
+            g.dispose();
+            return;
+        }
         double anticipation = envelope(p, 0, 0.06, Math.max(0.18, hits[0] - 0.2), hits[0]);
         double chargeX = definition.getId().equals("earth_shatter") ? worldX : startX;
         double chargeY = definition.getId().equals("earth_shatter") ? worldY + 15 : startY;
@@ -187,7 +217,7 @@ public class AbilityVisualEffect {
         g.dispose();
     }
 
-    /** Tracks attach to physical sources; a missing source is never replaced with a shape. */
+    /** Reviewed source tracks take precedence over the built-in continuous effects. */
     private void drawSourceFrames(Graphics2D graphics, double cameraX, double cameraY) {
         String id = definition.getId();
         if (definition.isPassive()) return; // The selected trait is drawn by GameLogic.
@@ -266,6 +296,276 @@ public class AbilityVisualEffect {
         }
         animation.drawAt(graphics, x, y, width, animation.isDirectional() ? angle : 0,
                 elapsed, alpha, mirror);
+    }
+
+    /** Every phase uses the combat clock, including live projectile and wave positions. */
+    private void drawReferenceAbility(Graphics2D g, double p) {
+        String id = definition.getId();
+        Color tint = switch (id) {
+            case "heavy_slash", "knights_wrath", "flame_burst" -> FIRE;
+            case "shadow_strike", "shadow_step", "twin_fang", "death_mark" -> SHADOW;
+            case "heal" -> new Color(128, 244, 186);
+            case "holy_bolt", "holy_shield", "divine_light" -> HOLY;
+            case "ice_shard", "lightning_strike", "elemental_storm" -> ICE;
+            default -> EMBER;
+        };
+        if (projectileDriven) { drawLiveProjectile(g, tint); return; }
+        double release = AbilityAnimationTiming.releaseProgress(definition);
+        double hit = hits[0];
+        double hitAge = hit * actionDuration;
+        double elapsed = age(), after = elapsed - hitAge;
+        double endFade = 1 - smooth((elapsed - maxLife + Math.min(0.28, maxLife * 0.22))
+                / Math.min(0.28, maxLife * 0.22));
+        double activation = smooth(after / 0.10) * endFade;
+        double targetX = impactFrozen ? impactX : worldX;
+        double targetY = impactFrozen ? impactY : worldY;
+        double preparation = envelope(p, 0, 0.12, Math.max(0.12, release - 0.06), release + 0.08);
+        drawCharge(g, tint, preparation, smooth(p / Math.max(0.01, release)));
+        switch (id) {
+            case "heavy_slash", "twin_fang", "knights_wrath" -> {
+                for (int i = 0; i < hits.length; i++) {
+                    double angle = aimAngle + (id.equals("knights_wrath") ? i * Math.PI * 0.65
+                            : id.equals("twin_fang") ? (i == 0 ? -0.32 : 0.65) : 0);
+                    slash(g, casterX, casterY - 4, angle, Math.min(102, radius * 0.86),
+                            i % 2 == 0 ? tint : id.equals("twin_fang") ? new Color(246, 116, 211) : EMBER,
+                            p, hits[i]);
+                    double flash = envelope(p, hits[i] - 0.045, hits[i], hits[i] + 0.025, hits[i] + 0.17);
+                    glow(g, startX, startY, 23, tint, flash * 0.5);
+                    sparks(g, startX, startY, id.equals("twin_fang") ? tint : EMBER, 9, 38,
+                            phase(p, hits[i], hits[i] + 0.25), flash);
+                }
+                if (id.equals("knights_wrath")) {
+                    double spin = envelope(p, release, release + 0.06, 0.73, 0.96);
+                    orbitArc(g, casterX, casterY + 12, Math.min(100, radius * 0.85),
+                            elapsed * 9, 2.4, FIRE, spin * 0.55, 0.62);
+                }
+            }
+            case "shield_bash" -> {
+                double thrust = smooth(phase(p, release, hit));
+                double alpha = envelope(p, release - 0.04, release + 0.07, hit, hit + 0.20);
+                double bx = casterX + Math.cos(aimAngle) * (16 + thrust * 15);
+                double by = casterY + Math.sin(aimAngle) * (16 + thrust * 15) - 4;
+                barrier(g, bx, by, 36, STEEL, p, alpha);
+                if (after >= 0) {
+                    double t = Math.min(1, after / 0.30);
+                    orbitArc(g, targetX, targetY, 12 + easeOut(t) * 48,
+                            aimAngle - 0.85, 1.7, EMBER, (1 - t) * 0.85, 0.8);
+                    dust(g, targetX, targetY + 16, 48, t, (1 - t) * 0.6);
+                }
+            }
+            case "earth_shatter" -> {
+                // Ground contact remains at the sampled blade event, never at a distant aim target.
+                groundSlam(g, impactFrozen ? impactX : startX,
+                        (impactFrozen ? impactY : startY) + 14, Math.min(125, radius), p, endFade, hit);
+                if (after >= 0) {
+                    double t = Math.min(1, after / 0.38);
+                    for (int i = 0; i < 5; i++) {
+                        double px = targetX + (i - 2) * 15;
+                        ribbon(g, px, targetY + 12, px + (i - 2) * 4,
+                                targetY - Math.sin(t * Math.PI) * (56 - Math.abs(i - 2) * 9),
+                                EMBER, 2, (1 - t) * 0.5, 5);
+                    }
+                }
+            }
+            case "shadow_strike", "shadow_step" -> {
+                double travel = envelope(p, release, release + 0.045, hit, hit + 0.16);
+                for (int i = 0; i < trailCount; i++) {
+                    double old = elapsed - trailBirth[i];
+                    if (old < 0 || old > 0.23) continue;
+                    double fade = Math.pow(1 - old / 0.23, 2) * 0.6;
+                    ribbon(g, trailX[i] - Math.cos(aimAngle) * 21, trailY[i] - 5,
+                            trailX[i] + Math.cos(aimAngle) * 11, trailY[i] - 5,
+                            SHADOW, 8, fade, Math.sin(i * 1.7) * 7);
+                    glow(g, trailX[i], trailY[i] - 7, 24, SHADOW, fade * 0.3);
+                }
+                orbitArc(g, casterX, casterY - 7, 23, elapsed * 12, 2.6, SHADOW, travel * 0.7, 1);
+                if (id.equals("shadow_strike"))
+                    slash(g, casterX, casterY - 4, aimAngle, 70, SHADOW, p, hit);
+                else {
+                    double flash = envelope(p, hit - 0.035, hit + 0.015, hit + 0.07, hit + 0.24);
+                    sparks(g, casterX, casterY - 4, new Color(223, 180, 255), 14, 46,
+                            phase(p, hit, 1), flash);
+                }
+            }
+            case "death_mark" -> {
+                double flight = envelope(p, release, release + 0.04, hit - 0.01, hit + 0.03);
+                double t = smooth(phase(p, release, hit));
+                ribbon(g, startX, startY, worldX, worldY, SHADOW, 2.5, flight * 0.5, 18 * Math.sin(t * Math.PI));
+                glow(g, startX + (worldX - startX) * t, startY + (worldY - startY) * t - Math.sin(t * Math.PI) * 18,
+                        16, SHADOW, flight * 0.7);
+                eye(g, worldX, worldY - 37 + Math.sin(elapsed * 3) * 3, 15, p, activation);
+                orbitArc(g, worldX, worldY - 37, 23, elapsed * 1.8, 2.3, SHADOW, activation * 0.65, 0.7);
+                ring(g, worldX, worldY + 15, 24 + Math.sin(elapsed * 3) * 1.5, SHADOW, 1.3, activation * 0.45, 0.5);
+            }
+            case "flame_burst", "ice_shard" -> {
+                // Shots are rendered by their live projectile effect after their launch event.
+                double casting = envelope(p, 0.08, 0.24, hits[hits.length - 1], 0.85);
+                double size = 9 + smooth(p / hit) * 7;
+                glow(g, startX, startY, size * 2, tint, casting * 0.7);
+                if (id.equals("ice_shard")) shard(g, startX, startY, sourceAngle, size, ICE, casting * 0.9);
+                else {
+                    orbitArc(g, startX, startY, size, elapsed * 7, 3.7, EMBER, casting * 0.8, 0.85);
+                    glow(g, startX, startY, 5, EMBER, casting);
+                }
+            }
+            case "holy_bolt" -> {
+                double t = smooth(phase(p, release, hit));
+                double flight = envelope(p, release, release + 0.045, hit, hit + 0.035);
+                double originX = launchFrozen ? launchX : startX, originY = launchFrozen ? launchY : startY;
+                double px = originX + (worldX - originX) * t;
+                double py = originY + (worldY - originY) * t - Math.sin(t * Math.PI) * 16;
+                ribbon(g, px - Math.cos(aimAngle) * 32, py - Math.sin(aimAngle) * 32,
+                        px, py, HOLY, 6, flight * 0.8, 4);
+                glow(g, px, py, 25, HOLY, flight * 0.7);
+                star(g, px, py, 8, Color.WHITE, flight);
+                impact(g, targetX, targetY, 65, HOLY, p, hit);
+            }
+            case "heal" -> {
+                sigil(g, casterX, casterY + 21, 47, tint, p, activation * 0.75, true);
+                rising(g, casterX, casterY + 18, 37, tint, p, activation, 16);
+                glow(g, casterX, casterY - 9, 47, tint, activation * 0.22);
+                if (after >= 0) {
+                    double t = Math.min(1, after / 0.34);
+                    ring(g, casterX, casterY + 20, 16 + easeOut(t) * 51,
+                            tint, 2.4, (1 - t) * 0.7, 0.48);
+                    double lift = smooth(t) * 30;
+                    stroke(g, new Line2D.Double(casterX - 7, casterY - 20 - lift,
+                            casterX + 7, casterY - 20 - lift), tint, 3, (1 - t) * 0.9);
+                    stroke(g, new Line2D.Double(casterX, casterY - 27 - lift,
+                            casterX, casterY - 13 - lift), Color.WHITE, 2.5, (1 - t) * 0.9);
+                }
+            }
+            case "holy_shield" -> {
+                barrier(g, casterX, casterY - 9, 57, HOLY, p, activation);
+                orbitArc(g, casterX, casterY - 8, 44, elapsed * 0.8, 1.9, Color.WHITE, activation * 0.55, 1.12);
+                sigil(g, casterX, casterY + 22, 39, HOLY, p, activation * 0.5, true);
+                rising(g, casterX, casterY + 16, 36, HOLY, p, activation * 0.6, 8);
+                if (blockAge < 0.24) {
+                    double t = blockAge / 0.24;
+                    glow(g, blockX, blockY, 30, Color.WHITE, (1 - t) * 0.65);
+                    sparks(g, blockX, blockY, HOLY, 10, 32, t, 1 - t);
+                }
+            }
+            case "divine_light" -> {
+                double charge = envelope(p, release - 0.05, release + 0.10, hit, hit + 0.05);
+                sigil(g, targetX, targetY + 16, Math.min(78, radius * 0.65), HOLY, p, charge * 0.85, true);
+                if (after >= 0) {
+                    double beam = smooth(after / 0.045) * (1 - smooth((after - 0.13) / 0.33));
+                    pillar(g, targetX, targetY + 16, 106, HOLY, p, beam);
+                    glow(g, targetX, targetY, 80, HOLY, beam * 0.45);
+                    ring(g, targetX, targetY + 15, 12 + easeOut(after / 0.4) * 77,
+                            HOLY, 3, beam * 0.8, 0.56);
+                    rising(g, targetX, targetY, 68, HOLY, phase(after, 0, 0.55), beam, 18);
+                }
+            }
+            case "lightning_strike" -> {
+                lightningStrike(g, targetX, targetY, Math.min(radius, 150), p, endFade, hit);
+                double charge = envelope(p, release - 0.05, release + 0.05, hit - 0.03, hit + 0.03);
+                orbitArc(g, targetX, targetY + 14, 32, -elapsed * 4, 4.5, ICE, charge * 0.7, 0.48);
+                if (after >= 0 && after < 0.30) {
+                    double alpha = (1 - smooth(after / 0.30)) * 0.58;
+                    for (int i = 0; i < 3; i++) {
+                        double angle = i * Math.PI * 2 / 3 + 0.4;
+                        lightning(g, targetX, targetY, targetX + Math.cos(angle) * 60,
+                                targetY + Math.sin(angle) * 38, elapsed + i, alpha);
+                    }
+                }
+            }
+            case "elemental_storm" -> drawNova(g, elapsed, hitAge, endFade);
+            default -> drawAbility(g, p, endFade);
+        }
+    }
+
+    private void drawCharge(Graphics2D g, Color tint, double alpha, double progress) {
+        if (alpha < 0.002) return;
+        glow(g, startX, startY, 16 + progress * 12, tint, alpha * 0.5);
+        orbitArc(g, startX, startY, 6 + progress * 10, -age() * 5, 3.9, tint, alpha * 0.75, 0.85);
+        for (int i = 0; i < 6; i++) {
+            double angle = unit(i, 3) * Math.PI * 2 + age() * 0.8;
+            double distance = 10 + (1 - progress) * (14 + unit(i, 2) * 13);
+            double px = startX + Math.cos(angle) * distance;
+            double py = startY + Math.sin(angle) * distance * 0.85;
+            stroke(g, new Line2D.Double(px, py, px + Math.cos(angle) * 4,
+                    py + Math.sin(angle) * 4), tint, 1.2, alpha * 0.65);
+        }
+        glow(g, startX, startY, 4, Color.WHITE, alpha * progress * 0.7);
+    }
+
+    private void drawLiveProjectile(Graphics2D g, Color tint) {
+        boolean ice = definition.getId().equals("ice_shard");
+        double elapsed = age(), fade = 1 - smooth((elapsed / maxLife - 0.85) / 0.15);
+        double dx = Math.cos(sourceAngle), dy = Math.sin(sourceAngle);
+        double speed = ice ? 440 : 360;
+        // Integrate the same acceleration curve as gameplay for a stable, continuous trail.
+        double now = projectileDistance(elapsed, speed);
+        for (int i = 11; i >= 1; i--) {
+            double past = Math.max(0, elapsed - i * 0.012);
+            double distance = now - projectileDistance(past, speed);
+            double next = now - projectileDistance(Math.max(0, elapsed - (i - 1) * 0.012), speed);
+            double alpha = fade * Math.pow(1 - i / 12.0, 1.5);
+            double sway = Math.sin(elapsed * 11 - i * 0.55) * (ice ? 1.8 : 3.2) * i / 12.0;
+            ribbon(g, worldX - dx * distance - dy * sway, worldY - dy * distance + dx * sway,
+                    worldX - dx * next, worldY - dy * next, tint,
+                    (ice ? 5 : 9) * (1 - i / 13.0), alpha * 0.6, 0);
+        }
+        glow(g, worldX, worldY, ice ? 27 : 30, tint, fade * 0.8);
+        if (ice) {
+            shard(g, worldX, worldY, sourceAngle, 23, ICE, fade);
+            shard(g, worldX - dx * 16 - dy * 7, worldY - dy * 16 + dx * 7, sourceAngle, 10, ICE, fade * 0.5);
+            shard(g, worldX - dx * 16 + dy * 7, worldY - dy * 16 - dx * 7, sourceAngle, 10, ICE, fade * 0.5);
+        } else {
+            shard(g, worldX, worldY, sourceAngle, 14, EMBER, fade);
+            orbitArc(g, worldX, worldY, 12, elapsed * 10, 3.6, FIRE, fade * 0.9, 0.9);
+            glow(g, worldX + dx * 4, worldY + dy * 4, 8, EMBER, fade);
+        }
+        glow(g, worldX, worldY, 4, Color.WHITE, fade * 0.85);
+    }
+
+    private static double projectileDistance(double elapsed, double speed) {
+        return speed * (elapsed - 0.07 * (1 - Math.exp(-elapsed / 0.14)));
+    }
+
+    private void drawNova(Graphics2D g, double elapsed, double hitAge, double fade) {
+        double x = impactFrozen ? impactX : casterX, y = impactFrozen ? impactY : casterY;
+        double time = elapsed - hitAge;
+        Color[] elements = {FIRE, ICE, SHADOW};
+        double charge = smooth(elapsed / 0.12) * (1 - smooth((time + 0.03) / 0.12));
+        sigil(g, casterX, casterY + 21, 43, ICE, progress(), charge * 0.6, false);
+        for (int i = 0; i < 3; i++) {
+            double angle = elapsed * 4 + i * Math.PI * 2 / 3;
+            glow(g, casterX + Math.cos(angle) * (37 - charge * 14),
+                    casterY + Math.sin(angle) * 17, 11, elements[i], charge * 0.8);
+        }
+        if (time < 0) return;
+        double r = waveRadius >= 0 ? waveRadius : radius * smooth(time / 0.60);
+        double alpha = smooth(time / 0.045) * fade;
+        glow(g, x, y, 30 + Math.min(r, 100) * 0.3, ICE, alpha * Math.exp(-time * 8) * 0.6);
+        for (int i = 0; i < 3; i++) {
+            double from = i * Math.PI * 2 / 3 + elapsed * 0.45;
+            orbitArc(g, x, y, r, from, 1.93, elements[i], alpha * 0.85, 1);
+            orbitArc(g, x, y, r * 0.86, from + 0.05, 1.72, elements[i], alpha * 0.30, 1);
+            for (int j = 0; j < 6; j++) {
+                double angle = from + j * 1.93 / 6;
+                double px = x + Math.cos(angle) * r, py = y + Math.sin(angle) * r;
+                if (i == 1) shard(g, px, py, angle, 6 + (1 - time) * 3, ICE, alpha * 0.8);
+                else star(g, px, py, 2.8, elements[i], alpha * 0.8);
+            }
+        }
+        sparks(g, x, y, ICE, 18, Math.min(radius, 150), Math.min(1, time / 0.72), alpha * 0.65);
+    }
+
+    private static void orbitArc(Graphics2D g, double x, double y, double radius,
+            double angle, double sweep, Color tint, double alpha, double verticalScale) {
+        if (radius <= 0 || alpha < 0.002) return;
+        Path2D arc = new Path2D.Double();
+        for (int i = 0; i <= 32; i++) {
+            double at = angle + sweep * i / 32;
+            double px = x + Math.cos(at) * radius, py = y + Math.sin(at) * radius * verticalScale;
+            if (i == 0) arc.moveTo(px, py); else arc.lineTo(px, py);
+        }
+        stroke(g, arc, tint, 7, alpha * 0.12);
+        stroke(g, arc, tint, 2.2, alpha * 0.8);
+        stroke(g, arc, Color.WHITE, 0.7, alpha * 0.6);
     }
 
     private void drawAbility(Graphics2D g, double p, double a) {
@@ -737,10 +1037,7 @@ public class AbilityVisualEffect {
         stroke(g, ring, c, width * 3, a * 0.08); stroke(g, ring, c, width, a * 0.68);
     }
     private static void glow(Graphics2D g, double x, double y, double r, Color c, double a) {
-        if (a < 0.002 || r < 0.2) return;
-        g.setPaint(new RadialGradientPaint(new Point2D.Double(x, y), (float) r,
-                new float[] {0, 0.32f, 1}, new Color[] {withAlpha(c, 180 * a), withAlpha(c, 85 * a), withAlpha(c, 0)}));
-        g.fill(new Ellipse2D.Double(x - r, y - r, r * 2, r * 2));
+        SkillVfxGlow.draw(g, x, y, r, c, a);
     }
     private static void stroke(Graphics2D g, Shape shape, Color c, double width, double a) {
         if (a < 0.002) return;

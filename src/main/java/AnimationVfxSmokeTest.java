@@ -28,7 +28,7 @@ public class AnimationVfxSmokeTest {
                 && SkillEffectAtlas.getAnimation(skill.id(), "travel") == null)).count();
         System.out.println("Animation timing, grips, draw isolation and ability VFX lifecycle checks passed");
         if (missing > 0) System.out.println("PNG visual QA pending: " + missing
-                + " reference skill mappings have unresolved core source tracks; absence checks passed");
+                + " unresolved reference skill mappings; active skills use procedural fallback VFX");
     }
 
     private static void verifyCharacterTiming() throws Exception {
@@ -141,9 +141,12 @@ public class AnimationVfxSmokeTest {
                         definition.getId() + " legacy VFX must evolve between frames");
             } else {
                 verifyReferenceTracks(definition);
-                if (!hasBodyTrack(definition)) require(nontransparentPixels(first) == 0
-                                && nontransparentPixels(growing) == 0 && nontransparentPixels(peak) == 0,
-                        definition.getId() + " cannot substitute procedural art for missing PNG frames");
+                if (!definition.isPassive() && !hasBodyTrack(definition)) {
+                    require(nontransparentPixels(growing) + nontransparentPixels(peak) > 0,
+                            definition.getId() + " needs visible procedural VFX when PNG tracks are missing");
+                    require(!Arrays.equals(pixels(growing), pixels(peak)),
+                            definition.getId() + " procedural VFX must evolve through the action");
+                }
             }
             identical(peak, render(effect), definition.getId() + " draw must be deterministic");
             assertGraphicsIsolation((graphics) -> effect.draw(graphics, 128, 128, 0, 0),
@@ -161,9 +164,9 @@ public class AnimationVfxSmokeTest {
             if (SkillEffectAtlas.getMetadata(definition.getId()) == null) {
                 require(nontransparentPixels(coincidentImage) > 0,
                         definition.getId() + " must render safely at a coincident cast and target point");
-            } else if (!hasBodyTrack(definition)) {
-                require(nontransparentPixels(coincidentImage) == 0,
-                        definition.getId() + " missing PNG remains absent at a coincident anchor");
+            } else if (!definition.isPassive() && !hasBodyTrack(definition)) {
+                require(nontransparentPixels(coincidentImage) > 0,
+                        definition.getId() + " procedural VFX must safely render at a coincident anchor");
             }
             effect.update(2.0);
             require(effect.isExpired(), definition.getId() + " must expire");
@@ -180,8 +183,8 @@ public class AnimationVfxSmokeTest {
         persistent.update(0.2);
         SkillEffectAtlas.SkillAnimation barrier = SkillEffectAtlas.getAnimation("holy_shield", "action");
         if (barrier == null) {
-            require(nontransparentPixels(heldShield) == 0 && nontransparentPixels(render(persistent)) == 0,
-                    "Unresolved Divine Barrier cannot be replaced with a procedural aura");
+            require(nontransparentPixels(heldShield) > 0 && nontransparentPixels(render(persistent)) > 0,
+                    "Procedural Divine Barrier must stay visible through its defense duration");
         } else if (barrier.isLooping()) {
             require(nontransparentPixels(heldShield) > 0 && nontransparentPixels(render(persistent)) > 0,
                     "Reviewed looping barrier remains attached through its defense duration");

@@ -1,22 +1,29 @@
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Graphics2D;
-import java.awt.RadialGradientPaint;
 import java.awt.RenderingHints;
 import java.awt.geom.Arc2D;
 import java.awt.geom.Ellipse2D;
 import java.awt.geom.Line2D;
 import java.awt.geom.Path2D;
-import java.awt.geom.Point2D;
 
-/** Small, continuous impact accents; particles retain their velocity as the hit decays. */
+/** Compact contact flashes with continuous, seeded particle motion. */
 public class CombatImpactEffect {
     private static final double MAX_LIFE = 0.38;
+    private static final Color WARM = new Color(255, 172, 78);
+    private static final Color FROST = new Color(133, 224, 255);
+    private static final Color ELECTRIC = new Color(127, 203, 255);
+    private static final Color VOID = new Color(184, 115, 255);
+    private static final Color SACRED = new Color(255, 223, 126);
+    private static final Color VENOM = new Color(146, 236, 99);
+    private static final Color STEEL = new Color(255, 216, 153);
     private final double worldX, worldY;
     private final DamageElement element;
     private final int seed;
     private final boolean skillImpact;
     private final SkillEffectAtlas.SkillAnimation animation;
+    private final Color color;
+    private final Particle[] particles;
     private final double duration;
     private double life;
 
@@ -24,7 +31,7 @@ public class CombatImpactEffect {
         this(null, worldX, worldY, element);
     }
 
-    /** Requested skills use only their reviewed PNG impact track. */
+    /** Reviewed PNG tracks take precedence; missing tracks still receive a contact accent. */
     public CombatImpactEffect(String skillId, double worldX, double worldY, DamageElement element) {
         this.worldX = worldX;
         this.worldY = worldY;
@@ -32,6 +39,24 @@ public class CombatImpactEffect {
         this.seed = (int) Math.round(worldX * 31 + worldY * 17) ^ element.ordinal() * 0x45d9f3b;
         this.skillImpact = skillId != null;
         this.animation = skillId == null ? null : SkillEffectAtlas.getAnimation(skillId, "impact");
+        this.color = switch (element) {
+            case FIRE, EXPLOSION -> WARM;
+            case ICE -> FROST;
+            case LIGHTNING -> ELECTRIC;
+            case SHADOW -> VOID;
+            case HOLY -> SACRED;
+            case POISON -> VENOM;
+            default -> STEEL;
+        };
+        int count = element == DamageElement.EXPLOSION ? 16 : skillImpact ? 12
+                : element == DamageElement.PHYSICAL ? 7 : 9;
+        this.particles = new Particle[animation == null ? count : 0];
+        for (int i = 0; i < particles.length; i++) {
+            double angle = (i + unit(i, 0) * 0.75) / count * Math.PI * 2;
+            particles[i] = new Particle(angle, 17 + unit(i, 1) * (skillImpact ? 29 : 23),
+                    1.0 + unit(i, 2) * 1.8, unit(i, 3) * 0.08,
+                    0.68 + unit(i, 4) * 0.30, 3.0 + unit(i, 5) * 6.0);
+        }
         this.duration = animation == null ? MAX_LIFE : Math.max(0.05, animation.getDurationSeconds());
         this.life = duration;
     }
@@ -43,86 +68,142 @@ public class CombatImpactEffect {
     public void draw(Graphics2D graphics, int centerX, int centerY, double cameraX, double cameraY) {
         if (isExpired()) return;
         double p = Math.min(1, 1 - life / duration);
-        if (skillImpact) {
-            if (animation != null) {
-                animation.drawAt(graphics, centerX + worldX + cameraX, centerY + worldY + cameraY,
-                        76.0, 0.0, duration - life, 1.0 - smooth(Math.max(0.0, (p - 0.78) / 0.22)), false);
-            }
+        double x = centerX + worldX + cameraX, y = centerY + worldY + cameraY;
+        if (!Double.isFinite(x) || !Double.isFinite(y)) return;
+        if (animation != null) {
+            animation.drawAt(graphics, x, y, 76.0, 0.0, duration - life,
+                    1.0 - smooth(Math.max(0.0, (p - 0.78) / 0.22)), false);
             return;
         }
         double alpha = 1 - smooth(p);
-        Color c = switch (element) {
-            case FIRE, EXPLOSION -> new Color(255, 157, 68);
-            case ICE -> new Color(163, 232, 255);
-            case LIGHTNING -> new Color(139, 213, 255);
-            case SHADOW -> new Color(176, 100, 226);
-            case HOLY -> new Color(255, 231, 157);
-            case POISON -> new Color(126, 220, 105);
-            default -> new Color(255, 225, 164);
-        };
         Graphics2D g = (Graphics2D) graphics.create();
-        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        g.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
-        g.translate(centerX + worldX + cameraX, centerY + worldY + cameraY);
-        double core = Math.pow(1 - p, 3);
-        glow(g, 0, 0, 19 + p * 15, c, core * 0.55);
-        glow(g, 0, 0, 5 + p * 2, Color.WHITE, core * 0.7);
-        int count = element == DamageElement.EXPLOSION ? 16 : element == DamageElement.PHYSICAL ? 7 : 11;
-        double travel = 1 - Math.pow(1 - p, 2);
-        for (int i = 0; i < count; i++) {
-            double angle = unit(i, 0) * Math.PI * 2;
-            double speed = 23 + unit(i, 1) * 29;
-            double px = Math.cos(angle) * (4 + travel * speed);
-            double py = Math.sin(angle) * (4 + travel * speed) * 0.7;
-            if (element == DamageElement.FIRE || element == DamageElement.EXPLOSION) py += p * p * 19;
-            if (element == DamageElement.SHADOW || element == DamageElement.POISON) py -= p * 12;
-            double pa = alpha * (0.65 + unit(i, 2) * 0.35);
-            double size = 1.5 + unit(i, 3) * 2.5;
-            if (element == DamageElement.ICE) {
-                Path2D shard = new Path2D.Double();
-                double length = size * 2.6;
-                shard.moveTo(px + Math.cos(angle) * length, py + Math.sin(angle) * length);
-                shard.lineTo(px + Math.cos(angle + 2.4) * length * 0.45, py + Math.sin(angle + 2.4) * length * 0.45);
-                shard.lineTo(px + Math.cos(angle - 2.4) * length * 0.45, py + Math.sin(angle - 2.4) * length * 0.45);
-                shard.closePath(); g.setColor(withAlpha(c, 180 * pa)); g.fill(shard);
-            } else if (element == DamageElement.LIGHTNING) {
-                Path2D bolt = new Path2D.Double();
-                bolt.moveTo(px * 0.38, py * 0.38);
-                bolt.lineTo(px * 0.64 + Math.sin(p * 10 + i) * 3, py * 0.64 + Math.cos(p * 10 + i) * 3);
-                bolt.lineTo(px, py);
-                stroke(g, bolt, c, 5, pa * 0.13); stroke(g, bolt, Color.WHITE, 1.3, pa * 0.75);
-            } else if (element == DamageElement.SHADOW) {
-                glow(g, px, py, size * (2.8 + p * 1.4), c, pa * 0.25);
-            } else if (element == DamageElement.POISON) {
-                g.setColor(withAlpha(c, pa * 145));
-                g.setStroke(new BasicStroke(1.1f));
-                g.draw(new Ellipse2D.Double(px - size, py - size, size * 2, size * 2));
-            } else {
-                double length = 2 + (1 - p) * (4 + unit(i, 4) * 5);
-                stroke(g, new Line2D.Double(px, py, px - Math.cos(angle) * length, py - Math.sin(angle) * length * 0.7),
-                        i % 3 == 0 ? Color.WHITE : c, size * 0.5, pa * 0.8);
-                if (i % 4 == 0) glow(g, px, py, size * 2, c, pa * 0.25);
+        try {
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            g.translate(x, y);
+            double flash = Math.pow(1 - p, 5);
+            double expansion = 1 - Math.pow(1 - p, 3);
+            double size = skillImpact ? 1.15 : 0.86;
+            glow(g, 0, 0, (20 + expansion * 18) * size, color, flash * 0.48 + alpha * 0.07);
+            glow(g, 0, 0, (5 + expansion * 7) * size, Color.WHITE, flash * 0.82);
+            drawShockRings(g, p, expansion, alpha, size);
+            drawContactFlare(g, p, flash, size);
+            for (int i = 0; i < particles.length; i++) {
+                drawParticle(g, particles[i], i, p);
+            }
+        } finally {
+            g.dispose();
+        }
+    }
+
+    private void drawShockRings(Graphics2D g, double p, double expansion, double alpha, double size) {
+        double radius = (4 + expansion * 29) * size;
+        double opacity = alpha * (skillImpact ? 0.48 : 0.24);
+        double turn = Math.floorMod(seed, 90) + p * 18;
+        for (int part = 0; part < 3; part++) {
+            Arc2D arc = new Arc2D.Double(-radius, -radius * 0.65, radius * 2, radius * 1.3,
+                    turn + part * 120, 88, Arc2D.OPEN);
+            stroke(g, arc, color, 4.2 * (1 - p) + 0.6, opacity * 0.16);
+            stroke(g, arc, color, 1.4 * (1 - p) + 0.55, opacity);
+        }
+        if (skillImpact && p > 0.09) {
+            double t = Math.min(1, (p - 0.09) / 0.91);
+            double inner = (3 + (1 - Math.pow(1 - t, 3)) * 21) * size;
+            double a = smooth(t / 0.13) * (1 - smooth(t)) * 0.28;
+            stroke(g, new Ellipse2D.Double(-inner, -inner * 0.65, inner * 2, inner * 1.3),
+                    Color.WHITE, 0.8, a);
+        }
+    }
+
+    private void drawContactFlare(Graphics2D g, double p, double flash, double size) {
+        double reach = (6 + (1 - Math.pow(1 - p, 2)) * 15) * size;
+        if (element == DamageElement.HOLY || element == DamageElement.LIGHTNING) {
+            double flare = (1 - smooth(p / 0.58)) * 0.8;
+            stroke(g, new Line2D.Double(-reach, 0, reach, 0), color, 4, flare * 0.14);
+            stroke(g, new Line2D.Double(-reach, 0, reach, 0), Color.WHITE, 1.15, flare);
+            stroke(g, new Line2D.Double(0, -reach * 1.35, 0, reach * 1.35),
+                    Color.WHITE, 1.0, flare * 0.85);
+        } else if (element == DamageElement.PHYSICAL || element == DamageElement.FIRE
+                || element == DamageElement.EXPLOSION) {
+            double diagonal = Math.PI * (0.15 + unit(2, 8) * 0.30);
+            double dx = Math.cos(diagonal) * reach, dy = Math.sin(diagonal) * reach;
+            stroke(g, new Line2D.Double(-dx, -dy, dx, dy), color, 5, flash * 0.18);
+            stroke(g, new Line2D.Double(-dx, -dy, dx, dy), Color.WHITE, 1.5, flash * 0.85);
+            stroke(g, new Line2D.Double(-dy * 0.55, dx * 0.55, dy * 0.55, -dx * 0.55),
+                    color, 1.0, flash * 0.65);
+        }
+    }
+
+    private void drawParticle(Graphics2D g, Particle particle, int index, double p) {
+        if (p < particle.delay()) return;
+        double t = Math.min(1, (p - particle.delay()) / (1 - particle.delay()));
+        double appear = smooth(t / 0.09);
+        double alpha = appear * (1 - smooth(t)) * particle.opacity();
+        // Analytic drag keeps motion consistent at any update frequency and moving as it fades.
+        double distance = 3 + particle.distance() * t * (1.28 - 0.28 * t);
+        double angle = particle.angle();
+        double px = Math.cos(angle) * distance, py = Math.sin(angle) * distance * 0.70;
+        if (element == DamageElement.FIRE || element == DamageElement.EXPLOSION) py += t * t * 12;
+        if (element == DamageElement.SHADOW || element == DamageElement.POISON) py -= t * t * 13;
+        double size = particle.size() * (1 - t * 0.4);
+        if (element == DamageElement.ICE) {
+            double spin = angle + t * (index % 2 == 0 ? 0.32 : -0.32);
+            double dx = Math.cos(spin), dy = Math.sin(spin), length = size * 3.1;
+            Path2D shard = new Path2D.Double();
+            shard.moveTo(px + dx * length, py + dy * length);
+            shard.lineTo(px - dy * size, py + dx * size);
+            shard.lineTo(px - dx * length * 0.65, py - dy * length * 0.65);
+            shard.lineTo(px + dy * size, py - dx * size);
+            shard.closePath();
+            g.setColor(withAlpha(color, 180 * alpha));
+            g.fill(shard);
+            stroke(g, new Line2D.Double(px - dx * length * 0.5, py - dy * length * 0.5,
+                    px + dx * length, py + dy * length), Color.WHITE, 0.75, alpha * 0.84);
+        } else if (element == DamageElement.LIGHTNING) {
+            double bend = (index % 2 == 0 ? 1 : -1) * (3 + particle.size());
+            Path2D bolt = new Path2D.Double();
+            bolt.moveTo(px * 0.20, py * 0.20);
+            bolt.lineTo(px * 0.49 - Math.sin(angle) * bend, py * 0.49 + Math.cos(angle) * bend);
+            bolt.lineTo(px * 0.65 + Math.sin(angle) * bend * 0.6,
+                    py * 0.65 - Math.cos(angle) * bend * 0.6);
+            bolt.lineTo(px, py);
+            double lightning = alpha * (1 - smooth(t / 0.82));
+            stroke(g, bolt, color, 5, lightning * 0.15);
+            stroke(g, bolt, color, 2.1, lightning * 0.65);
+            stroke(g, bolt, Color.WHITE, 0.85, lightning * 0.88);
+        } else if (element == DamageElement.SHADOW) {
+            Path2D wisp = new Path2D.Double();
+            wisp.moveTo(px * 0.68, py * 0.68);
+            wisp.quadTo(px - Math.sin(angle) * 7, py + Math.cos(angle) * 7, px, py);
+            stroke(g, wisp, color, size * 2.0, alpha * 0.13);
+            stroke(g, wisp, color, size * 0.68, alpha * 0.56);
+            if (index % 3 == 0) glow(g, px, py, size * 3.6, color, alpha * 0.23);
+        } else if (element == DamageElement.POISON) {
+            double bubble = size * (1.1 + t * 0.45);
+            stroke(g, new Ellipse2D.Double(px - bubble, py - bubble, bubble * 2, bubble * 2),
+                    color, 1.0, alpha * 0.62);
+            g.setColor(withAlpha(Color.WHITE, alpha * 135));
+            g.fill(new Ellipse2D.Double(px - bubble * 0.52, py - bubble * 0.60, 0.95, 0.95));
+            if (index % 4 == 0) glow(g, px, py, bubble * 3, color, alpha * 0.16);
+        } else {
+            double length = 1.2 + particle.length() * (1 - t * 0.70);
+            Line2D spark = new Line2D.Double(px, py, px - Math.cos(angle) * length,
+                    py - Math.sin(angle) * length * 0.70);
+            stroke(g, spark, color, size * 2.2, alpha * 0.14);
+            stroke(g, spark, index % 3 == 0 ? Color.WHITE : color, size * 0.65, alpha * 0.90);
+            if (index % 4 == 0) glow(g, px, py, size * 2.8, color, alpha * 0.20);
+            if (element == DamageElement.HOLY && index % 3 == 0) {
+                stroke(g, new Line2D.Double(px - size * 1.5, py, px + size * 1.5, py),
+                        Color.WHITE, 0.8, alpha * 0.65);
+                stroke(g, new Line2D.Double(px, py - size * 2, px, py + size * 2),
+                        Color.WHITE, 0.8, alpha * 0.65);
             }
         }
-        if (element == DamageElement.HOLY) {
-            double reach = 8 + travel * 10;
-            stroke(g, new Line2D.Double(-reach, 0, reach, 0), c, 1.5, alpha * 0.7);
-            stroke(g, new Line2D.Double(0, -reach * 1.2, 0, reach * 1.2), Color.WHITE, 1.2, alpha * 0.8);
-        }
-        if (element != DamageElement.PHYSICAL) {
-            double r = 6 + travel * 26;
-            Arc2D arc = new Arc2D.Double(-r, -r * 0.65, r * 2, r * 1.3,
-                    seed % 80 + p * 30, 240, Arc2D.OPEN);
-            stroke(g, arc, c, 1.4, alpha * 0.3);
-        }
-        g.dispose();
     }
 
     private static void glow(Graphics2D g, double x, double y, double radius, Color c, double a) {
-        if (a < 0.003) return;
-        g.setPaint(new RadialGradientPaint(new Point2D.Double(x, y), (float) radius,
-                new float[] {0, 0.3f, 1}, new Color[] {withAlpha(c, 220 * a), withAlpha(c, 95 * a), withAlpha(c, 0)}));
-        g.fill(new Ellipse2D.Double(x - radius, y - radius, radius * 2, radius * 2));
+        SkillVfxGlow.draw(g, x, y, radius, c, a);
     }
     private static void stroke(Graphics2D g, java.awt.Shape shape, Color c, double width, double a) {
         if (a < 0.003) return;
@@ -136,4 +217,6 @@ public class CombatImpactEffect {
     }
     private static double smooth(double p) { double t = Math.max(0, Math.min(1, p)); return t * t * (3 - 2 * t); }
     private static Color withAlpha(Color c, double a) { return new Color(c.getRed(), c.getGreen(), c.getBlue(), (int) Math.max(0, Math.min(255, Math.round(a)))); }
+    private record Particle(double angle, double distance, double size, double delay,
+            double opacity, double length) { }
 }

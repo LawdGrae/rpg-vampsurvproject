@@ -4,6 +4,7 @@ import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.Shape;
+import java.awt.geom.AffineTransform;
 import java.awt.geom.Ellipse2D;
 import java.awt.geom.Line2D;
 import java.awt.geom.Path2D;
@@ -24,6 +25,7 @@ final class GuardianVisualEffect {
     private static final BasicStroke EDGE = stroke(2.4f);
     private static final BasicStroke HEAVY = stroke(4.8f);
     private static final BasicStroke WIDE = stroke(8f);
+    private static final BasicStroke SOFT = stroke(12f);
     private static final AlphaComposite[] OPACITY = opacityCache();
     private static final BufferedImage DUST_SPRITE = dustSprite();
     private static final Path2D SHIELD = shieldShape(1.0);
@@ -33,19 +35,23 @@ final class GuardianVisualEffect {
 
     private final String id;
     private final double radius, maxLife, hitAge;
-    private final BasicStroke shieldFine, shieldSmall;
+    private final BasicStroke shieldFine, shieldSmall, shieldGlow;
     private final double directionX, directionY;
     private final double[] seeds = new double[96];
     private final double[] trailX = new double[24];
     private final double[] trailY = new double[24];
     private final double[] trailBirth = new double[24];
+    private final double[] shieldTrailX = new double[24];
+    private final double[] shieldTrailY = new double[24];
     private final Path2D path = new Path2D.Double();
     private final Path2D secondaryPath = new Path2D.Double();
     private final Line2D line = new Line2D.Double();
     private final Ellipse2D ellipse = new Ellipse2D.Double();
+    private final AffineTransform spriteTransform = new AffineTransform();
     private double casterX, casterY, shieldX, shieldY, impactX, impactY;
-    private double previousCasterX, previousCasterY;
+    private double previousCasterX, previousCasterY, previousShieldX, previousShieldY;
     private double age, nextTrailSample, blockAge = 1, blockX, blockY;
+    private double waveRadius = -1;
     private int trailIndex;
     private boolean impactFrozen;
 
@@ -59,20 +65,21 @@ final class GuardianVisualEffect {
     GuardianVisualEffect(AbilityDefinition definition, double startX, double startY,
             double targetX, double targetY, double radius, double maxLife) {
         id = definition.getId();
-        this.radius = radius;
-        this.maxLife = maxLife;
-        double barrierHeight = Math.max(61, Math.min(94, radius * 0.62));
+        this.radius = Double.isFinite(radius) ? Math.max(0, radius) : 100;
+        this.maxLife = Double.isFinite(maxLife) ? Math.max(0.05, maxLife) : 1;
+        double barrierHeight = Math.max(61, Math.min(94, this.radius * 0.62));
         shieldFine = stroke((float) (FINE.getLineWidth() / barrierHeight));
         shieldSmall = stroke((float) (SMALL.getLineWidth() / barrierHeight));
+        shieldGlow = stroke((float) (WIDE.getLineWidth() / barrierHeight));
         hitAge = AbilityAnimationTiming.duration(definition)
                 * AbilityAnimationTiming.hitProgress(definition)[0];
-        casterX = shieldX = impactX = startX;
-        casterY = shieldY = impactY = startY;
-        previousCasterX = casterX;
-        previousCasterY = casterY;
+        casterX = shieldX = impactX = Double.isFinite(startX) ? startX : 0;
+        casterY = shieldY = impactY = Double.isFinite(startY) ? startY : 0;
+        previousCasterX = previousShieldX = casterX;
+        previousCasterY = previousShieldY = casterY;
         double length = Math.hypot(targetX - startX, targetY - startY);
-        directionX = length > 0.001 ? (targetX - startX) / length : 1;
-        directionY = length > 0.001 ? (targetY - startY) / length : 0;
+        directionX = Double.isFinite(length) && length > 0.001 ? (targetX - startX) / length : 1;
+        directionY = Double.isFinite(length) && length > 0.001 ? (targetY - startY) / length : 0;
         int seed = id.hashCode();
         for (int index = 0; index < seeds.length; index++) {
             int value = seed ^ (index + 1) * 0x45d9f3b;
@@ -93,7 +100,14 @@ final class GuardianVisualEffect {
     }
 
     void setShieldPosition(double x, double y) {
-        if (Double.isFinite(x) && Double.isFinite(y)) { shieldX = x; shieldY = y; }
+        if (Double.isFinite(x) && Double.isFinite(y)) {
+            shieldX = x; shieldY = y;
+            if (age == 0) { previousShieldX = x; previousShieldY = y; }
+        }
+    }
+
+    void setWaveRadius(double value) {
+        if (Double.isFinite(value)) waveRadius = Math.max(0, value);
     }
 
     void freezeImpactOrigin(double x, double y) {
@@ -115,7 +129,9 @@ final class GuardianVisualEffect {
         if (!Double.isFinite(deltaTime) || deltaTime <= 0) return;
         double previousAge = age;
         age = Math.min(maxLife, age + deltaTime);
-        blockAge += deltaTime;
+        double elapsed = age - previousAge;
+        if (elapsed <= 0) return;
+        blockAge = Math.min(1, blockAge + elapsed);
         if (!impactFrozen && age >= hitAge) {
             // Combat normally supplies the exact pose at the event. This also makes
             // previewing a stand-alone effect deterministic.
@@ -124,35 +140,41 @@ final class GuardianVisualEffect {
         }
         if (id.equals("iron_charge")) {
             while (nextTrailSample <= Math.min(age, hitAge + 0.5) + 1e-10) {
-                double fraction = clamp((nextTrailSample - previousAge) / deltaTime);
+                double fraction = clamp((nextTrailSample - previousAge) / elapsed);
                 trailX[trailIndex] = previousCasterX + (casterX - previousCasterX) * fraction
                         - directionX * 14;
                 trailY[trailIndex] = previousCasterY + (casterY - previousCasterY) * fraction
                         + 22 - directionY * 14;
                 trailBirth[trailIndex] = nextTrailSample;
+                shieldTrailX[trailIndex] = previousShieldX + (shieldX - previousShieldX) * fraction;
+                shieldTrailY[trailIndex] = previousShieldY + (shieldY - previousShieldY) * fraction;
                 trailIndex = (trailIndex + 1) % trailX.length;
                 nextTrailSample += 0.028;
             }
         }
         previousCasterX = casterX;
         previousCasterY = casterY;
+        previousShieldX = shieldX;
+        previousShieldY = shieldY;
     }
 
     void draw(Graphics2D graphics, int centerX, int centerY, double cameraX, double cameraY) {
-        if (age >= maxLife) return;
+        if (age >= maxLife || !Double.isFinite(cameraX) || !Double.isFinite(cameraY)) return;
         Graphics2D g = (Graphics2D) graphics.create();
-        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        g.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
-        g.translate(centerX + cameraX, centerY + cameraY);
-        switch (id) {
-            case "shield_fortress" -> fortress(g);
-            case "iron_charge" -> { windup(g); charge(g); }
-            case "earthbreaker" -> { windup(g); earthbreaker(g); }
-            case "guardians_roar" -> { windup(g); roar(g); }
-            case "unbreakable" -> passive(g);
-            default -> { }
-        }
-        g.dispose();
+        try {
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            g.translate(centerX + cameraX, centerY + cameraY);
+            switch (id) {
+                case "shield_fortress" -> fortress(g);
+                case "iron_charge" -> { windup(g); charge(g); }
+                case "earthbreaker" -> { windup(g); earthbreaker(g); }
+                case "guardians_roar" -> { windup(g); roar(g); }
+                case "unbreakable" -> passive(g);
+                default -> { }
+            }
+        } finally { g.dispose(); }
     }
 
     private void windup(Graphics2D g) {
@@ -161,6 +183,7 @@ final class GuardianVisualEffect {
         if (alpha < 0.003) return;
         // A small metallic rim accent follows the preparing weapon. Ground impact
         // and travelling pressure effects remain absent until the shared hit event.
+        glow(g, shieldX, shieldY - 4, 21, GOLD, alpha * 0.32);
         segment(g, shieldX - 5, shieldY - 12, shieldX - 7, shieldY + 5,
                 STEEL, FINE, alpha * 0.52);
         segment(g, shieldX + 6, shieldY - 8, shieldX + 6, shieldY + 9,
@@ -182,24 +205,52 @@ final class GuardianVisualEffect {
             double width = height * (0.57 + Math.abs(directionX) * 0.12);
             double assembly = 0.78 + reveal * 0.22;
             double x = shieldX + directionX * 5, y = shieldY - 4;
-            g.translate(x, y);
-            g.scale(width * assembly, height * assembly);
-            fill(g, SHIELD, DARK_STEEL, alpha * 0.17);
-            // Faceted steel plates and gold ribs grow directly out of the held shield.
-            outline(g, SHIELD, GOLD, shieldFine, alpha * 0.78);
-            outline(g, SHIELD_INSET, STEEL, shieldFine, alpha * 0.52);
-            path.reset();
-            path.moveTo(0, -0.48); path.lineTo(0, 0.56);
-            path.moveTo(-0.45, -0.31); path.lineTo(0, -0.1); path.lineTo(0.45, -0.31);
-            path.moveTo(-0.42, 0.1); path.lineTo(0, 0.31); path.lineTo(0.42, 0.1);
-            outline(g, path, GOLD, shieldFine, alpha * 0.42);
-            if (blockAge < 0.18) {
-                double flash = 1 - smooth(blockAge / 0.18);
-                fill(g, SHIELD, LIGHT_GOLD, flash * 0.27);
-                outline(g, SHIELD, LIGHT_GOLD, shieldSmall, flash);
+            glow(g, x, y, height * 0.56, GOLD, alpha * 0.22);
+            Graphics2D barrier = (Graphics2D) g.create();
+            try {
+                barrier.translate(x, y);
+                barrier.scale(width * assembly, height * assembly);
+                outline(barrier, SHIELD, GOLD, shieldGlow, alpha * 0.16);
+                fill(barrier, SHIELD, DARK_STEEL, alpha * 0.34);
+                // Individual plates slide into the same connected shield silhouette.
+                for (int side = -1; side <= 1; side += 2) {
+                    double offset = (1 - reveal) * 0.18 * side;
+                    path.reset();
+                    path.moveTo(offset, -0.51);
+                    path.lineTo(side * 0.42 + offset, -0.32);
+                    path.lineTo(side * 0.35 + offset, 0.15);
+                    path.lineTo(offset, 0.45);
+                    path.closePath();
+                    fill(barrier, path, side < 0 ? STEEL : GOLD, alpha * 0.12);
+                    outline(barrier, path, STEEL, shieldFine, alpha * 0.19);
+                }
+                outline(barrier, SHIELD, GOLD, shieldSmall, alpha * 0.93);
+                outline(barrier, SHIELD_INSET, STEEL, shieldFine, alpha * 0.68);
+                path.reset();
+                path.moveTo(0, -0.48); path.lineTo(0, 0.56);
+                path.moveTo(-0.45, -0.31); path.lineTo(0, -0.1); path.lineTo(0.45, -0.31);
+                path.moveTo(-0.42, 0.1); path.lineTo(0, 0.31); path.lineTo(0.42, 0.1);
+                outline(barrier, path, GOLD, shieldFine, alpha * 0.6);
+                // A narrow sheen crosses the facets without hiding the character.
+                double sheen = ((age - hitAge) / 1.65) % 1;
+                Graphics2D highlight = (Graphics2D) barrier.create();
+                try {
+                    highlight.clip(SHIELD_INSET);
+                    double band = -0.85 + sheen * 1.9;
+                    path.reset();
+                    path.moveTo(-0.6, band); path.lineTo(0.6, band - 0.36);
+                    path.lineTo(0.6, band - 0.24); path.lineTo(-0.6, band + 0.12);
+                    path.closePath();
+                    fill(highlight, path, LIGHT_GOLD, alpha * 0.19 * Math.sin(sheen * Math.PI));
+                } finally { highlight.dispose(); }
+                if (blockAge < 0.18) {
+                    double flash = 1 - smooth(blockAge / 0.18);
+                    fill(barrier, SHIELD, LIGHT_GOLD, flash * 0.27);
+                    outline(barrier, SHIELD, LIGHT_GOLD, shieldSmall, flash);
+                }
+            } finally {
+                barrier.dispose();
             }
-            g.scale(1 / (width * assembly), 1 / (height * assembly));
-            g.translate(-x, -y);
             // Two visible tethers meet at the weapon face, so the structure cannot float.
             segment(g, shieldX, shieldY, x - width * 0.31, y - height * 0.2,
                     GOLD, SMALL, alpha * 0.28);
@@ -214,11 +265,36 @@ final class GuardianVisualEffect {
             double pa = anticipation * Math.sin(t * Math.PI) * 0.6;
             spark(g, x, y, 1.8, GOLD, pa);
         }
-        if (blockAge < 0.18) contactSparks(g, blockX, blockY, blockAge / 0.18,
-                1 - smooth(blockAge / 0.18), 30);
+        if (blockAge < 0.18) {
+            double flash = 1 - smooth(blockAge / 0.18);
+            glow(g, blockX, blockY, 32, LIGHT_GOLD, flash * 0.7);
+            contactSparks(g, blockX, blockY, blockAge / 0.18, flash, 30);
+        }
     }
 
     private void charge(Graphics2D g) {
+        // Fixed-time samples produce the same continuous swept rim at any frame rate.
+        for (int sample = 1; sample < trailX.length; sample++) {
+            int from = (trailIndex + sample - 1) % trailX.length;
+            int to = (trailIndex + sample) % trailX.length;
+            double t = (age - trailBirth[to]) / 0.29;
+            if (t < 0 || t >= 1 || trailBirth[from] < hitAge
+                    || trailBirth[to] <= trailBirth[from]) continue;
+            double alpha = (1 - smooth(t)) * 0.64;
+            for (int ribbon = -1; ribbon <= 1; ribbon += 2) {
+                double spread = ribbon * (10 + t * 11);
+                double x1 = shieldTrailX[from] - directionY * spread;
+                double y1 = shieldTrailY[from] + directionX * spread;
+                double x2 = shieldTrailX[to] - directionY * spread;
+                double y2 = shieldTrailY[to] + directionX * spread;
+                path.reset(); path.moveTo(x1, y1);
+                path.quadTo((x1 + x2) * 0.5 - directionY * ribbon * 2,
+                        (y1 + y2) * 0.5 + directionX * ribbon * 2, x2, y2);
+                outline(g, path, GOLD, WIDE, alpha * 0.1);
+                outline(g, path, ribbon < 0 ? STEEL : GOLD, SMALL, alpha * 0.62);
+                outline(g, path, LIGHT_GOLD, FINE, alpha * 0.32);
+            }
+        }
         for (int i = 0; i < trailX.length; i++) {
             double t = (age - trailBirth[i]) / 0.42;
             if (t < 0 || t >= 1) continue;
@@ -230,6 +306,8 @@ final class GuardianVisualEffect {
         double active = smooth((age - hitAge) / 0.05)
                 * (1 - smooth((age - hitAge - 0.43) / 0.12));
         if (active < 0.003) return;
+        glow(g, shieldX + directionX * 3, shieldY + directionY * 3, 24,
+                LIGHT_GOLD, active * 0.36);
         // Small glints scrape along the physical leading shield, never a colored dash.
         for (int i = 0; i < 8; i++) {
             double t = ((age - hitAge) * 3.7 + seeds[i]) % 1;
@@ -247,7 +325,7 @@ final class GuardianVisualEffect {
     private void earthbreaker(Graphics2D g) {
         double time = age - hitAge;
         if (time < 0 || !impactFrozen) return;
-        double reach = smooth(time / 0.31);
+        double reach = waveRadius >= 0 ? clamp(waveRadius / Math.max(1, radius)) : smooth(time / 0.60);
         double fade = 1 - smooth((age - maxLife + 0.42) / 0.42);
         double aim = Math.atan2(directionY, directionX);
         // Branching cracks spread through the ground from the shield's exact lower tip.
@@ -273,13 +351,15 @@ final class GuardianVisualEffect {
                 if (fraction >= reach) break;
             }
             outline(g, path, CRACK, HEAVY, fade * 0.77);
-            outline(g, path, GOLD, FINE, fade * (1 - smooth(time / 0.55)) * 0.8);
+            double heat = fade * (1 - smooth(time / 0.55));
+            outline(g, path, GOLD, WIDE, heat * 0.11);
+            outline(g, path, GOLD, FINE, heat * 0.85);
             if (time < 0.38) dust(g, lastX, lastY, 11 + time * 25, fade * 0.19);
         }
-        double waveTime = clamp(time / 0.64);
-        double waveReach = radius * (0.13 + easeOut(waveTime) * 0.82);
+        double waveTime = clamp(time / 0.60);
+        double waveReach = waveRadius >= 0 ? waveRadius : radius * smooth(waveTime);
         directionalWave(g, impactX, impactY, aim, waveReach,
-                (1 - waveTime) * fade * 0.65, time);
+                smooth(time / 0.035) * (1 - smooth((time - 0.35) / 0.5)) * fade * 0.82, time);
         for (int i = 0; i < 17; i++) {
             double angle = aim + (seeds[i] - 0.5) * 4.1;
             double travel = (26 + seeds[i + 17] * radius * 0.35) * time;
@@ -298,8 +378,11 @@ final class GuardianVisualEffect {
             rock(g, groundX, groundY - bounce, size,
                     seeds[i + 68] * 3 + time * (seeds[i] - 0.5) * 9, fade);
         }
-        if (time < 0.32) contactSparks(g, impactX, impactY, time / 0.32,
-                1 - smooth(time / 0.32), 37);
+        if (time < 0.32) {
+            double flash = 1 - smooth(time / 0.32);
+            glow(g, impactX, impactY, 38 + time * 35, GOLD, flash * 0.7);
+            contactSparks(g, impactX, impactY, time / 0.32, flash, 37);
+        }
         for (int i = 0; i < 8; i++) {
             double angle = aim + (i - 3.5) * 0.5;
             double distance = radius * (0.07 + seeds[i] * 0.11 + easeOut(clamp(time)) * 0.25);
@@ -317,6 +400,8 @@ final class GuardianVisualEffect {
         // Gameplay reaches each enemy on this same linear .55-second front.
         double reach = radius * clamp(time / 0.55);
         double alpha = smooth(time / 0.065) * (1 - smooth((t - 0.46) / 0.54));
+        if (time < 0.24) glow(g, impactX, impactY + 6, 38, LIGHT_GOLD,
+                (1 - smooth(time / 0.24)) * 0.48);
         // Pressure fronts are broad broken ribbons with irregular crests and open gaps.
         // Their expansion reads as moving air; no filled circular aura is used.
         for (int lobe = 0; lobe < 3; lobe++) {
@@ -330,7 +415,7 @@ final class GuardianVisualEffect {
         for (int i = 0; i < 15; i++) {
             double angle = i * Math.PI * 2 / 15 + seeds[i] * 0.1;
             double x = impactX + Math.cos(angle) * reach;
-            double y = impactY + 23 + Math.sin(angle) * reach * 0.57;
+            double y = impactY + Math.sin(angle) * reach;
             dust(g, x, y, 10 + t * 17, alpha * 0.2);
             if (i % 2 == 0) segment(g, x, y - 7, x + Math.cos(angle) * 10,
                     y + Math.sin(angle) * 6 - 7, LIGHT_GOLD, FINE, alpha * 0.38);
@@ -352,34 +437,66 @@ final class GuardianVisualEffect {
 
     private void directionalWave(Graphics2D g, double x, double y, double aim,
             double reach, double alpha, double time) {
+        if (reach < 0.4 || alpha < 0.003) return;
         path.reset(); secondaryPath.reset();
-        for (int step = 0; step <= 24; step++) {
-            double angle = aim - 1.18 + step * 2.36 / 24;
-            double uneven = 1 + Math.sin(step * 2.8) * 0.044;
+        for (int step = 0; step <= 38; step++) {
+            double angle = aim - 1.77 + step * 3.54 / 38;
+            double uneven = 1 + Math.sin(step * 1.15) * 0.009;
             double px = x + Math.cos(angle) * reach * uneven;
-            double py = y + Math.sin(angle) * reach * uneven * 0.67;
-            if (step == 0) { path.moveTo(px, py); secondaryPath.moveTo(px, py + 3); }
-            else { path.lineTo(px, py); secondaryPath.lineTo(px, py + 3); }
-            if (step % 4 == 0) dust(g, px, py + 4, 12 + time * 18, alpha * 0.44);
+            double py = y + Math.sin(angle) * reach * uneven;
+            double insideX = x + Math.cos(angle) * Math.max(0, reach - 7);
+            double insideY = y + Math.sin(angle) * Math.max(0, reach - 7);
+            if (step == 0) { path.moveTo(px, py); secondaryPath.moveTo(insideX, insideY); }
+            else { path.lineTo(px, py); secondaryPath.lineTo(insideX, insideY); }
+            if (step % 4 == 0) {
+                dust(g, px, py + 4, 12 + time * 18, alpha * 0.45);
+                glow(g, px, py, 15, GOLD, alpha * 0.23);
+            }
         }
-        outline(g, secondaryPath, DUST, WIDE, alpha * 0.18);
+        outline(g, secondaryPath, DUST, SOFT, alpha * 0.23);
+        outline(g, path, GOLD, SOFT, alpha * 0.15);
         outline(g, path, GOLD, EDGE, alpha * 0.7);
-        outline(g, path, LIGHT_GOLD, FINE, alpha * 0.72);
+        outline(g, path, LIGHT_GOLD, FINE, alpha * 0.87);
+        outline(g, secondaryPath, ROCK_LIGHT, SMALL, alpha * 0.32);
     }
 
     private void pressureRibbon(Graphics2D g, double x, double y, double reach,
             double from, double to, double width, double alpha) {
-        path.reset();
-        for (int step = 0; step <= 25; step++) {
-            double angle = from + (to - from) * step / 25;
-            double r = reach * (1 + Math.sin(angle * 11) * 0.022 + Math.sin(angle * 23) * 0.012);
+        if (reach < 0.4 || alpha < 0.003) return;
+        path.reset(); secondaryPath.reset();
+        // Dense curves and tapered ends let each pressure crest flow through the air.
+        for (int step = 0; step <= 48; step++) {
+            double u = step / 48.0;
+            double angle = from + (to - from) * u;
+            double center = pressureRadius(reach, angle);
+            double taper = Math.pow(Math.sin(u * Math.PI), 0.7);
+            double r = center + width * 0.5 * taper;
             double px = x + Math.cos(angle) * r;
             double py = y + Math.sin(angle) * r;
-            if (step == 0) path.moveTo(px, py); else path.lineTo(px, py);
+            double cx = x + Math.cos(angle) * center;
+            double cy = y + Math.sin(angle) * center;
+            if (step == 0) {
+                path.moveTo(px, py); secondaryPath.moveTo(cx, cy);
+            } else {
+                path.lineTo(px, py); secondaryPath.lineTo(cx, cy);
+            }
         }
-        outline(g, path, GOLD, WIDE, alpha * 0.12);
-        outline(g, path, LIGHT_GOLD, width > 4 ? HEAVY : SMALL, alpha * 0.6);
-        outline(g, path, STEEL, FINE, alpha * 0.36);
+        for (int step = 48; step >= 0; step--) {
+            double u = step / 48.0;
+            double angle = from + (to - from) * u;
+            double r = pressureRadius(reach, angle) - width * 0.5 * Math.pow(Math.sin(u * Math.PI), 0.7);
+            path.lineTo(x + Math.cos(angle) * r, y + Math.sin(angle) * r);
+        }
+        path.closePath();
+        outline(g, secondaryPath, GOLD, SOFT, alpha * 0.12);
+        fill(g, path, LIGHT_GOLD, alpha * 0.48);
+        outline(g, path, LIGHT_GOLD, FINE, alpha * 0.32);
+        outline(g, secondaryPath, STEEL, FINE, alpha * 0.5);
+    }
+
+    private double pressureRadius(double reach, double angle) {
+        return reach * (1 + Math.sin(angle * 11 - age * 2) * 0.012
+                + Math.sin(angle * 23 - age * 3) * 0.006);
     }
 
     private void rock(Graphics2D g, double x, double y, double size, double angle, double alpha) {
@@ -412,8 +529,14 @@ final class GuardianVisualEffect {
     private void dust(Graphics2D g, double x, double y, double size, double alpha) {
         if (alpha < 0.008) return;
         setAlpha(g, alpha);
-        g.drawImage(DUST_SPRITE, (int) Math.round(x - size), (int) Math.round(y - size * 0.48),
-                (int) Math.ceil(size * 2), (int) Math.ceil(size * 0.96), null);
+        spriteTransform.setToTranslation(x - size, y - size * 0.48);
+        spriteTransform.scale(size * 2 / DUST_SPRITE.getWidth(), size * 0.96 / DUST_SPRITE.getHeight());
+        g.drawImage(DUST_SPRITE, spriteTransform, null);
+    }
+
+    private static void glow(Graphics2D g, double x, double y, double size, Color color, double alpha) {
+        setAlpha(g, 1);
+        SkillVfxGlow.draw(g, x, y, size, color, alpha);
     }
 
     private void spark(Graphics2D g, double x, double y, double size, Color color, double alpha) {
@@ -462,9 +585,9 @@ final class GuardianVisualEffect {
     }
 
     private static AlphaComposite[] opacityCache() {
-        AlphaComposite[] result = new AlphaComposite[65];
+        AlphaComposite[] result = new AlphaComposite[257];
         for (int i = 0; i < result.length; i++) {
-            result[i] = AlphaComposite.getInstance(AlphaComposite.SRC_OVER, i / 64f);
+            result[i] = AlphaComposite.getInstance(AlphaComposite.SRC_OVER, i / 256f);
         }
         return result;
     }

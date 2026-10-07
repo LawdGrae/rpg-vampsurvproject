@@ -37,8 +37,8 @@ public class GuardianRenderCheck {
                 + "draw isolation and effect lifecycles passed: " + directory.getAbsolutePath());
         long missing = Arrays.stream(SKILLS).filter(id -> SkillEffectAtlas.getAnimation(id, "action") == null
                 && SkillEffectAtlas.getAnimation(id, "buildup") == null).count();
-        if (missing > 0) System.out.println("Guardian PNG VFX visual QA pending: " + missing
-                + " active skills have no reviewed action/buildup frames; absent-source checks passed");
+        if (missing > 0) System.out.println("Guardian procedural VFX verified: " + missing
+                + " active skills use built-in effects while reviewed PNG imports remain pending");
     }
 
     private static void verifyAssetAndLifecycle() {
@@ -67,7 +67,8 @@ public class GuardianRenderCheck {
             BufferedImage image = renderEffect(effect);
             if (SkillEffectAtlas.getAnimation(id, "action") == null
                     && SkillEffectAtlas.getAnimation(id, "buildup") == null) {
-                require(nontransparentPixels(image) == 0, id + " cannot use a procedural replacement for missing source frames");
+                require(nontransparentPixels(image) > 0,
+                        id + " must render procedural VFX when reviewed source frames are unavailable");
             }
             require(Arrays.equals(pixels(image), pixels(renderEffect(effect))), id + " draw must be deterministic");
             effect.update(life + 1);

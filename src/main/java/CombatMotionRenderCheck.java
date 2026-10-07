@@ -31,7 +31,7 @@ public class CombatMotionRenderCheck {
         g.setColor(new Color(239, 223, 186));
         g.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 23));
         g.drawString(HEROES[hero] + " | weapon grips and contact timing"
-                + (SkillEffectAtlas.hasAtlas() ? "" : " (PNG VFX pending)"), 12, 30);
+                + (SkillEffectAtlas.hasAtlas() ? "" : " (built-in skill VFX)"), 12, 30);
         for (int skill = 0; skill < CombatSkillSmokeTest.SKILLS[hero].length; skill++) {
             String id = CombatSkillSmokeTest.SKILLS[hero][skill];
             for (int facing : new int[] {1, -1}) {

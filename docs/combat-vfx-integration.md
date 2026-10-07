@@ -1,9 +1,15 @@
 # Combat integration status
 
-The motion and combat integration compiles with Java 21. The actual two VFX PNG
-files shown in chat are absent from the attachment directory and workspace.
-No source crops have been approved; the requested sprite VFX are disabled.
-Actual VFX integration and visual approval remain unfinished.
+The motion and combat integration uses Java 21. Skills now have continuous
+procedural effects when their reviewed PNG tracks are unavailable, including
+weapon trails, elemental casts, projectile travel, shields and contact accents.
+Effects use the existing combat clocks and physical attachment points, with
+smooth formation and fading instead of abruptly appearing static shapes.
+
+The two original VFX PNG references remain absent from the workspace. Their
+source crops have not been approved. A loaded, reviewed action, travel or impact
+track takes precedence over its procedural fallback; the fallback is independent
+art and does not claim to reproduce those reference frames.
 
 The references contain labels, portraits, overlapping artwork and unequal
 examples. They cannot safely be sliced into a regular grid. Import instructions,
@@ -37,7 +43,7 @@ pulses divide their total damage across explicit hit windows.
 Death Mark follows the selected living enemy and disappears on death. Barriers
 follow the player and receive block feedback. All five passives are excluded from
 active slots and mana/cooldowns. Berserker's Will and Unbreakable grow stronger at
-low health. The source sprites for these effects remain pending.
+low health. Original source-sprite imports remain pending.
 
 ## Verification
 
@@ -48,9 +54,11 @@ Run from the project root:
 java '-Djava.awt.headless=true' -cp out/classes CombatSkillSmokeTest
 java '-Djava.awt.headless=true' -cp out/classes SkillPoseSmokeTest
 java '-Djava.awt.headless=true' -cp out/classes AnimationVfxSmokeTest
+java '-Djava.awt.headless=true' -cp out/classes SkillVfxSmokeTest
 java '-Djava.awt.headless=true' -cp out/classes SkillEffectAtlasSmokeTest
 java '-Djava.awt.headless=true' -cp out/classes GuardianCombatSmokeTest
 java '-Djava.awt.headless=true' -cp out/classes CombatMotionRenderCheck out/combat-motion-final
+java '-Djava.awt.headless=true' -cp out/classes SkillVfxRenderCheck out/skill-vfx-preview
 ```
 
 Combat checks cover 120 casts across idle/walking/faster movement in both
@@ -60,8 +68,17 @@ The game has no run key, so faster movement uses the existing speed upgrade.
 Additional checks cover launch-clock partition consistency, projectile travel,
 wave arrival order, continuous knockback and poison expiration.
 
-The five contact sheets in out/combat-motion-final contain 240 runtime snapshots
-and label PNG VFX as pending. They verify weapon/body staging, facing and recovery.
-Source-frame selection, skill VFX appearance, transparency and source-art hit
-timing still require the PNGs. Atlas tests use temporary pixel fixtures only for
-parser and renderer verification; the fixtures are not game assets.
+`SkillVfxRenderCheck` exports five contact sheets containing 240 runtime snapshots
+and five looping GIFs with all 20 active skills. They show actual character poses,
+ground/front layering, cast buildup, live projectiles, impact accents and recovery.
+The stills cover both horizontal facings, and the GIFs show the full cast and fade.
+
+`SkillVfxSmokeTest` checks deterministic contact feedback across time partitions,
+draw-state isolation, invalid timer inputs, projectile-owned animation clocks and
+cleanup. A fresh JVM loads temporary reviewed action/travel/impact pixel fixtures
+through the production resource path and verifies they take precedence over
+procedural art. These fixtures are removed and never become game assets.
+
+Source-frame appearance, crop identification and source-art hit timing still
+require importing and visually reviewing the original PNGs. Procedural preview
+approval does not approve an unresolved atlas crop.
