@@ -25,6 +25,7 @@ public class RunEntranceSmokeTest {
         checkTimePartitions();
         checkInvalidTimes();
         checkGraphicsState();
+        checkEffectDrawing();
         for (int hero = 0; hero < 5; hero++) {
             checkGameplayFreeze(hero);
             checkPauseAndRestart(hero);
@@ -39,6 +40,42 @@ public class RunEntranceSmokeTest {
         RunEntranceAnimation animation = new RunEntranceAnimation();
         animation.start(460.0, new Color(255, 212, 132));
         return animation;
+    }
+
+    private static void checkEffectDrawing() {
+        // Dyadic time slices land at exactly the same ages, including after unlock.
+        for (double time : new double[] {0.25, 0.50, 0.75, 0.875, 1.125, 1.50, 2.0}) {
+            RunEntranceAnimation coarse = animation();
+            RunEntranceAnimation fine = animation();
+            coarse.update(time);
+            for (int step = 0; step < (int) (time * 64); step++) fine.update(1.0 / 64.0);
+            BufferedImage expected = effectImage(coarse);
+            BufferedImage actual = effectImage(fine);
+            require(java.util.Arrays.equals(expected.getRGB(0, 0, 800, 700, null, 0, 800),
+                    actual.getRGB(0, 0, 800, 700, null, 0, 800)),
+                    "particle trajectories are independent of frame partitions at " + time);
+            require(java.util.Arrays.equals(expected.getRGB(0, 0, 800, 700, null, 0, 800),
+                    effectImage(coarse).getRGB(0, 0, 800, 700, null, 0, 800)),
+                    "drawing cannot advance or randomize the effects at " + time);
+            require(hasOpaquePixel(expected) == (time < RunEntranceAnimation.EFFECT_DURATION),
+                    "effects draw during their lifetime and leave no pixels after expiry");
+        }
+        RunEntranceAnimation reset = animation();
+        reset.update(0.80);
+        reset.reset();
+        require(!hasOpaquePixel(effectImage(reset)), "reset leaves no old entrance effects");
+    }
+
+    private static BufferedImage effectImage(RunEntranceAnimation animation) {
+        BufferedImage image = new BufferedImage(800, 700, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D graphics = image.createGraphics();
+        try {
+            animation.drawGround(graphics, 400, 530.0);
+            animation.drawFront(graphics, 400, 500, 30.0);
+        } finally {
+            graphics.dispose();
+        }
+        return image;
     }
 
     private static void checkFallAndLanding() {
@@ -338,6 +375,7 @@ public class RunEntranceSmokeTest {
         GameLogic logic = new GameLogic();
         logic.selectCharacter(hero);
         require(logic.getSelectedCharacterIndex() == hero, "hero " + hero + " is selectable");
+        logic.setSoundEnabled(false);
         logic.startGame();
         require(logic.isRunEntrancePlaying(), "a new run begins with entrance");
         return logic;

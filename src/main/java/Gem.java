@@ -128,6 +128,9 @@ public class Gem {
         return collected;
     }
 
+    public double getWorldX() { return worldX; }
+    public double getWorldY() { return worldY; }
+
     public int getValue() {
         return VALUE;
     }

@@ -105,6 +105,7 @@ public class UiRenderCheck {
                 "Previewing another class must preserve hero loadout restrictions");
         click(panel, menus.skillCloseBounds());
         require(!logic.isSkillMenuOpen(), "Skill close button must dismiss the library");
+        logic.update(RunEntranceAnimation.DURATION);
         double mana = logic.getAbilityManager().getMana();
         click(panel, GameHud.abilityBounds(2, 1280, 720));
         require(logic.getAbilityManager().getMana() < mana, "Visible HUD slot must cast its equipped ability");

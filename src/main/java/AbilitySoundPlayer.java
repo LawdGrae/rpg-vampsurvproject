@@ -46,6 +46,9 @@ public final class AbilitySoundPlayer {
             Map.entry("arrow_storm", "skill_spin_blade.wav"),
             Map.entry("apocalypse", "skill_elemental_nova.wav"));
     private static final Map<String, Clip> LOADED_CLIPS = new HashMap<>();
+    private static final String RUN_FALL_SOUND = "run_fall.wav";
+    private static final String RUN_LANDING_SOUND = "run_landing.wav";
+    private static final Map<String, Integer> PAUSED_ENTRANCE_FRAMES = new HashMap<>();
     private static volatile boolean preloaded;
 
     private AbilitySoundPlayer() {
@@ -72,6 +75,8 @@ public final class AbilitySoundPlayer {
             System.err.println("Unable to preload sound lvl_up.wav"
                     + "; that sound will be unavailable: " + exception.getMessage());
         }
+        preloadEntranceClip(RUN_FALL_SOUND, EntranceSoundEffects.fallPcm());
+        preloadEntranceClip(RUN_LANDING_SOUND, EntranceSoundEffects.landingPcm());
         preloaded = true;
     }
 
@@ -84,6 +89,128 @@ public final class AbilitySoundPlayer {
 
     public static void playLevelUp() {
         play("lvl_up.wav");
+    }
+
+    public static void playRunFall() {
+        playRunFall(0.0);
+    }
+
+    public static synchronized void playRunFall(double elapsedSeconds) {
+        playEntrance(RUN_FALL_SOUND, elapsedSeconds);
+    }
+
+    public static void playRunLanding() {
+        playRunLanding(0.0);
+    }
+
+    public static synchronized void playRunLanding(double elapsedSeconds) {
+        playEntrance(RUN_LANDING_SOUND, elapsedSeconds);
+    }
+
+    /** Stop only entrance effects; this is also safe before audio is preloaded. */
+    public static synchronized void stopRunEntrance() {
+        PAUSED_ENTRANCE_FRAMES.clear();
+        stopEntranceClip(RUN_FALL_SOUND);
+        stopEntranceClip(RUN_LANDING_SOUND);
+    }
+
+    /** Preserve the exact playback frame while gameplay and its entrance are frozen. */
+    public static synchronized void pauseRunEntrance() {
+        pauseEntranceClip(RUN_FALL_SOUND);
+        pauseEntranceClip(RUN_LANDING_SOUND);
+    }
+
+    public static synchronized void resumeRunEntrance() {
+        resumeEntranceClip(RUN_FALL_SOUND);
+        resumeEntranceClip(RUN_LANDING_SOUND);
+    }
+
+    private static void playEntrance(String filename, double elapsedSeconds) {
+        if (!preloaded) {
+            preload();
+        }
+        stopRunEntrance();
+        Clip clip = LOADED_CLIPS.get(filename);
+        if (clip == null || !Double.isFinite(elapsedSeconds)) {
+            return;
+        }
+        synchronized (clip) {
+            try {
+                double frameOffset = Math.max(0.0, elapsedSeconds) * clip.getFormat().getFrameRate();
+                // A delayed update must not replay a sound whose visual event has already passed.
+                if (frameOffset >= clip.getFrameLength()) {
+                    return;
+                }
+                clip.setFramePosition((int) frameOffset);
+                clip.start();
+            } catch (IllegalArgumentException | IllegalStateException exception) {
+                // A removed audio device must not interrupt the game.
+            }
+        }
+    }
+
+    private static void stopEntranceClip(String filename) {
+        Clip clip = LOADED_CLIPS.get(filename);
+        if (clip == null) {
+            return;
+        }
+        synchronized (clip) {
+            try {
+                clip.stop();
+                clip.setFramePosition(0);
+            } catch (IllegalArgumentException | IllegalStateException exception) {
+                // The clip may have become unavailable after preloading.
+            }
+        }
+    }
+
+    private static void pauseEntranceClip(String filename) {
+        Clip clip = LOADED_CLIPS.get(filename);
+        if (clip == null) {
+            return;
+        }
+        synchronized (clip) {
+            try {
+                if (clip.isRunning()) {
+                    clip.stop();
+                    int frame = clip.getFramePosition();
+                    if (frame < clip.getFrameLength()) {
+                        PAUSED_ENTRANCE_FRAMES.put(filename, frame);
+                    }
+                }
+            } catch (IllegalArgumentException | IllegalStateException exception) {
+                PAUSED_ENTRANCE_FRAMES.remove(filename);
+            }
+        }
+    }
+
+    private static void resumeEntranceClip(String filename) {
+        Integer frame = PAUSED_ENTRANCE_FRAMES.remove(filename);
+        Clip clip = LOADED_CLIPS.get(filename);
+        if (clip == null || frame == null) {
+            return;
+        }
+        synchronized (clip) {
+            try {
+                if (frame < clip.getFrameLength()) {
+                    clip.setFramePosition(frame);
+                    clip.start();
+                }
+            } catch (IllegalArgumentException | IllegalStateException exception) {
+                // Resuming gameplay remains safe if its audio device disappeared.
+            }
+        }
+    }
+
+    private static void preloadEntranceClip(String filename, byte[] pcm) {
+        try (AudioInputStream audioStream = new AudioInputStream(new ByteArrayInputStream(pcm),
+                EntranceSoundEffects.FORMAT, pcm.length / EntranceSoundEffects.FORMAT.getFrameSize())) {
+            LOADED_CLIPS.put(filename, openClip(audioStream));
+        } catch (IOException | LineUnavailableException | IllegalArgumentException
+                | SecurityException exception) {
+            System.err.println("Unable to preload sound " + filename
+                    + "; that sound will be unavailable: " + exception.getMessage());
+        }
     }
 
     private static void play(String filename) {

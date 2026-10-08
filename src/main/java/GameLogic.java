@@ -239,8 +239,13 @@ public class GameLogic {
             boolean landed = runEntrance.update(entranceStep);
             player.updatePreview(entranceStep);
             if (landed) {
-                double remainingShake = 0.22 - (runEntrance.getAge() - RunEntranceAnimation.FALL_DURATION);
-                if (remainingShake > 0.0) addScreenShake(remainingShake, 3.5 * remainingShake / 0.22);
+                if (soundEnabled) {
+                    double landedAge = runEntrance.getAge() - RunEntranceAnimation.FALL_DURATION
+                            + Math.max(0.0, deltaTime - entranceStep);
+                    AbilitySoundPlayer.playRunLanding(landedAge);
+                }
+                double remainingShake = 0.24 - (runEntrance.getAge() - RunEntranceAnimation.FALL_DURATION);
+                if (remainingShake > 0.0) addScreenShake(remainingShake, 4.2 * remainingShake / 0.24);
             }
             deltaTime = Math.max(0.0, deltaTime - entranceStep);
             if (runEntrance.isPlaying() || deltaTime <= 0.0) return;
@@ -433,6 +438,7 @@ public class GameLogic {
         }
 
         gameOver = true;
+        AbilitySoundPlayer.stopRunEntrance();
         runEntrance.reset();
         gameOverTimer = 0.0;
         for (int index = 0; index < 60; index++) {
@@ -1125,6 +1131,7 @@ public class GameLogic {
             expToNextLevel += LEVEL_UP_EXP_BONUS + level * 2;
             refreshUpgradeChoices();
             upgradeMenuOpen = true;
+            syncRunEntranceSound();
         }
     }
 
@@ -1346,6 +1353,7 @@ public class GameLogic {
     }
 
     public void showCharacterSelection() {
+        AbilitySoundPlayer.stopRunEntrance();
         runEntrance.reset();
         mainMenuOpen = false;
         characterSelectOpen = true;
@@ -1373,9 +1381,11 @@ public class GameLogic {
             default -> new Color(255, 170, 96);
         };
         runEntrance.start(viewportHeight * 0.5 + 110.0, entranceColor);
+        if (soundEnabled) AbilitySoundPlayer.playRunFall();
     }
 
     private void resetRunState() {
+        AbilitySoundPlayer.stopRunEntrance();
         runEntrance.reset();
         entranceOriginX = entranceOriginY = 0.0;
         player = createSelectedPlayer();
@@ -1468,20 +1478,24 @@ public class GameLogic {
         if (!paused) {
             settingsOpen = false;
         }
+        syncRunEntranceSound();
     }
 
     public void resume() {
         paused = false;
         settingsOpen = false;
+        syncRunEntranceSound();
     }
 
     public void toggleSettings() {
         settingsOpen = !settingsOpen;
+        syncRunEntranceSound();
     }
 
     public void toggleSkillMenu() {
         if (gameStarted && !upgradeMenuOpen && !gameOver) {
             skillMenuOpen = !skillMenuOpen;
+            syncRunEntranceSound();
         }
     }
 
@@ -1505,7 +1519,29 @@ public class GameLogic {
     }
 
     public void setSoundEnabled(boolean enabled) {
+        if (soundEnabled == enabled) return;
         soundEnabled = enabled;
+        if (!enabled) {
+            AbilitySoundPlayer.stopRunEntrance();
+        } else if (gameStarted && runEntrance.isVisible()) {
+            double age = runEntrance.getAge();
+            if (age < RunEntranceAnimation.FALL_DURATION) {
+                AbilitySoundPlayer.playRunFall(age);
+            } else {
+                AbilitySoundPlayer.playRunLanding(age - RunEntranceAnimation.FALL_DURATION);
+            }
+            syncRunEntranceSound();
+        }
+    }
+
+    private void syncRunEntranceSound() {
+        if (!soundEnabled || !gameStarted || gameOver) {
+            AbilitySoundPlayer.stopRunEntrance();
+        } else if (paused || settingsOpen || skillMenuOpen || upgradeMenuOpen) {
+            AbilitySoundPlayer.pauseRunEntrance();
+        } else {
+            AbilitySoundPlayer.resumeRunEntrance();
+        }
     }
 
     public void setDebugInfoVisible(boolean visible) {
@@ -1523,6 +1559,7 @@ public class GameLogic {
         upgradeChoices.clear();
         upgradeMenuOpen = false;
         openPendingLevelUp();
+        syncRunEntranceSound();
     }
 
     public List<String> getUpgradeChoices() {
@@ -1844,6 +1881,31 @@ public class GameLogic {
 
     public double getPlayerWorldY() {
         return player.getWorldY();
+    }
+
+    public double getPlayerFacingX() { return player.getRecentMoveX(); }
+    public double getPlayerFacingY() { return player.getRecentMoveY(); }
+
+    public enum MapMarkerKind { ENEMY, BOSS, GEM }
+    public record MapMarker(double worldX, double worldY, MapMarkerKind kind) { }
+
+    /** Immutable positions for the HUD; reading the map never advances gameplay. */
+    public List<MapMarker> getMapMarkers() {
+        List<MapMarker> markers = new ArrayList<>(enemies.size() + gems.size());
+        for (Enemy enemy : enemies) {
+            if (enemy.isDead()) continue;
+            boolean boss = enemy instanceof BossEnemy || enemy instanceof EliteBossEnemy
+                    || enemy instanceof FinalBossEnemy
+                    || enemy instanceof RegionalEnemy regional && regional.isBoss();
+            markers.add(new MapMarker(enemy.getWorldX(), enemy.getWorldY(),
+                    boss ? MapMarkerKind.BOSS : MapMarkerKind.ENEMY));
+        }
+        for (Gem gem : gems) {
+            if (!gem.isCollected()) {
+                markers.add(new MapMarker(gem.getWorldX(), gem.getWorldY(), MapMarkerKind.GEM));
+            }
+        }
+        return List.copyOf(markers);
     }
 
     public double getGameTimer() {
