@@ -23,6 +23,7 @@ public class GamePanel extends JPanel {
     private static final int PANEL_HEIGHT = 720;
     private static final int[] FPS_OPTIONS = {30, 45, 60, 90, 120};
     private final BufferedImage grassTile;
+    private final ArenaMinimap minimap;
     private final GameLogic gameLogic;
     private final GameMenus menus;
     private final Timer frameTimer;
@@ -39,7 +40,8 @@ public class GamePanel extends JPanel {
     public GamePanel() {
         setPreferredSize(new Dimension(PANEL_WIDTH, PANEL_HEIGHT));
         setBackground(GameUiTheme.BACKGROUND);
-        grassTile = ResourceLoader.loadImage("/main/resources/grasstile.png");
+        grassTile = ArenaLighting.brighten(ResourceLoader.loadImage("/main/resources/grasstile.png"));
+        minimap = new ArenaMinimap(grassTile);
         BufferedImage landscape = ResourceLoader.loadImage("/main/resources/landscape.png");
         gameLogic = new GameLogic();
         menus = new GameMenus(gameLogic, landscape, selectionPlayers,
@@ -244,6 +246,7 @@ public class GamePanel extends JPanel {
             if (gameLogic.isCharacterSelectOpen()) { menus.drawSelection(g); return; }
             drawWorld(g);
             GameHud.draw(g, gameLogic, PANEL_WIDTH, PANEL_HEIGHT, menus.time(), mouseX, mouseY);
+            minimap.draw(g, gameLogic, PANEL_WIDTH, PANEL_HEIGHT);
             if (gameLogic.isGameOver()) gameLogic.drawGameOverEffect(g, PANEL_WIDTH / 2, PANEL_HEIGHT / 2);
             menus.drawOverlays(g);
             if (gameLogic.isDebugInfoVisible() && !gameLogic.isPaused()

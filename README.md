@@ -27,8 +27,17 @@ root as the working directory so its resource files can be found.
 ## Survival flow
 
 Each new run and restart begins with the hero falling into the arena, followed
-by a landing squash, dust and a short camera shake. Controls and the survival
-clock begin after the one-second entrance. Esc pauses the entrance too.
+by a landing squash and a short camera shake. An accelerating wind rush leads
+into a layered landing thump, while hero-colored trails, ground bloom,
+shockwaves, dust and debris give the impact weight. Controls and the survival
+clock begin after the one-second entrance; the last particles fade as play
+resumes. Esc pauses the entrance and its sounds. The sound setting also mutes
+the entrance.
+
+The brighter arena scenery keeps walls and ruins easy to see. The corner
+minimap follows the hero and shows nearby terrain, red enemy markers, gold
+boss markers and green XP gems. Its arrow shows movement direction; north
+stays at the top. The small home marker marks the run's starting point.
 
 The first assault arrives at 28 seconds, with a three-second warning. Pincer
 assaults, horde rushes and encirclements alternate every 34 seconds, followed by
@@ -53,7 +62,9 @@ stats, weapon upgrades, cooldowns and run records.
 java '-Djava.awt.headless=true' -cp out/classes SurvivalGameplaySmokeTest
 java '-Djava.awt.headless=true' -cp out/classes GemPickupSmokeTest
 java '-Djava.awt.headless=true' -cp out/classes InputStateSmokeTest
+java '-Djava.awt.headless=true' -cp out/classes ArenaMinimapSmokeTest out/survival-review/minimap
 java '-Djava.awt.headless=true' -cp out/classes RunEntranceSmokeTest
+java '-Djava.awt.headless=true' -cp out/classes RunEntranceAudioSmokeTest
 java '-Djava.awt.headless=true' -cp out/classes CombatSkillSmokeTest
 java '-Djava.awt.headless=true' -cp out/classes SkillVfxSmokeTest
 java '-Djava.awt.headless=true' -cp out/classes UiRenderCheck out/survival-review

@@ -27,7 +27,7 @@ public class RunEntranceRenderCheck {
     private static final int CELL_HEIGHT = 360;
     private static final int LABEL_HEIGHT = 36;
     private static final int TITLE_HEIGHT = 56;
-    private static final double[] TIMES = {0.0, 0.28, 0.52, 0.72, 0.80, 1.10};
+    private static final double[] TIMES = {0.0, 0.28, 0.52, 0.63, 0.72, 0.80, 1.04, 1.20, 1.45, 1.72};
 
     public static void main(String[] args) throws Exception {
         System.setProperty("java.awt.headless", "true");
@@ -42,7 +42,7 @@ public class RunEntranceRenderCheck {
             }
         });
         System.out.println("Run entrance review: " + output.toAbsolutePath());
-        System.out.println("Saved 30 full game frames, contact-sheet.png, and five looping entrance GIFs.");
+        System.out.println("Saved " + TIMES.length * 5 + " full game frames, contact-sheet.png, and five looping entrance GIFs.");
     }
 
     private static void render(Path output) throws Exception {
