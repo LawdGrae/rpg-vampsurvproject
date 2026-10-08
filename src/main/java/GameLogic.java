@@ -12,7 +12,8 @@ import java.util.Set;
 
 public class GameLogic {
     // The panel width is used to keep new enemies outside the visible area.
-    private static final int PANEL_WIDTH = 800;
+    private static final int PANEL_WIDTH = 1280;
+    private static final int PANEL_HEIGHT = 720;
     private static final double INITIAL_SPAWN_DELAY = 1.2;
     private static final double REPOSITION_INTERVAL = 10.0;
     private static final double SPAWN_CIRCLE_DIAMETER = PANEL_WIDTH + 200.0;
@@ -30,7 +31,7 @@ public class GameLogic {
     private static final double GEM_MAX_SPEED = 260.0;
     private static final int MAX_SECRET_JPGS = 3;
     private static final double SECRET_SPAWN_INTERVAL = 12.0;
-    private static final double FIRST_BOSS_SPAWN_TIME = 200.0;
+    private static final double FIRST_BOSS_SPAWN_TIME = 95.0;
     private static final double ELITE_BOSS_DELAY_AFTER_BOSS = 180.0;
     private static final int LEVEL_UP_EXP_BONUS = 6;
 
@@ -40,7 +41,15 @@ public class GameLogic {
     private final List<SecretJpg> secretJpgs = new ArrayList<>();
     private int secretCycleIndex;
     private double secretCycleTimer;
-    private final Weapon weapon = new AutoFireWeapon();
+    private Weapon weapon = new AutoFireWeapon();
+    private final SurvivalDirector survivalDirector = new SurvivalDirector();
+    private final RunEntranceAnimation runEntrance = new RunEntranceAnimation();
+    private double entranceOriginX;
+    private double entranceOriginY;
+    private final List<Enemy> pendingCombatSummons = new ArrayList<>();
+    private int viewportWidth = PANEL_WIDTH;
+    private int viewportHeight = PANEL_HEIGHT;
+    private double assaultDirection;
     private final Ability legacyAbility = new TemplateAbility();
     private final AbilityManager abilityManager = new AbilityManager();
     private final List<Projectile> projectiles = new ArrayList<>();
@@ -193,6 +202,20 @@ public class GameLogic {
         player.setKeyPressed(direction, pressed);
     }
 
+    public void setViewportSize(int width, int height) {
+        if (width > 0 && height > 0) {
+            viewportWidth = width;
+            viewportHeight = height;
+        }
+    }
+
+    public SurvivalDirector getSurvivalDirector() { return survivalDirector; }
+    public boolean isRunEntrancePlaying() { return runEntrance.isPlaying(); }
+    public RunEntranceAnimation getRunEntranceAnimation() { return runEntrance; }
+    public boolean isBossEncounterActive() { return isBossWaveActive(); }
+    public boolean hasMoreRegionalBosses() { return regionalBossIndex < EnemyRegion.values().length; }
+    public double getNextBossCountdown() { return Math.max(0.0, nextRegionalBossSpawnTime - gameTimer); }
+
     public void update(double deltaTime) {
         if (!Double.isFinite(deltaTime) || deltaTime < 0) return;
         if (gameOver) {
@@ -200,9 +223,29 @@ public class GameLogic {
             return;
         }
 
-        if (upgradeMenuOpen) {
+        if (!gameStarted || paused || settingsOpen || skillMenuOpen || upgradeMenuOpen) {
             return;
         }
+
+        if (runEntrance.isPlaying()) {
+            if (player.getHealth() <= 0.0) {
+                triggerGameOver();
+                return;
+            }
+            // Consume only the entrance portion of this tick. A longer tick then
+            // advances normal gameplay by its remainder, regardless of frame rate.
+            double entranceStep = Math.min(deltaTime, runEntrance.getRemainingDuration());
+            updateFeedback(entranceStep);
+            boolean landed = runEntrance.update(entranceStep);
+            player.updatePreview(entranceStep);
+            if (landed) {
+                double remainingShake = 0.22 - (runEntrance.getAge() - RunEntranceAnimation.FALL_DURATION);
+                if (remainingShake > 0.0) addScreenShake(remainingShake, 3.5 * remainingShake / 0.22);
+            }
+            deltaTime = Math.max(0.0, deltaTime - entranceStep);
+            if (runEntrance.isPlaying() || deltaTime <= 0.0) return;
+        }
+        if (runEntrance.isVisible()) runEntrance.update(deltaTime);
 
         // Update all game objects once per timer tick.
         player.update(deltaTime);
@@ -223,6 +266,9 @@ public class GameLogic {
         boolean bossWaveActive = (bossSpawned && !bossDefeated) ||
                 (eliteBossSpawned && hasEliteBossAlive()) ||
                 (finalBossSpawned && hasFinalBossAlive());
+        if (survivalDirector.update(deltaTime, bossWaveActive)) {
+            spawnAssault();
+        }
         if (!bossWaveActive) {
             while (gameTimer >= whenToSpawn) {
                 int enemiesToSpawn = getSpawnBatchSize();
@@ -251,6 +297,10 @@ public class GameLogic {
             // Enemies chase the player's current position in world space.
             enemy.update(deltaTime, player.getWorldX(), player.getWorldY(),
                     player.getCollisionRadius());
+            if (enemy.isDead()) {
+                dropGem(enemy);
+                continue;
+            }
 
             if (enemy instanceof BossEnemy boss && boss.shouldSummon()) {
                 pendingSummons.addAll(boss.createSummons(boss.getWorldX(), boss.getWorldY(), random));
@@ -364,6 +414,8 @@ public class GameLogic {
         updateProjectiles(deltaTime);
         updateEnemyProjectiles(deltaTime);
         updateGems(deltaTime);
+        addPendingEnemies(pendingCombatSummons);
+        pendingCombatSummons.clear();
         enemies.removeIf(Enemy::isFinishedFading);
 
         if (player.getHealth() <= 0.0) {
@@ -381,6 +433,7 @@ public class GameLogic {
         }
 
         gameOver = true;
+        runEntrance.reset();
         gameOverTimer = 0.0;
         for (int index = 0; index < 60; index++) {
             double angle = random.nextDouble() * Math.PI * 2.0;
@@ -411,6 +464,7 @@ public class GameLogic {
         }
         applyIncomingDamage(minion.getExplosionDamage(), minion, explosionX, explosionY);
         minion.takeDamage(Double.MAX_VALUE);
+        dropGem(minion);
     }
 
     private void updateGameOver(double deltaTime) {
@@ -507,6 +561,11 @@ public class GameLogic {
     }
 
     public void drawAbilityGroundEffects(Graphics2D graphics, int centerX, int centerY) {
+        if (runEntrance.isVisible()) {
+            runEntrance.drawGround(graphics,
+                    centerX + (int) Math.round(entranceOriginX + getWorldOffsetX()),
+                    centerY + entranceOriginY + getWorldOffsetY() + player.getVisualFootOffset());
+        }
         for (AbilityVisualEffect effect : abilityVisualEffects) {
             if (effect.getLayer() == AbilityVisualEffect.Layer.GROUND) {
                 effect.draw(graphics, centerX, centerY, getWorldOffsetX(), getWorldOffsetY());
@@ -515,6 +574,12 @@ public class GameLogic {
     }
 
     public void drawAbilityBursts(Graphics2D graphics, int centerX, int centerY) {
+        if (runEntrance.isVisible()) {
+            runEntrance.drawFront(graphics,
+                    centerX + (int) Math.round(entranceOriginX + getWorldOffsetX()),
+                    centerY + (int) Math.round(entranceOriginY + getWorldOffsetY()),
+                    player.getVisualFootOffset());
+        }
         for (AbilityVisualEffect effect : abilityVisualEffects) {
             if (effect.getLayer() != AbilityVisualEffect.Layer.GROUND) {
                 effect.draw(graphics, centerX, centerY, getWorldOffsetX(), getWorldOffsetY());
@@ -577,10 +642,9 @@ public class GameLogic {
     private Enemy findNearestLivingEnemyOnScreen() {
         Enemy nearestEnemy = null;
         double nearestDistanceSquared = Double.POSITIVE_INFINITY;
-        double maxScreenX = PANEL_WIDTH * 0.65;
-        double maxScreenY = 600.0 * 0.65;
+        double maxScreenX = viewportWidth * 0.5;
+        double maxScreenY = viewportHeight * 0.5;
 
-        List<Enemy> hitEnemies = new ArrayList<>();
         for (Enemy enemy : enemies) {
             if (enemy.isDead()) {
                 continue;
@@ -658,6 +722,7 @@ public class GameLogic {
                                     player.getWorldX(), player.getWorldY());
                             if (reflected != null) {
                                 enemyProjectiles.add(reflected);
+                                trimListToLimit(enemyProjectiles, MAX_ENEMY_PROJECTILES);
                             }
                         }
                     }
@@ -722,47 +787,39 @@ public class GameLogic {
             projectile.update(deltaTime);
 
             boolean hitEnemy = false;
-            boolean hitPlayer = false;
+            double playerContact = projectile.getPlayerCollisionFraction(
+                    player.getWorldX(), player.getWorldY(), player.getCollisionRadius());
+            boolean hitPlayer = Double.isFinite(playerContact);
 
             if (projectile.getOwner() instanceof TemplateEnemy3) {
                 Enemy nearestEnemy = null;
-                double nearestDistanceSquared = Double.POSITIVE_INFINITY;
+                double nearestContact = Double.POSITIVE_INFINITY;
 
                 for (Enemy enemy : enemies) {
                     if (enemy == projectile.getOwner() || enemy.isDead()) {
                         continue;
                     }
 
-                    double distanceSquared = enemy.distanceSquaredTo(
-                            projectile.getWorldX(), projectile.getWorldY());
-                    if (distanceSquared < nearestDistanceSquared) {
-                        nearestDistanceSquared = distanceSquared;
+                    double contact = projectile.getCollisionFraction(enemy);
+                    if (contact < nearestContact) {
+                        nearestContact = contact;
                         nearestEnemy = enemy;
                     }
                 }
 
-                if (nearestEnemy != null && projectile.hits(nearestEnemy)) {
-                    damageEnemy(nearestEnemy, projectile.getDamage(), DamageElement.PHYSICAL,
-                            projectile.getWorldX(), projectile.getWorldY());
+                if (nearestEnemy != null && nearestContact <= playerContact) {
+                    damageEnemy(nearestEnemy, projectile.getDamage(), projectile.getDamageElement(),
+                            projectile.getContactWorldX(nearestContact), projectile.getContactWorldY(nearestContact));
                     hitEnemy = true;
+                    hitPlayer = false;
                 }
-            }
-
-            if (!hitEnemy) {
-                hitPlayer = projectile.hitsPlayer(
-                        player.getWorldX(), player.getWorldY(), player.getCollisionRadius());
             }
 
             if (hitEnemy || hitPlayer || projectile.isExpired()) {
-                if (projectile.getOwner() instanceof TemplateEnemy2) {
-                    ((TemplateEnemy2) projectile.getOwner()).onProjectileDestroyed();
-                }
-                if (projectile.getOwner() instanceof RegionalEnemy regionalEnemy) {
-                    regionalEnemy.onProjectileDestroyed();
-                }
+                releaseProjectileOwner(projectile);
                 if (hitPlayer) {
                     applyIncomingDamage(projectile.getDamage(), projectile.getOwner(),
-                            projectile.getWorldX(), projectile.getWorldY());
+                            projectile.getContactWorldX(playerContact), projectile.getContactWorldY(playerContact));
                 }
                 projectileIterator.remove();
             }
@@ -774,13 +831,27 @@ public class GameLogic {
             return;
         }
         enemy.markLootDropped();
+        if (enemy instanceof TemplateEnemy3 summoner && !summoner.hasSummonedMinions()) {
+            pendingCombatSummons.addAll(summoner.createSummons(enemy.getWorldX(), enemy.getWorldY(), random));
+        }
+        boolean bossKill = enemy instanceof BossEnemy || enemy instanceof EliteBossEnemy
+                || enemy instanceof FinalBossEnemy
+                || (enemy instanceof RegionalEnemy regional && regional.isBoss());
+        if (survivalDirector.registerKill(bossKill)) {
+            abilityManager.restoreMana(10.0);
+            addExperience(2);
+            addFloatingText(survivalDirector.getStreak() + " KILL STREAK  +10 MP / +2 XP",
+                    player.getWorldX(), player.getWorldY() - 88, new Color(145, 238, 223));
+        }
         int gemCount = 1;
         if (enemy instanceof RegionalEnemy regionalEnemy) {
             gemCount = regionalEnemy.isBoss() ? 8 : Math.max(1,
                     regionalEnemy.getDefinition().getExperienceReward() / 5);
-            addFloatingText(regionalEnemy.getDefinition().getLootName(),
-                    enemy.getWorldX(), enemy.getWorldY() - enemy.getCollisionRadius() * 1.2,
-                    lootTextColor(regionalEnemy.getDefinition().getElement()));
+            if (regionalEnemy.isBoss()) {
+                addFloatingText(regionalEnemy.getDefinition().getLootName(),
+                        enemy.getWorldX(), enemy.getWorldY() - enemy.getCollisionRadius() * 1.2,
+                        lootTextColor(regionalEnemy.getDefinition().getElement()));
+            }
         }
         for (int index = 0; index < gemCount; index++) {
             double angle = Math.PI * 2.0 * index / gemCount;
@@ -1039,9 +1110,14 @@ public class GameLogic {
     }
 
     private void addExperience(int amount) {
+        if (amount <= 0) return;
         exp += amount;
-        if (exp >= expToNextLevel) {
-            exp = 0;
+        openPendingLevelUp();
+    }
+
+    private void openPendingLevelUp() {
+        if (!upgradeMenuOpen && exp >= expToNextLevel) {
+            exp -= expToNextLevel;
             level++;
             if (soundEnabled) {
                 AbilitySoundPlayer.playLevelUp();
@@ -1140,7 +1216,9 @@ public class GameLogic {
             }
         }
         projectiles.clear();
+        for (Projectile projectile : enemyProjectiles) releaseProjectileOwner(projectile);
         enemyProjectiles.clear();
+        pendingCombatSummons.clear();
     }
 
     private void spawnBoss(Enemy boss) {
@@ -1250,7 +1328,8 @@ public class GameLogic {
     }
 
     public void triggerAbility(int slotIndex) {
-        if (gameOver || upgradeMenuOpen || paused || !gameStarted) {
+        if (gameOver || upgradeMenuOpen || paused || settingsOpen || skillMenuOpen || !gameStarted
+                || runEntrance.isPlaying()) {
             return;
         }
         abilityManager.triggerSlot(slotIndex, this, level);
@@ -1267,6 +1346,7 @@ public class GameLogic {
     }
 
     public void showCharacterSelection() {
+        runEntrance.reset();
         mainMenuOpen = false;
         characterSelectOpen = true;
         gameStarted = false;
@@ -1283,11 +1363,27 @@ public class GameLogic {
         paused = false;
         settingsOpen = false;
         skillMenuOpen = false;
+        entranceOriginX = player.getWorldX();
+        entranceOriginY = player.getWorldY();
+        Color entranceColor = switch (selectedCharacterIndex) {
+            case 1 -> new Color(196, 134, 244);
+            case 2 -> new Color(255, 226, 154);
+            case 3 -> new Color(131, 220, 255);
+            case 4 -> new Color(230, 188, 104);
+            default -> new Color(255, 170, 96);
+        };
+        runEntrance.start(viewportHeight * 0.5 + 110.0, entranceColor);
     }
 
     private void resetRunState() {
+        runEntrance.reset();
+        entranceOriginX = entranceOriginY = 0.0;
         player = createSelectedPlayer();
+        weapon = new AutoFireWeapon();
         syncAutoAttackSprite();
+        survivalDirector.reset();
+        pendingCombatSummons.clear();
+        assaultDirection = 0.0;
         gameOver = false;
         gameOverTimer = 0.0;
         explosionParticles.clear();
@@ -1311,6 +1407,8 @@ public class GameLogic {
         guardianBlockFeedbackRemaining = 0.0;
         whenToSpawn = INITIAL_SPAWN_DELAY;
         secretCycleIndex = 0;
+        secretCycleTimer = 0.0;
+        secretSpawnTimer = 0.0;
         bossSpawned = false;
         bossDefeated = false;
         eliteBossSpawned = false;
@@ -1424,6 +1522,7 @@ public class GameLogic {
         applyUpgrade(upgradeChoices.get(index));
         upgradeChoices.clear();
         upgradeMenuOpen = false;
+        openPendingLevelUp();
     }
 
     public List<String> getUpgradeChoices() {
@@ -1584,26 +1683,14 @@ public class GameLogic {
     }
 
     private int getSpawnBatchSize() {
-        if (gameTimer < 60.0) {
-            return 1;
-        }
-        if (gameTimer < 120.0) {
-            return 2;
-        }
-        if (gameTimer < 180.0) {
-            return 3;
-        }
-        return 4;
+        int base = gameTimer < 18.0 ? 1 : gameTimer < 60.0 ? 2 : gameTimer < 150.0 ? 3 : 4;
+        return base + (survivalDirector.isAssaultActive() ? 1 : 0);
     }
 
     private double getSpawnInterval() {
-        if (gameTimer < 90.0) {
-            return 1.2;
-        }
-        if (gameTimer < 150.0) {
-            return 0.9;
-        }
-        return 0.6;
+        double interval = gameTimer < 90.0 ? 1.2 : gameTimer < 150.0 ? 0.9 : 0.6;
+        if (survivalDirector.isRecovering()) return interval * 1.6;
+        return survivalDirector.isAssaultActive() ? interval * 0.85 : interval;
     }
 
     private Enemy createEnemy(double worldX, double worldY) {
@@ -1629,9 +1716,7 @@ public class GameLogic {
         // Place the enemies evenly around a ring centered on the player.
         for (int index = 0; index < enemiesToSpawn; index++) {
             double angle = Math.PI * 2.0 * index / enemiesToSpawn;
-            double enemyX = player.getWorldX() + Math.cos(angle) * SPAWN_RADIUS;
-            double enemyY = player.getWorldY() + Math.sin(angle) * SPAWN_RADIUS;
-            enemies.add(createEnemy(enemyX, enemyY));
+            spawnAtAngle(angle);
         }
     }
 
@@ -1648,13 +1733,41 @@ public class GameLogic {
             return;
         }
 
-        // Place every enemy on one uniform ring centered on the player.
+        // Rotate each batch; a one-enemy batch must not always come from the right.
+        double rotation = random.nextDouble() * Math.PI * 2.0;
         for (int index = 0; index < enemiesToSpawn; index++) {
-            double angle = Math.PI * 2.0 * index / enemiesToSpawn;
-            double enemyX = player.getWorldX() + Math.cos(angle) * SPAWN_RADIUS;
-            double enemyY = player.getWorldY() + Math.sin(angle) * SPAWN_RADIUS;
-            enemies.add(createEnemy(enemyX, enemyY));
+            spawnAtAngle(rotation + Math.PI * 2.0 * index / enemiesToSpawn);
         }
+    }
+
+    private void spawnAssault() {
+        assaultDirection = random.nextDouble() * Math.PI * 2.0;
+        int count = Math.min(12, 5 + survivalDirector.getAssaultNumber());
+        for (int index = 0; index < count; index++) {
+            double angle = switch (survivalDirector.getAssault()) {
+                case PINCER -> assaultDirection + (index % 2) * Math.PI + (random.nextDouble() - 0.5) * 0.5;
+                case RUSH -> assaultDirection + (random.nextDouble() - 0.5) * 1.0;
+                case ENCIRCLEMENT -> assaultDirection + Math.PI * 2.0 * index / count;
+            };
+            spawnAtAngle(angle);
+        }
+        addFloatingText(survivalDirector.getAssault().title().toUpperCase(),
+                player.getWorldX(), player.getWorldY() - 88, new Color(255, 175, 112));
+    }
+
+    /** Ray intersection with the actual logical viewport keeps every spawn off screen. */
+    private double spawnDistance(double angle) {
+        double margin = 90.0;
+        double xDistance = (viewportWidth * 0.5 + margin) / Math.max(0.00001, Math.abs(Math.cos(angle)));
+        double yDistance = (viewportHeight * 0.5 + margin) / Math.max(0.00001, Math.abs(Math.sin(angle)));
+        return Math.min(xDistance, yDistance);
+    }
+
+    private void spawnAtAngle(double angle) {
+        if (availableSlots() <= 0) return;
+        double distance = spawnDistance(angle) + random.nextDouble() * 35.0;
+        enemies.add(createEnemy(player.getWorldX() + Math.cos(angle) * distance,
+                player.getWorldY() + Math.sin(angle) * distance));
     }
 
     private void spawnOne() {
@@ -1664,9 +1777,7 @@ public class GameLogic {
 
         // Choose a fresh random angle for every individual enemy.
         double angle = random.nextDouble() * Math.PI * 2.0;
-        double enemyX = player.getWorldX() + Math.cos(angle) * SPAWN_RADIUS;
-        double enemyY = player.getWorldY() + Math.sin(angle) * SPAWN_RADIUS;
-        enemies.add(createEnemy(enemyX, enemyY));
+        spawnAtAngle(angle);
     }
 
     private void addPendingEnemies(List<Enemy> pendingEnemies) {
@@ -1681,8 +1792,14 @@ public class GameLogic {
 
     private <T> void trimListToLimit(List<T> values, int limit) {
         while (values.size() > limit) {
-            values.removeFirst();
+            T removed = values.removeFirst();
+            if (removed instanceof Projectile projectile) releaseProjectileOwner(projectile);
         }
+    }
+
+    private void releaseProjectileOwner(Projectile projectile) {
+        if (projectile.getOwner() instanceof RegionalEnemy regional) regional.onProjectileDestroyed();
+        else if (projectile.getOwner() instanceof TemplateEnemy2 ranged) ranged.onProjectileDestroyed();
     }
 
     private void repositionFarEnemies() {
@@ -1691,7 +1808,7 @@ public class GameLogic {
         double tooFarDistanceSquared = TOO_FAR_DISTANCE * TOO_FAR_DISTANCE;
 
         for (Enemy enemy : enemies) {
-            if (enemy.distanceSquaredTo(playerX, playerY) > tooFarDistanceSquared) {
+            if (!enemy.isDead() && enemy.distanceSquaredTo(playerX, playerY) > tooFarDistanceSquared) {
                 teleportEnemyNearPlayer(enemy, playerX, playerY);
             }
         }
@@ -1705,9 +1822,10 @@ public class GameLogic {
         double perpendicularY = facingX;
         double sidewaysOffset = (random.nextDouble() * 2.0 - 1.0) * ENEMY_CLUMP_RADIUS;
 
-        double enemyX = playerX + facingX * SPAWN_RADIUS
+        double distance = spawnDistance(Math.atan2(facingY, facingX)) + ENEMY_CLUMP_RADIUS;
+        double enemyX = playerX + facingX * distance
             + perpendicularX * sidewaysOffset;
-        double enemyY = playerY + facingY * SPAWN_RADIUS
+        double enemyY = playerY + facingY * distance
             + perpendicularY * sidewaysOffset;
         enemy.teleportTo(enemyX, enemyY);
     }
@@ -1733,7 +1851,9 @@ public class GameLogic {
     }
 
     public int getEnemyCount() {
-        return enemies.size();
+        int living = 0;
+        for (Enemy enemy : enemies) if (!enemy.isDead()) living++;
+        return living;
     }
 
     public void drawEntities(Graphics2D graphics, int centerX, int centerY) {
@@ -1761,8 +1881,13 @@ public class GameLogic {
             projectile.draw(graphics, centerX, centerY,
                 getWorldOffsetX(), getWorldOffsetY());
         }
-        drawPassiveAura(graphics, centerX, centerY);
-        player.draw(graphics, centerX, centerY);
+        if (runEntrance.isPlaying()) {
+            player.drawEntrance(graphics, centerX, centerY,
+                    runEntrance.getHeight(), runEntrance.getCompression());
+        } else {
+            drawPassiveAura(graphics, centerX, centerY);
+            player.draw(graphics, centerX, centerY);
+        }
 
         for (Enemy enemy : enemies) {
             if (enemy.isDead()) {
@@ -1773,7 +1898,7 @@ public class GameLogic {
     }
 
     public void applyAbilityEffect(AbilityDefinition definition) {
-        if (definition == null || definition.isPassive()) return;
+        if (definition == null || definition.isPassive() || runEntrance.isPlaying()) return;
         Color color = colorFor(definition);
         double damage = definition.getDamage() * damageBoostMultiplier
                 * passiveAbilityPowerMultiplier;
@@ -1907,7 +2032,7 @@ public class GameLogic {
     }
 
     public boolean isSkillActionLocked() {
-        return player.isSkillAnimationActive();
+        return runEntrance.isPlaying() || player.isSkillAnimationActive();
     }
 
     private void beginReferenceSkill(AbilityDefinition d, Enemy target, double damage, DamageElement element) {
@@ -2659,12 +2784,11 @@ public class GameLogic {
                 combatImpactEffects.removeFirst();
             }
         }
-        addFloatingText(String.valueOf((int) visibleDamage), enemy.getWorldX(),
-                enemy.getWorldY() - enemy.getCollisionRadius(), getDamageNumberColor(element));
+        if (actualDamage > 0.0) {
+            addFloatingText(String.valueOf((int) visibleDamage), enemy.getWorldX(),
+                    enemy.getWorldY() - enemy.getCollisionRadius(), getDamageNumberColor(element));
+        }
         if (enemy.isDead()) {
-            if (enemy instanceof TemplateEnemy3 bossEnemy && !bossEnemy.hasSummonedMinions()) {
-                enemies.addAll(bossEnemy.createSummons(enemy.getWorldX(), enemy.getWorldY(), random));
-            }
             dropGem(enemy);
         }
     }
@@ -2805,6 +2929,10 @@ public class GameLogic {
     }
 
     private void addScreenShake(double duration, double strength) {
+        if (screenShakeTime <= 0.0) {
+            screenShakeDuration = 0.0;
+            screenShakeStrength = 0.0;
+        }
         screenShakeDuration = Math.max(screenShakeDuration, duration);
         screenShakeTime = Math.max(screenShakeTime, duration);
         screenShakeStrength = Math.max(screenShakeStrength, strength);

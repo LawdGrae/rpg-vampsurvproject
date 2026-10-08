@@ -27,6 +27,7 @@ public class GamePanel extends JPanel {
     private final GameMenus menus;
     private final Timer frameTimer;
     private final Map<Integer, Player> selectionPlayers = new HashMap<>();
+    private final Map<String, String> heldMovementBindings = new HashMap<>();
     private long lastUpdateNanos = System.nanoTime();
     private double lastDeltaTime;
     private double framesPerSecond;
@@ -64,6 +65,32 @@ public class GamePanel extends JPanel {
             repaint();
         });
         frameTimer.start();
+    }
+
+    public void releaseInputState() {
+        heldMovementBindings.clear();
+        for (String direction : new String[] { "up", "down", "left", "right", "run", "attack", "jump" }) {
+            gameLogic.setKeyPressed(direction, false);
+        }
+        mouseDown = false;
+        mouseX = -1;
+        mouseY = -1;
+        menus.pointer(-1, -1, false);
+        updateCursor();
+    }
+
+    @Override
+    public void addNotify() {
+        super.addNotify();
+        lastUpdateNanos = System.nanoTime();
+        frameTimer.start();
+    }
+
+    @Override
+    public void removeNotify() {
+        frameTimer.stop();
+        releaseInputState();
+        super.removeNotify();
     }
 
     private void installKeyBindings() {
@@ -140,7 +167,13 @@ public class GamePanel extends JPanel {
         inputMap.put(KeyStroke.getKeyStroke(key), key);
         actionMap.put(key, new AbstractAction() {
             @Override public void actionPerformed(ActionEvent event) {
-                gameLogic.setKeyPressed(direction, pressed);
+                String physicalKey = key.substring(key.indexOf(' ') + 1);
+                if (pressed) {
+                    heldMovementBindings.put(physicalKey, direction);
+                } else {
+                    heldMovementBindings.remove(physicalKey);
+                }
+                gameLogic.setKeyPressed(direction, heldMovementBindings.containsValue(direction));
             }
         });
     }

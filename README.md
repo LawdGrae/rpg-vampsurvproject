@@ -1,18 +1,67 @@
-## Getting Started
+# RPG Survivor
 
-Welcome to the VS Code Java world. Here is a guideline to help you get started to write Java code in Visual Studio Code.
+A Java 21 desktop survival game with five heroes, automatic attacks, four class
+skills, elemental combat and eight regional bosses.
 
-## Folder Structure
+## Run
 
-The workspace contains two folders by default, where:
+Run these commands in PowerShell from the project root with JDK 21 or newer:
 
-- `src`: the folder to maintain sources
-- `lib`: the folder to maintain dependencies
+```powershell
+.\build.ps1
+java -cp out/classes App
+```
 
-Meanwhile, the compiled output files will be generated in the `bin` folder by default.
+The game also launches from `src/main/java/App.java` in the IDE. Keep the project
+root as the working directory so its resource files can be found.
 
-> If you want to customize the folder structure, open `.vscode/settings.json` and update the related settings there.
+## Controls
 
-## Dependency Management
+- **WASD / arrow keys:** move. Basic attacks fire automatically.
+- **1–4 / click a skill:** cast an equipped ability.
+- **Space:** cast the first equipped ability.
+- **K:** inspect and rearrange class skills.
+- **Esc:** pause, return from skills, or close settings.
+- **Enter:** confirm the main menu or hero selection, resume, or restart.
 
-The `JAVA PROJECTS` view allows you to manage your dependencies. More details can be found [here](https://github.com/microsoft/vscode-java-dependency#manage-dependencies).
+## Survival flow
+
+Each new run and restart begins with the hero falling into the arena, followed
+by a landing squash, dust and a short camera shake. Controls and the survival
+clock begin after the one-second entrance. Esc pauses the entrance too.
+
+The first assault arrives at 28 seconds, with a three-second warning. Pincer
+assaults, horde rushes and encirclements alternate every 34 seconds, followed by
+a short period with fewer new enemies. Normal spawns approach from varied
+directions beyond the visible arena. Boss fights suspend ordinary assaults.
+The first regional boss arrives at 95 seconds; defeating it opens the next
+region and restores health.
+
+Kill another enemy within six seconds to keep a streak. Every fifth kill in the
+streak restores **10 mana** and gives **2 bonus XP**. Longer streaks earn more
+points. The HUD shows the streak timer, total kills, score and encounter countdown;
+the end-of-run screen shows the score and best streak.
+
+Collect gems to level up and choose a stat upgrade. Excess XP carries forward,
+and each earned level presents its own upgrade choice. A restart resets hero
+stats, weapon upgrades, cooldowns and run records.
+
+## Checks and visual previews
+
+```powershell
+.\build.ps1
+java '-Djava.awt.headless=true' -cp out/classes SurvivalGameplaySmokeTest
+java '-Djava.awt.headless=true' -cp out/classes GemPickupSmokeTest
+java '-Djava.awt.headless=true' -cp out/classes InputStateSmokeTest
+java '-Djava.awt.headless=true' -cp out/classes RunEntranceSmokeTest
+java '-Djava.awt.headless=true' -cp out/classes CombatSkillSmokeTest
+java '-Djava.awt.headless=true' -cp out/classes SkillVfxSmokeTest
+java '-Djava.awt.headless=true' -cp out/classes UiRenderCheck out/survival-review
+java '-Djava.awt.headless=true' -cp out/classes SurvivalRenderCheck out/survival-review
+java '-Djava.awt.headless=true' -cp out/classes ContactVfxRenderCheck out/survival-review
+java '-Djava.awt.headless=true' -cp out/classes RunEntranceRenderCheck out/survival-review/run-entrance
+```
+
+Combat effects use procedural animation when reviewed sprite tracks are absent.
+See [combat integration](docs/combat-vfx-integration.md) for the skill system and
+additional verification commands.

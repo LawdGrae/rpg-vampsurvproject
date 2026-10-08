@@ -89,11 +89,60 @@ public class CombatImpactEffect {
             glow(g, 0, 0, (5 + expansion * 7) * size, Color.WHITE, flash * 0.82);
             drawShockRings(g, p, expansion, alpha, size);
             drawContactFlare(g, p, flash, size);
+            drawContactCore(g, p, expansion, size);
             for (int i = 0; i < particles.length; i++) {
                 drawParticle(g, particles[i], i, p);
             }
         } finally {
             g.dispose();
+        }
+    }
+
+    private void drawContactCore(Graphics2D g, double p, double expansion, double size) {
+        double coreProgress = Math.min(1, p / 0.48);
+        double strength = Math.pow(1 - coreProgress, 2);
+        if (strength < 0.003) {
+            return;
+        }
+
+        // A small, crisp contact point keeps the hit readable inside the soft glow.
+        double rotation = ((seed >>> 8) & 1023) * Math.PI * 2 / 1024;
+        double cos = Math.cos(rotation);
+        double sin = Math.sin(rotation);
+        double coreLength = (skillImpact ? 5.2 : 3.6) * size * (1 - coreProgress * 0.55);
+        double coreWidth = coreLength * 0.38;
+        Path2D.Double core = new Path2D.Double();
+        core.moveTo(-sin * coreLength, cos * coreLength);
+        core.lineTo(cos * coreWidth, sin * coreWidth);
+        core.lineTo(sin * coreLength, -cos * coreLength);
+        core.lineTo(-cos * coreWidth, -sin * coreWidth);
+        core.closePath();
+        g.setColor(withAlpha(Color.WHITE, strength * 230));
+        g.fill(core);
+
+        if (!skillImpact) {
+            return;
+        }
+
+        // Six restrained facets form a short crown around powerful skill contacts.
+        // Their fixed count and short lifetime keep crowded combat inexpensive.
+        double innerRadius = (5.5 + expansion * 11) * size;
+        double facetLength = (2.5 + (1 - coreProgress) * 4.5) * size;
+        double facetWidth = (0.65 + (1 - coreProgress) * 1.2) * size;
+        for (int i = 0; i < 6; i++) {
+            double angle = rotation + i * Math.PI / 3;
+            double dx = Math.cos(angle);
+            double dy = Math.sin(angle);
+            double midpoint = innerRadius + facetLength * 0.45;
+            Path2D.Double facet = new Path2D.Double();
+            facet.moveTo(dx * innerRadius, dy * innerRadius);
+            facet.lineTo(dx * midpoint - dy * facetWidth, dy * midpoint + dx * facetWidth);
+            facet.lineTo(dx * (innerRadius + facetLength), dy * (innerRadius + facetLength));
+            facet.lineTo(dx * midpoint + dy * facetWidth, dy * midpoint - dx * facetWidth);
+            facet.closePath();
+            g.setColor(withAlpha(color, strength * 112));
+            g.fill(facet);
+            stroke(g, facet, Color.WHITE, 0.7 * size, strength * 0.36);
         }
     }
 

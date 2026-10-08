@@ -237,6 +237,7 @@ public class AnimationVfxSmokeTest {
             logic.selectCharacter(index);
             logic.startGame();
             logic.setSoundEnabled(false);
+            logic.update(RunEntranceAnimation.DURATION);
             RpgAbility[] loadout = logic.getAbilityManager().getEquippedAbilities();
             int casts = 0;
             for (int frame = 0; frame < 360; frame++) {
@@ -271,6 +272,7 @@ public class AnimationVfxSmokeTest {
         logic.selectCharacter(3);
         logic.startGame();
         logic.setSoundEnabled(false);
+        logic.update(RunEntranceAnimation.DURATION);
         Player current = (Player) field(logic, "player");
         AbilityDefinition storm = logic.getAbilityManager().getAbilityById("elemental_storm")
                 .getDefinition();
@@ -291,6 +293,7 @@ public class AnimationVfxSmokeTest {
             logic.selectCharacter(index);
             logic.startGame();
             logic.setSoundEnabled(false);
+            logic.update(RunEntranceAnimation.DURATION);
             Enemy target = new TemplateEnemy(80, 0);
             ((List<Enemy>) field(logic, "enemies")).add(target);
             logic.update(0.0);

@@ -807,6 +807,25 @@ public abstract class Player {
         graphics.dispose();
     }
 
+    /** Entrance displacement is visual only; body and held equipment share the landing pose. */
+    public void drawEntrance(Graphics2D graphics, int centerX, int centerY,
+            double height, double compression) {
+        if (!Double.isFinite(height) || !Double.isFinite(compression)) return;
+        double squash = Math.max(0.0, Math.min(1.0, compression));
+        Graphics2D entrance = (Graphics2D) graphics.create();
+        try {
+            double feet = getVisualFootOffset();
+            entrance.translate(centerX, centerY + feet - Math.max(0.0, height));
+            entrance.scale(1.0 + squash * 0.12, 1.0 - squash * 0.22);
+            entrance.translate(-centerX, -centerY - feet);
+            drawCharacter(entrance, centerX, centerY, 1, false, false);
+        } finally { entrance.dispose(); }
+    }
+
+    public double getVisualFootOffset() {
+        return spriteHeight * spriteScale * 0.44;
+    }
+
     /** Selection portraits use the same hands, equipment and layers as gameplay. */
     public void drawPreview(Graphics2D graphics, Rectangle bounds) {
         drawPreview(graphics, bounds, false);
@@ -857,6 +876,11 @@ public abstract class Player {
     }
 
     private void drawCharacter(Graphics2D graphics, int centerX, int centerY, int spriteColumn, boolean sourcePixels) {
+        drawCharacter(graphics, centerX, centerY, spriteColumn, sourcePixels, true);
+    }
+
+    private void drawCharacter(Graphics2D graphics, int centerX, int centerY, int spriteColumn,
+            boolean sourcePixels, boolean contactShadow) {
         Graphics2D layer = characterLayer.createGraphics();
         try {
             if (sourcePixels) PixelArtRenderer.configure(layer);
@@ -864,7 +888,7 @@ public abstract class Player {
             layer.fillRect(0, 0, characterLayer.getWidth(), characterLayer.getHeight());
             layer.setComposite(AlphaComposite.SrcOver);
             renderCharacter(layer, characterLayer.getWidth() / 2,
-                    characterLayer.getHeight() / 2, spriteColumn, sourcePixels);
+                    characterLayer.getHeight() / 2, spriteColumn, sourcePixels, contactShadow);
         } finally {
             layer.dispose();
         }
@@ -881,7 +905,8 @@ public abstract class Player {
         }
     }
 
-    private void renderCharacter(Graphics2D graphics, int centerX, int centerY, int spriteColumn, boolean sourcePixels) {
+    private void renderCharacter(Graphics2D graphics, int centerX, int centerY, int spriteColumn,
+            boolean sourcePixels, boolean contactShadow) {
         int renderedWidth = spriteWidth * spriteScale;
         int renderedHeight = spriteHeight * spriteScale;
         int playerX = -renderedWidth / 2;
@@ -890,7 +915,7 @@ public abstract class Player {
         graphics = (Graphics2D) graphics.create();
         graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
                 RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-        drawContactShadow(graphics, centerX, centerY, renderedWidth, renderedHeight);
+        if (contactShadow) drawContactShadow(graphics, centerX, centerY, renderedWidth, renderedHeight);
         graphics.transform(characterTransform(centerX, centerY));
         if (isSkillAnimationActive() && "shadow_step".equals(attackSkillId)) {
             // Fade across the actual dash; keep the moving body visible as it returns.

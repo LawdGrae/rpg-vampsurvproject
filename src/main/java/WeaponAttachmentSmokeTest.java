@@ -116,6 +116,7 @@ public class WeaponAttachmentSmokeTest {
                 GameLogic logic = new GameLogic();
                 logic.selectCharacter(characterIndex);
                 logic.startGame();
+                logic.update(RunEntranceAnimation.DURATION);
                 Player player = (Player) field(logic, "player");
                 // Force an aim change on the very first shot, with no projectile travel.
                 player.faceToward(-direction[0] * 200.0, -direction[1] * 200.0);
@@ -140,6 +141,7 @@ public class WeaponAttachmentSmokeTest {
                 GameLogic logic = new GameLogic();
                 logic.selectCharacter(characterIndex);
                 logic.startGame();
+                logic.update(RunEntranceAnimation.DURATION);
                 enemies(logic).add(new TemplateEnemy(direction[0] * 64.0,
                         direction[1] * 64.0));
                 logic.update(0.0);
@@ -160,6 +162,7 @@ public class WeaponAttachmentSmokeTest {
                 GameLogic logic = new GameLogic();
                 logic.selectCharacter(characterIndex);
                 logic.startGame();
+                logic.update(RunEntranceAnimation.DURATION);
                 Player player = (Player) field(logic, "player");
                 player.faceToward(-direction[0] * 200.0, -direction[1] * 200.0);
                 player.playAttackAnimation(null, 0.4);

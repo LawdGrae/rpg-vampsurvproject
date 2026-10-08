@@ -1,6 +1,7 @@
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Graphics2D;
+import java.awt.GradientPaint;
 import java.awt.RenderingHints;
 import java.awt.Shape;
 import java.awt.geom.Arc2D;
@@ -331,6 +332,10 @@ public class AbilityVisualEffect {
                             p, hits[i]);
                     double flash = envelope(p, hits[i] - 0.045, hits[i], hits[i] + 0.025, hits[i] + 0.17);
                     glow(g, startX, startY, 23, tint, flash * 0.5);
+                    if (!id.equals("twin_fang")) {
+                        flames(g, startX, startY + 8, 25,
+                                phase(p, hits[i], hits[i] + 0.22), flash * 0.8, 7);
+                    }
                     sparks(g, startX, startY, id.equals("twin_fang") ? tint : EMBER, 9, 38,
                             phase(p, hits[i], hits[i] + 0.25), flash);
                 }
@@ -338,6 +343,7 @@ public class AbilityVisualEffect {
                     double spin = envelope(p, release, release + 0.06, 0.73, 0.96);
                     orbitArc(g, casterX, casterY + 12, Math.min(100, radius * 0.85),
                             elapsed * 9, 2.4, FIRE, spin * 0.55, 0.62);
+                    groundSeal(g, casterX, casterY + 20, 48, FIRE, -elapsed * 2, spin * 0.42);
                 }
             }
             case "shield_bash" -> {
@@ -346,11 +352,15 @@ public class AbilityVisualEffect {
                 double bx = casterX + Math.cos(aimAngle) * (16 + thrust * 15);
                 double by = casterY + Math.sin(aimAngle) * (16 + thrust * 15) - 4;
                 barrier(g, bx, by, 36, STEEL, p, alpha);
+                SkillVfxShapes.crescent(g, bx, by, aimAngle, 32 + thrust * 12,
+                        8, STEEL, alpha * 0.8);
                 if (after >= 0) {
                     double t = Math.min(1, after / 0.30);
                     orbitArc(g, targetX, targetY, 12 + easeOut(t) * 48,
                             aimAngle - 0.85, 1.7, EMBER, (1 - t) * 0.85, 0.8);
                     dust(g, targetX, targetY + 16, 48, t, (1 - t) * 0.6);
+                    SkillVfxShapes.shockwave(g, targetX, targetY + 10, 12 + easeOut(t) * 48,
+                            STEEL, aimAngle, (1 - t) * 0.64, 0.75);
                 }
             }
             case "earth_shatter" -> {
@@ -363,7 +373,9 @@ public class AbilityVisualEffect {
                         double px = targetX + (i - 2) * 15;
                         ribbon(g, px, targetY + 12, px + (i - 2) * 4,
                                 targetY - Math.sin(t * Math.PI) * (56 - Math.abs(i - 2) * 9),
-                                EMBER, 2, (1 - t) * 0.5, 5);
+                                EMBER, 5, (1 - t) * 0.72, 5);
+                        shard(g, px, targetY - Math.sin(t * Math.PI) * (62 - Math.abs(i - 2) * 9),
+                                -Math.PI * 0.5, 10 - Math.abs(i - 2), EMBER, (1 - t) * 0.8);
                     }
                 }
             }
@@ -377,6 +389,9 @@ public class AbilityVisualEffect {
                             trailX[i] + Math.cos(aimAngle) * 11, trailY[i] - 5,
                             SHADOW, 8, fade, Math.sin(i * 1.7) * 7);
                     glow(g, trailX[i], trailY[i] - 7, 24, SHADOW, fade * 0.3);
+                    SkillVfxShapes.crescent(g, trailX[i], trailY[i] - 5,
+                            aimAngle + Math.PI + Math.sin(i * 1.4) * 0.35, 19, 5,
+                            i % 2 == 0 ? SHADOW : new Color(233, 128, 240), fade * 0.72);
                 }
                 orbitArc(g, casterX, casterY - 7, 23, elapsed * 12, 2.6, SHADOW, travel * 0.7, 1);
                 if (id.equals("shadow_strike"))
@@ -385,6 +400,9 @@ public class AbilityVisualEffect {
                     double flash = envelope(p, hit - 0.035, hit + 0.015, hit + 0.07, hit + 0.24);
                     sparks(g, casterX, casterY - 4, new Color(223, 180, 255), 14, 46,
                             phase(p, hit, 1), flash);
+                    SkillVfxShapes.shockwave(g, casterX, casterY + 12,
+                            10 + easeOut(phase(p, hit, hit + 0.22)) * 39,
+                            SHADOW, -elapsed * 3, flash * 0.8, 0.55);
                 }
             }
             case "death_mark" -> {
@@ -394,6 +412,8 @@ public class AbilityVisualEffect {
                 glow(g, startX + (worldX - startX) * t, startY + (worldY - startY) * t - Math.sin(t * Math.PI) * 18,
                         16, SHADOW, flight * 0.7);
                 eye(g, worldX, worldY - 37 + Math.sin(elapsed * 3) * 3, 15, p, activation);
+                SkillVfxShapes.castSigil(g, worldX, worldY - 37 + Math.sin(elapsed * 3) * 3,
+                        24, SHADOW, -elapsed * 1.3, activation * 0.7);
                 orbitArc(g, worldX, worldY - 37, 23, elapsed * 1.8, 2.3, SHADOW, activation * 0.65, 0.7);
                 ring(g, worldX, worldY + 15, 24 + Math.sin(elapsed * 3) * 1.5, SHADOW, 1.3, activation * 0.45, 0.5);
             }
@@ -402,6 +422,8 @@ public class AbilityVisualEffect {
                 double casting = envelope(p, 0.08, 0.24, hits[hits.length - 1], 0.85);
                 double size = 9 + smooth(p / hit) * 7;
                 glow(g, startX, startY, size * 2, tint, casting * 0.7);
+                SkillVfxShapes.castSigil(g, startX, startY, size + 9,
+                        tint, -elapsed * 3, casting * 0.62);
                 if (id.equals("ice_shard")) shard(g, startX, startY, sourceAngle, size, ICE, casting * 0.9);
                 else {
                     orbitArc(g, startX, startY, size, elapsed * 7, 3.7, EMBER, casting * 0.8, 0.85);
@@ -418,6 +440,14 @@ public class AbilityVisualEffect {
                         px, py, HOLY, 6, flight * 0.8, 4);
                 glow(g, px, py, 25, HOLY, flight * 0.7);
                 star(g, px, py, 8, Color.WHITE, flight);
+                SkillVfxShapes.crescent(g, px, py, aimAngle, 15, 4, HOLY, flight * 0.8);
+                for (int i = -1; i <= 1; i += 2) {
+                    double sideX = -Math.sin(aimAngle) * i;
+                    double sideY = Math.cos(aimAngle) * i;
+                    ribbon(g, px - Math.cos(aimAngle) * 35 + sideX * 13,
+                            py - Math.sin(aimAngle) * 35 + sideY * 13,
+                            px + sideX * 4, py + sideY * 4, HOLY, 3, flight * 0.56, i * 5);
+                }
                 impact(g, targetX, targetY, 65, HOLY, p, hit);
             }
             case "heal" -> {
@@ -428,6 +458,8 @@ public class AbilityVisualEffect {
                     double t = Math.min(1, after / 0.34);
                     ring(g, casterX, casterY + 20, 16 + easeOut(t) * 51,
                             tint, 2.4, (1 - t) * 0.7, 0.48);
+                    SkillVfxShapes.shockwave(g, casterX, casterY + 20,
+                            16 + easeOut(t) * 51, tint, elapsed, (1 - t) * 0.58, 0.48);
                     double lift = smooth(t) * 30;
                     stroke(g, new Line2D.Double(casterX - 7, casterY - 20 - lift,
                             casterX + 7, casterY - 20 - lift), tint, 3, (1 - t) * 0.9);
@@ -456,12 +488,16 @@ public class AbilityVisualEffect {
                     ring(g, targetX, targetY + 15, 12 + easeOut(after / 0.4) * 77,
                             HOLY, 3, beam * 0.8, 0.56);
                     rising(g, targetX, targetY, 68, HOLY, phase(after, 0, 0.55), beam, 18);
+                    SkillVfxShapes.shockwave(g, targetX, targetY + 15,
+                            12 + easeOut(after / 0.4) * 77, HOLY, elapsed,
+                            beam * 0.82, 0.56);
                 }
             }
             case "lightning_strike" -> {
                 lightningStrike(g, targetX, targetY, Math.min(radius, 150), p, endFade, hit);
                 double charge = envelope(p, release - 0.05, release + 0.05, hit - 0.03, hit + 0.03);
                 orbitArc(g, targetX, targetY + 14, 32, -elapsed * 4, 4.5, ICE, charge * 0.7, 0.48);
+                groundSeal(g, targetX, targetY + 14, 38, ICE, -elapsed * 3, charge * 0.82);
                 if (after >= 0 && after < 0.30) {
                     double alpha = (1 - smooth(after / 0.30)) * 0.58;
                     for (int i = 0; i < 3; i++) {
@@ -469,6 +505,9 @@ public class AbilityVisualEffect {
                         lightning(g, targetX, targetY, targetX + Math.cos(angle) * 60,
                                 targetY + Math.sin(angle) * 38, elapsed + i, alpha);
                     }
+                    SkillVfxShapes.shockwave(g, targetX, targetY + 12,
+                            12 + easeOut(after / 0.30) * 65, ICE, elapsed,
+                            alpha * 1.35, 0.62);
                 }
             }
             case "elemental_storm" -> drawNova(g, elapsed, hitAge, endFade);
@@ -478,6 +517,17 @@ public class AbilityVisualEffect {
 
     private void drawCharge(Graphics2D g, Color tint, double alpha, double progress) {
         if (alpha < 0.002) return;
+        boolean spell = definition.getAbilityClass() == AbilityClass.PRIEST
+                || definition.getAbilityClass() == AbilityClass.ELEMENTALIST;
+        if (spell) {
+            groundSeal(g, casterX, casterY + 21, 27 + progress * 17,
+                    tint, age() * 1.5, alpha * 0.5);
+            SkillVfxShapes.castSigil(g, startX, startY, 13 + progress * 12,
+                    tint, -age() * 2.8, alpha * 0.76);
+        } else {
+            SkillVfxShapes.crescent(g, startX, startY, sourceAngle,
+                    12 + progress * 10, 4, tint, alpha * 0.5);
+        }
         glow(g, startX, startY, 16 + progress * 12, tint, alpha * 0.5);
         orbitArc(g, startX, startY, 6 + progress * 10, -age() * 5, 3.9, tint, alpha * 0.75, 0.85);
         for (int i = 0; i < 6; i++) {
@@ -487,6 +537,8 @@ public class AbilityVisualEffect {
             double py = startY + Math.sin(angle) * distance * 0.85;
             stroke(g, new Line2D.Double(px, py, px + Math.cos(angle) * 4,
                     py + Math.sin(angle) * 4), tint, 1.2, alpha * 0.65);
+            if (i % 2 == 0) SkillVfxShapes.sparkle(g, px, py, 2.6,
+                    tint, angle, alpha * 0.72);
         }
         glow(g, startX, startY, 4, Color.WHITE, alpha * progress * 0.7);
     }
@@ -506,19 +558,63 @@ public class AbilityVisualEffect {
             double sway = Math.sin(elapsed * 11 - i * 0.55) * (ice ? 1.8 : 3.2) * i / 12.0;
             ribbon(g, worldX - dx * distance - dy * sway, worldY - dy * distance + dx * sway,
                     worldX - dx * next, worldY - dy * next, tint,
-                    (ice ? 5 : 9) * (1 - i / 13.0), alpha * 0.6, 0);
+                    (ice ? 7 : 13) * (1 - i / 13.0), alpha * 0.8, 0);
         }
-        glow(g, worldX, worldY, ice ? 27 : 30, tint, fade * 0.8);
+        glow(g, worldX, worldY, ice ? 30 : 38, tint, fade * 0.84);
         if (ice) {
-            shard(g, worldX, worldY, sourceAngle, 23, ICE, fade);
+            shard(g, worldX, worldY, sourceAngle, 28, ICE, fade);
             shard(g, worldX - dx * 16 - dy * 7, worldY - dy * 16 + dx * 7, sourceAngle, 10, ICE, fade * 0.5);
             shard(g, worldX - dx * 16 + dy * 7, worldY - dy * 16 - dx * 7, sourceAngle, 10, ICE, fade * 0.5);
+            stroke(g, new Line2D.Double(worldX - dx * 19, worldY - dy * 19,
+                    worldX + dx * 26, worldY + dy * 26), Color.WHITE, 1.8, fade * 0.95);
         } else {
-            shard(g, worldX, worldY, sourceAngle, 14, EMBER, fade);
+            drawFireComet(g, elapsed, fade);
             orbitArc(g, worldX, worldY, 12, elapsed * 10, 3.6, FIRE, fade * 0.9, 0.9);
             glow(g, worldX + dx * 4, worldY + dy * 4, 8, EMBER, fade);
         }
+        for (int i = 0; i < 5; i++) {
+            double pastAge = Math.max(0, elapsed - (i + 1) * 0.035);
+            double distance = now - projectileDistance(pastAge, speed);
+            double side = Math.sin(elapsed * 12 + i * 2.4) * (7 + i * 2.3);
+            double px = worldX - dx * distance - dy * side;
+            double py = worldY - dy * distance + dx * side;
+            double alpha = fade * (1 - i / 5.0) * smooth(elapsed / 0.10);
+            if (ice) shard(g, px, py, sourceAngle + i * 0.37, 4 + i * 0.5, ICE, alpha * 0.72);
+            else SkillVfxShapes.sparkle(g, px, py, 2.2 + i * 0.2, EMBER, elapsed + i, alpha * 0.72);
+        }
         glow(g, worldX, worldY, 4, Color.WHITE, fade * 0.85);
+    }
+
+    private void drawFireComet(Graphics2D g, double elapsed, double fade) {
+        Graphics2D comet = (Graphics2D) g.create();
+        try {
+            comet.translate(worldX, worldY);
+            comet.rotate(sourceAngle);
+            double flicker = Math.sin(elapsed * 19) * 2;
+            Path2D flame = new Path2D.Double();
+            flame.moveTo(-37 - flicker, 0);
+            flame.curveTo(-19, -4, -13, -12 - flicker, 5, -9);
+            flame.curveTo(25, -6, 25, 6, 5, 9);
+            flame.curveTo(-13, 12 + flicker, -19, 4, -37 - flicker, 0);
+            flame.closePath();
+            comet.setPaint(new GradientPaint(-37, 0, withAlpha(FIRE, 0),
+                    15, 0, withAlpha(FIRE, fade * 215)));
+            comet.fill(flame);
+            SkillVfxShapes.crescent(comet, 3, 0, 0, 15, 7, EMBER, fade * 0.92);
+            ribbon(comet, -28, 0, 16, 0, EMBER, 4.5, fade * 0.92, flicker * 0.5);
+            glow(comet, 8, 0, 9, Color.WHITE, fade * 0.82);
+        } finally { comet.dispose(); }
+    }
+
+    private static void groundSeal(Graphics2D g, double x, double y, double radius,
+            Color tint, double rotation, double alpha) {
+        if (alpha < 0.002) return;
+        Graphics2D ground = (Graphics2D) g.create();
+        try {
+            ground.translate(x, y);
+            ground.scale(1.0, 0.48);
+            SkillVfxShapes.castSigil(ground, 0, 0, radius, tint, rotation, alpha);
+        } finally { ground.dispose(); }
     }
 
     private static double projectileDistance(double elapsed, double speed) {
@@ -539,11 +635,16 @@ public class AbilityVisualEffect {
         if (time < 0) return;
         double r = waveRadius >= 0 ? waveRadius : radius * smooth(time / 0.60);
         double alpha = smooth(time / 0.045) * fade;
+        SkillVfxShapes.shockwave(g, x, y, r, ICE, elapsed * 0.45, alpha * 0.6, 1.0);
         glow(g, x, y, 30 + Math.min(r, 100) * 0.3, ICE, alpha * Math.exp(-time * 8) * 0.6);
         for (int i = 0; i < 3; i++) {
             double from = i * Math.PI * 2 / 3 + elapsed * 0.45;
             orbitArc(g, x, y, r, from, 1.93, elements[i], alpha * 0.85, 1);
             orbitArc(g, x, y, r * 0.86, from + 0.05, 1.72, elements[i], alpha * 0.30, 1);
+            SkillVfxShapes.crescent(g, x, y, from + 0.96, r,
+                    Math.max(3, Math.min(14, r * 0.07)), elements[i], alpha * 0.67);
+            SkillVfxShapes.crescent(g, x, y, from + 0.96, r * 0.86,
+                    4, elements[i], alpha * 0.22);
             for (int j = 0; j < 6; j++) {
                 double angle = from + j * 1.93 / 6;
                 double px = x + Math.cos(angle) * r, py = y + Math.sin(angle) * r;
@@ -711,6 +812,13 @@ public class AbilityVisualEffect {
         if (alpha < 0.002) return;
         double head = angle - 1.05 + easeOut(phase(p, from, hit + 0.065)) * 2.1;
         double tail = head - (0.18 + Math.sin(t * Math.PI) * 0.9);
+        Graphics2D sweep = (Graphics2D) g.create();
+        try {
+            sweep.translate(x, y);
+            sweep.scale(1.0, 0.7);
+            SkillVfxShapes.crescent(sweep, 0, 0, (head + tail) * 0.5,
+                    reach * 0.94, reach * 0.14, c, alpha * 0.72);
+        } finally { sweep.dispose(); }
         Path2D ribbon = new Path2D.Double(), edge = new Path2D.Double();
         for (int i = 0; i <= 20; i++) {
             double f = i / 20.0, at = tail + (head - tail) * f;
@@ -725,11 +833,13 @@ public class AbilityVisualEffect {
             ribbon.lineTo(x + Math.cos(at) * r, y + Math.sin(at) * r * 0.7);
         }
         ribbon.closePath();
-        g.setColor(withAlpha(c, 110 * alpha)); g.fill(ribbon);
+        g.setColor(withAlpha(c, 145 * alpha)); g.fill(ribbon);
         stroke(g, edge, c, 8, alpha * 0.16);
         stroke(g, edge, c, 3.8, alpha * 0.65);
         stroke(g, edge, new Color(255, 244, 226), 1.3, alpha * 0.8);
         glow(g, x + Math.cos(head) * reach, y + Math.sin(head) * reach * 0.7, 14, c, alpha * 0.45);
+        SkillVfxShapes.sparkle(g, x + Math.cos(head) * reach,
+                y + Math.sin(head) * reach * 0.7, 5, c, head, alpha * 0.82);
     }
 
     private void projectile(Graphics2D g, double p, double a, double hit) {
@@ -782,6 +892,8 @@ public class AbilityVisualEffect {
         double t = phase(p, hit - 0.01, 1), release = smooth((p - hit + 0.01) / 0.04);
         glow(g, x, y, size * 0.24, EMBER, envelope(p, hit - 0.07, hit, hit + 0.04, hit + 0.2) * 0.5);
         ring(g, x, y, size * (0.08 + easeOut(t) * 0.88), EMBER, 3, a * release * 0.5, 0.55);
+        SkillVfxShapes.shockwave(g, x, y, size * (0.08 + easeOut(t) * 0.88),
+                EMBER, age() * 0.13, a * release * 0.54, 0.55);
         for (int i = 0; i < 9; i++) {
             double angle = i * Math.PI * 2 / 9 + unit(i, 4) * 0.25;
             double length = size * (0.65 + unit(i, 2) * 0.3) * easeOut(t);
@@ -812,11 +924,26 @@ public class AbilityVisualEffect {
         double length = Math.max(1, Math.hypot(x - sx, y - sy)), ox = -(y - sy) / length, oy = (x - sx) / length;
         for (int i = 1; i < 8; i++) {
             double t = i / 8.0, jitter = (unit(i, 8) - 0.5) * 34 + Math.sin(p * 18 + i * 2.1) * 5;
-            bolt.lineTo(sx + (x - sx) * t + ox * jitter, sy + (y - sy) * t + oy * jitter);
+            double bx = sx + (x - sx) * t + ox * jitter, by = sy + (y - sy) * t + oy * jitter;
+            bolt.lineTo(bx, by);
+            if (length > 90 && i % 2 == 0) {
+                double side = i == 4 ? -1 : 1;
+                double branchLength = Math.min(54, length * 0.19) * (0.8 + unit(i, 3) * 0.2);
+                Path2D branch = new Path2D.Double();
+                branch.moveTo(bx, by);
+                for (int j = 1; j <= 3; j++) {
+                    double f = j / 3.0, wobble = (unit(i + j, 9) - 0.5) * 12;
+                    branch.lineTo(bx + ox * (branchLength * f * side + wobble) + (x - sx) / length * f * 20,
+                            by + oy * (branchLength * f * side + wobble) + (y - sy) / length * f * 20);
+                }
+                stroke(g, branch, ICE, 7, a * 0.09);
+                stroke(g, branch, ICE, 2.2, a * 0.45);
+                stroke(g, branch, Color.WHITE, 0.8, a * 0.62);
+            }
         }
         bolt.lineTo(x, y);
-        stroke(g, bolt, ICE, 13, a * 0.1); stroke(g, bolt, ICE, 5, a * 0.65);
-        stroke(g, bolt, new Color(237, 252, 255), 1.7, a * 0.95); glow(g, x, y, 28, ICE, a * 0.45);
+        stroke(g, bolt, ICE, 14, a * 0.12); stroke(g, bolt, ICE, 6, a * 0.7);
+        stroke(g, bolt, new Color(237, 252, 255), 2.1, a * 0.95); glow(g, x, y, 28, ICE, a * 0.45);
     }
     private void elementalStorm(Graphics2D g, double x, double y, double p, double a) {
         sigil(g, x, y + 22, radius * 0.64, SHADOW, p, a * 0.6, false);
@@ -913,6 +1040,10 @@ public class AbilityVisualEffect {
         if (a < 0.002) return;
         glow(g, x, y, Math.max(12, size * (0.34 + t * 0.25)), c, a * (1 - t) * 0.4);
         ring(g, x, y + 8, size * (0.13 + easeOut(t) * 0.66), c, 2.5 - t * 1.6, a * 0.5, 0.68);
+        SkillVfxShapes.shockwave(g, x, y + 8, size * (0.13 + easeOut(t) * 0.66),
+                c, age() * 0.45, a * (1 - t) * 0.55, 0.68);
+        SkillVfxShapes.sparkle(g, x, y, Math.max(5, size * 0.18), c,
+                age() * 0.3, a * Math.exp(-t * 9));
         sparks(g, x, y, c, 12, size, t, a);
     }
 
@@ -922,13 +1053,31 @@ public class AbilityVisualEffect {
         Path2D path = new Path2D.Double(); path.moveTo(x, y - r * 0.75);
         path.curveTo(x + r * 0.7, y - r * 0.54, x + r * 0.76, y + r * 0.17, x, y + r * 0.85);
         path.curveTo(x - r * 0.76, y + r * 0.17, x - r * 0.7, y - r * 0.54, x, y - r * 0.75);
+        g.setColor(withAlpha(c, a * 16));
+        g.fill(path);
+        Path2D facets = new Path2D.Double();
+        facets.moveTo(x, y - r * 0.75); facets.lineTo(x, y + r * 0.85);
+        facets.moveTo(x - r * 0.47, y - r * 0.2); facets.lineTo(x, y + r * 0.12);
+        facets.lineTo(x + r * 0.47, y - r * 0.2);
+        stroke(g, facets, c, 1, a * 0.32);
+        Graphics2D sheen = (Graphics2D) g.create();
+        try {
+            sheen.clip(path);
+            double at = (age() * 0.6) % 1;
+            double bandY = y - r + at * r * 2.2;
+            sheen.setPaint(new GradientPaint((float) x, (float) bandY, withAlpha(Color.WHITE, 0),
+                    (float) x, (float) (bandY + r * 0.17), withAlpha(Color.WHITE, a * 35)));
+            sheen.fill(new java.awt.geom.Rectangle2D.Double(x - r, bandY, r * 2, r * 0.17));
+        } finally { sheen.dispose(); }
         stroke(g, path, c, 9, a * 0.1); stroke(g, path, c, 2.4, a * 0.7);
+        SkillVfxShapes.sparkle(g, x, y - r * 0.19, r * 0.12, c, 0, a * 0.64);
         stroke(g, new Arc2D.Double(x - r * 0.55, y - r * 0.7, r * 1.1, r * 1.3, 40 + age() * 80, 80, Arc2D.OPEN),
                 Color.WHITE, 1, a * 0.6);
     }
     private void sigil(Graphics2D g, double x, double y, double size, Color c, double p, double a, boolean holy) {
         double r = size * (0.75 + smooth(p / 0.24) * 0.25);
-        ring(g, x, y, r, c, 1.6, a * 0.65, 0.48); ring(g, x, y, r * 0.75, c, 1, a * 0.45, 0.48);
+        groundSeal(g, x, y, r, c, age() * (holy ? 0.35 : -0.5), a * 0.82);
+        ring(g, x, y, r * 0.75, c, 1, a * 0.32, 0.48);
         for (int i = 0; i < 6; i++) {
             double angle = i * Math.PI / 3 + age() * 0.6;
             double px = x + Math.cos(angle) * r * 0.87, py = y + Math.sin(angle) * r * 0.42;
@@ -937,13 +1086,28 @@ public class AbilityVisualEffect {
     }
     private void pillar(Graphics2D g, double x, double y, double size, Color c, double p, double a) {
         double strength = a * smooth(p / hits[0]), height = Math.min(310, size * 2.2), width = Math.max(8, size * 0.17);
+        if (strength < 0.002) return;
+        Graphics2D column = (Graphics2D) g.create();
+        try {
+            Path2D light = new Path2D.Double();
+            light.moveTo(x - width * 1.3, y);
+            light.lineTo(x - width * 0.5, y - height);
+            light.lineTo(x + width * 0.5, y - height);
+            light.lineTo(x + width * 1.3, y);
+            light.closePath();
+            column.setPaint(new GradientPaint((float) x, (float) (y - height), withAlpha(c, strength * 18),
+                    (float) x, (float) y, withAlpha(c, strength * 85)));
+            column.fill(light);
+            SkillVfxShapes.castSigil(column, x, y - height * 0.78, width * 1.6,
+                    c, -age() * 0.6, strength * 0.45);
+        } finally { column.dispose(); }
         for (int i = -2; i <= 2; i++) {
             Path2D beam = new Path2D.Double(); double offset = i * width * 0.55;
             beam.moveTo(x + offset, y);
             beam.curveTo(x + offset + Math.sin(age() * 6 + i) * 7, y - height * 0.45,
                     x + offset * 0.7, y - height * 0.8, x + offset * 0.35, y - height);
-            stroke(g, beam, c, i == 0 ? width * 1.7 : width * 0.6, strength * 0.1);
-            stroke(g, beam, Color.WHITE, i == 0 ? 2 : 0.8, strength * (i == 0 ? 0.5 : 0.22));
+            stroke(g, beam, c, i == 0 ? width * 1.7 : width * 0.6, strength * 0.15);
+            stroke(g, beam, Color.WHITE, i == 0 ? 3 : 0.8, strength * (i == 0 ? 0.72 : 0.22));
         }
         glow(g, x, y - 20, size * 0.7, c, strength * 0.12);
     }
@@ -1028,8 +1192,7 @@ public class AbilityVisualEffect {
         stroke(g, new Line2D.Double(x + dx * size, y + dy * size, x - dx * size * 0.7, y - dy * size * 0.7), Color.WHITE, 0.9, a * 0.65);
     }
     private static void star(Graphics2D g, double x, double y, double size, Color c, double a) {
-        stroke(g, new Line2D.Double(x - size, y, x + size, y), c, 1.1, a * 0.85);
-        stroke(g, new Line2D.Double(x, y - size * 1.3, x, y + size * 1.3), c, 1.1, a * 0.85);
+        SkillVfxShapes.sparkle(g, x, y, size * 1.3, c, 0, a * 0.9);
     }
     private static void ring(Graphics2D g, double x, double y, double r, Color c, double width, double a, double verticalScale) {
         if (r <= 0 || a < 0.002) return;

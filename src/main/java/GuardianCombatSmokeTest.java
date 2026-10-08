@@ -268,6 +268,7 @@ public class GuardianCombatSmokeTest {
                 "Restart must clear Guardian actions");
         require(fixture.list("scheduledAbilityImpacts").isEmpty()
                 && fixture.list("abilityVisualEffects").isEmpty(), "Restart must clear scheduled effects");
+        fixture.logic.update(RunEntranceAnimation.DURATION);
         require(fixture.skill("shield_fortress").trigger(fixture.logic, fixture.manager, 1),
                 "Restarted Guardian can cast again");
         restarted.update(0.5);
@@ -325,6 +326,7 @@ public class GuardianCombatSmokeTest {
             field(GameLogic.class, "soundEnabled").setBoolean(logic, false);
             logic.selectCharacter(4);
             logic.startGame();
+            logic.update(RunEntranceAnimation.DURATION);
             manager = logic.getAbilityManager();
             player = (Player) value(logic, "player");
             enemies = list("enemies");

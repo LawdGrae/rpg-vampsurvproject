@@ -6,6 +6,13 @@ weapon trails, elemental casts, projectile travel, shields and contact accents.
 Effects use the existing combat clocks and physical attachment points, with
 smooth formation and fading instead of abruptly appearing static shapes.
 
+The procedural skills include rotating cast runes, tapered flame and shadow
+crescents, fire comets and ice crystal trails, branching lightning, radiant
+Judgment columns, translucent faceted barriers and segmented pressure waves.
+Ground seals use a flattened perspective, while projectile trails follow their
+live heading. The added accents retain the existing release and hit clocks;
+Nova, Earthbreaker and Guardian's Roar still follow their actual expanding front.
+
 The two original VFX PNG references remain absent from the workspace. Their
 source crops have not been approved. A loaded, reviewed action, travel or impact
 track takes precedence over its procedural fallback; the fallback is independent
@@ -55,6 +62,7 @@ java '-Djava.awt.headless=true' -cp out/classes CombatSkillSmokeTest
 java '-Djava.awt.headless=true' -cp out/classes SkillPoseSmokeTest
 java '-Djava.awt.headless=true' -cp out/classes AnimationVfxSmokeTest
 java '-Djava.awt.headless=true' -cp out/classes SkillVfxSmokeTest
+java '-Djava.awt.headless=true' -cp out/classes SkillVfxShapesSmokeTest
 java '-Djava.awt.headless=true' -cp out/classes SkillEffectAtlasSmokeTest
 java '-Djava.awt.headless=true' -cp out/classes GuardianCombatSmokeTest
 java '-Djava.awt.headless=true' -cp out/classes CombatMotionRenderCheck out/combat-motion-final

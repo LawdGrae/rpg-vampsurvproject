@@ -34,8 +34,11 @@ public final class GameHud {
         Graphics2D g = (Graphics2D) graphics.create();
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        drawDanger(g, logic, width, height, uiTime);
         drawVitals(g, logic, width, uiTime);
         drawSurvival(g, logic, width);
+        drawCombatProgress(g, logic, width);
+        drawEncounter(g, logic, width, uiTime);
         drawHotbar(g, logic, width, height, uiTime, mouseX, mouseY);
         g.dispose();
     }
@@ -142,6 +145,88 @@ public final class GameHud {
         g.setColor(MUTED);
         int enemies = logic.getEnemyCount();
         centered(g, enemies + (enemies == 1 ? " active enemy" : " active enemies"), x, y + 75, w);
+    }
+
+    private static void drawCombatProgress(Graphics2D g, GameLogic logic, int width) {
+        SurvivalDirector run = logic.getSurvivalDirector();
+        int w = width < 700 ? 142 : 172;
+        int x = width - w - 20;
+        int y = 116;
+        panel(g, x, y, w, 94, 12);
+        g.setFont(LABEL.deriveFont(9f));
+        g.setColor(MUTED);
+        g.drawString("SCORE", x + 14, y + 20);
+        g.setFont(GameUiTheme.numeric(15f));
+        g.setColor(IVORY);
+        right(g, Long.toString(run.getScore()), x + w - 14, y + 21);
+        g.setFont(SMALL);
+        g.setColor(MUTED);
+        g.drawString(run.getKills() + " kills", x + 14, y + 41);
+        right(g, "best " + run.getBestStreak(), x + w - 14, y + 41);
+        boolean active = run.getStreak() > 0;
+        Color accent = run.getStreak() >= 5 ? new Color(137, 232, 207) : GOLD;
+        g.setFont(LABEL.deriveFont(9f));
+        g.setColor(active ? accent : MUTED);
+        centered(g, active ? run.getStreak() + " KILL STREAK" : "CHAIN 5 KILLS", x, y + 62, w);
+        resource(g, x + 14, y + 68, w - 28, 3, run.getStreakRatio(),
+                new Color(48, 68, 67), accent, 0.0);
+        g.setFont(SMALL.deriveFont(9f));
+        g.setColor(run.getRewardFlash() > 0.0 ? accent : MUTED);
+        centered(g, "+10 MP / +2 XP every 5", x, y + 84, w);
+        if (run.getRewardFlash() > 0.0) {
+            g.setColor(alpha(accent, (int) (160 * run.getRewardFlash())));
+            g.drawRoundRect(x, y, w, 94, 12, 12);
+        }
+    }
+
+    private static void drawEncounter(Graphics2D g, GameLogic logic, int width, double time) {
+        // Narrow layouts prioritize the two corner panels.
+        if (width < 900) return;
+        SurvivalDirector run = logic.getSurvivalDirector();
+        int w = 328;
+        int x = (width - w) / 2;
+        int y = 78;
+        boolean warning = run.isWarning() && !logic.isBossEncounterActive();
+        boolean assault = run.isAssaultActive() && !logic.isBossEncounterActive();
+        Color accent = warning || assault ? new Color(247, 169, 105) : GOLD;
+        panel(g, x, y, w, 68, 12);
+        g.setFont(LABEL.deriveFont(10f));
+        g.setColor(accent);
+        String title = logic.isBossEncounterActive() ? "BOSS ENCOUNTER"
+                : warning ? "INCOMING: " + run.getAssault().title().toUpperCase()
+                : assault ? run.getAssault().title().toUpperCase()
+                : run.isRecovering() ? "REGROUP AND COLLECT" : logic.getActiveRegionName().toUpperCase();
+        centered(g, title, x, y + 22, w);
+        g.setFont(SMALL);
+        g.setColor(IVORY);
+        String detail = logic.isBossEncounterActive() ? "Watch the boss phases and save a defensive skill"
+                : warning || assault ? run.getAssault().hint()
+                : run.isRecovering() ? "Gather gems before the next push"
+                : "Assault in " + (int) Math.ceil(run.getAssaultCountdown())
+                        + "s  /  " + (logic.hasMoreRegionalBosses()
+                        ? "Boss in " + (int) Math.ceil(logic.getNextBossCountdown()) + "s" : "All regions cleared");
+        centered(g, detail, x, y + 40, w);
+        g.setFont(SMALL.deriveFont(9f));
+        g.setColor(MUTED);
+        centered(g, warning ? "ARRIVES IN " + (int) Math.ceil(run.getAssaultCountdown()) + "s"
+                : assault ? (int) Math.ceil(run.getAssaultRemaining()) + "s OF PRESSURE"
+                : "Keep kills within 6s to build your streak", x, y + 56, w);
+        if (warning) {
+            g.setColor(alpha(accent, 90 + (int) (55 * Math.sin(time * 7))));
+            g.drawRoundRect(x, y, w, 68, 12, 12);
+        }
+    }
+
+    private static void drawDanger(Graphics2D g, GameLogic logic, int width, int height, double time) {
+        double ratio = logic.getPlayerHealth() / Math.max(1.0, logic.getPlayerMaxHealth());
+        if (ratio <= 0.0 || ratio >= 0.25) return;
+        int opacity = (int) ((1.0 - ratio / 0.25) * (24 + 10 * Math.sin(time * 4)));
+        Color edge = new Color(200, 48, 66, Math.max(0, opacity));
+        Color clear = new Color(200, 48, 66, 0);
+        g.setPaint(new GradientPaint(0, 0, edge, 0, 85, clear));
+        g.fillRect(0, 0, width, 85);
+        g.setPaint(new GradientPaint(0, height, edge, 0, height - 85, clear));
+        g.fillRect(0, height - 85, width, 85);
     }
 
     private static void drawHotbar(Graphics2D g, GameLogic logic, int width, int height,

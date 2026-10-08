@@ -163,7 +163,8 @@ public final class EnemyCatalog {
         int renderSize = region == EnemyRegion.FROSTPEAK_MOUNTAINS ? 150 : 126 + tier * 4;
         EnemyDefinition definition = definition(id, name, region, true, true, 0,
                 48.0 + tier * 2.2, 3.0, 128, 128, renderSize,
-                renderSize * 0.43, 230.0 + tier * 72.0,
+                // Boss shots should punish mistakes while allowing an early hero to recover.
+                renderSize * 0.43, 32.0 + tier * 8.0,
                 260.0 + tier * 110.0, 440.0, Math.max(1.0, 3.2 - tier * 0.14),
                 190.0 + tier * 20.0, 0.72, 60 + tier * 14,
                 85 + tier * 24, element, lootName,

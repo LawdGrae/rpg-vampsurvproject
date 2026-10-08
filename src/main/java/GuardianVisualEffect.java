@@ -184,6 +184,20 @@ final class GuardianVisualEffect {
         // A small metallic rim accent follows the preparing weapon. Ground impact
         // and travelling pressure effects remain absent until the shared hit event.
         glow(g, shieldX, shieldY - 4, 21, GOLD, alpha * 0.32);
+        double chargeAngle = Math.atan2(directionY, directionX);
+        double chargeRadius = 13 + smooth(age / Math.max(0.08, hitAge)) * 7;
+        SkillVfxShapes.castSigil(g, shieldX, shieldY - 4, chargeRadius,
+                GOLD, chargeAngle + age * 1.7, alpha * 0.48);
+        SkillVfxShapes.crescent(g, shieldX, shieldY - 4, chargeAngle,
+                chargeRadius + 3, 3.5, LIGHT_GOLD, alpha * 0.42);
+        // Highlights stay close to the shield while it gathers pressure.
+        for (int rune = 0; rune < 3; rune++) {
+            double runeAngle = chargeAngle + age * 2.2 + rune * Math.PI * 2 / 3;
+            SkillVfxShapes.sparkle(g,
+                    shieldX + Math.cos(runeAngle) * chargeRadius,
+                    shieldY - 4 + Math.sin(runeAngle) * chargeRadius,
+                    2.3, LIGHT_GOLD, runeAngle, alpha * 0.56);
+        }
         segment(g, shieldX - 5, shieldY - 12, shieldX - 7, shieldY + 5,
                 STEEL, FINE, alpha * 0.52);
         segment(g, shieldX + 6, shieldY - 8, shieldX + 6, shieldY + 9,
@@ -206,6 +220,13 @@ final class GuardianVisualEffect {
             double assembly = 0.78 + reveal * 0.22;
             double x = shieldX + directionX * 5, y = shieldY - 4;
             glow(g, x, y, height * 0.56, GOLD, alpha * 0.22);
+            // The assembled barrier has a grounded footprint and a lit rune face.
+            double footprintRadius = 29 + reveal * 13;
+            SkillVfxShapes.shockwave(g, casterX, casterY + 18,
+                    footprintRadius, GOLD, age * 0.17, alpha * 0.32, 0.30);
+            SkillVfxShapes.shockwave(g, casterX, casterY + 18,
+                    footprintRadius * 0.76, LIGHT_GOLD, -age * 0.13,
+                    alpha * 0.17, 0.30);
             Graphics2D barrier = (Graphics2D) g.create();
             try {
                 barrier.translate(x, y);
@@ -251,6 +272,13 @@ final class GuardianVisualEffect {
             } finally {
                 barrier.dispose();
             }
+            SkillVfxShapes.castSigil(g, x, y - height * 0.13,
+                    height * 0.23, LIGHT_GOLD, age * 0.12, alpha * 0.28);
+            double sheenPulse = 0.55 + 0.45 * Math.sin(age * 5.5);
+            SkillVfxShapes.sparkle(g, x - width * 0.28, y - height * 0.26,
+                    4.5, LIGHT_GOLD, -0.18, alpha * sheenPulse * 0.67);
+            SkillVfxShapes.sparkle(g, x + width * 0.25, y + height * 0.06,
+                    3, GOLD, 0.20, alpha * (1 - sheenPulse * 0.45) * 0.57);
             // Two visible tethers meet at the weapon face, so the structure cannot float.
             segment(g, shieldX, shieldY, x - width * 0.31, y - height * 0.2,
                     GOLD, SMALL, alpha * 0.28);
@@ -308,6 +336,16 @@ final class GuardianVisualEffect {
         if (active < 0.003) return;
         glow(g, shieldX + directionX * 3, shieldY + directionY * 3, 24,
                 LIGHT_GOLD, active * 0.36);
+        double pressureAngle = Math.atan2(directionY, directionX);
+        double pressureX = shieldX + directionX * 8;
+        double pressureY = shieldY + directionY * 8;
+        SkillVfxShapes.crescent(g, pressureX, pressureY, pressureAngle,
+                29, 7, GOLD, active * 0.46);
+        SkillVfxShapes.crescent(g, pressureX, pressureY, pressureAngle,
+                25, 2.2, LIGHT_GOLD, active * 0.75);
+        SkillVfxShapes.sparkle(g, shieldX + directionX * 31,
+                shieldY + directionY * 31, 4.2, LIGHT_GOLD,
+                pressureAngle + Math.PI / 4, active * 0.60);
         // Small glints scrape along the physical leading shield, never a colored dash.
         for (int i = 0; i < 8; i++) {
             double t = ((age - hitAge) * 3.7 + seeds[i]) % 1;
@@ -328,6 +366,23 @@ final class GuardianVisualEffect {
         double reach = waveRadius >= 0 ? clamp(waveRadius / Math.max(1, radius)) : smooth(time / 0.60);
         double fade = 1 - smooth((age - maxLife + 0.42) / 0.42);
         double aim = Math.atan2(directionY, directionX);
+        double shockRadius = reach * radius;
+        if (shockRadius > 3) {
+            // The bright edge follows the same radius as the damaging ground front.
+            SkillVfxShapes.crescent(g, impactX, impactY + 6, aim,
+                    shockRadius, 6 + 3 * (1 - reach), GOLD, fade * 0.30);
+            SkillVfxShapes.crescent(g, impactX, impactY + 6, aim,
+                    Math.max(1, shockRadius - 3), 2.0, LIGHT_GOLD, fade * 0.53);
+            for (int chip = 0; chip < 7; chip++) {
+                double chipAngle = aim + (chip - 3) * 0.20;
+                double chipDistance = Math.max(0, shockRadius - 4 - (chip % 3) * 3);
+                double chipX = impactX + Math.cos(chipAngle) * chipDistance;
+                double chipY = impactY + 6 + Math.sin(chipAngle) * chipDistance;
+                SkillVfxShapes.sparkle(g, chipX, chipY,
+                        1.8 + (chip % 2), ROCK_LIGHT, chipAngle,
+                        fade * (0.24 + (chip % 3) * 0.07));
+            }
+        }
         // Branching cracks spread through the ground from the shield's exact lower tip.
         for (int ray = 0; ray < 11; ray++) {
             double angle = ray < 8 ? aim + (ray - 3.5) * 0.37
@@ -400,6 +455,17 @@ final class GuardianVisualEffect {
         // Gameplay reaches each enemy on this same linear .55-second front.
         double reach = radius * clamp(time / 0.55);
         double alpha = smooth(time / 0.065) * (1 - smooth((t - 0.46) / 0.54));
+        if (reach > 3) {
+            SkillVfxShapes.shockwave(g, impactX, impactY + 6, reach,
+                    LIGHT_GOLD, -time * 0.19, alpha * 0.30, 0.72);
+            SkillVfxShapes.shockwave(g, impactX, impactY + 6, reach * 0.81,
+                    GOLD, time * 0.28, alpha * 0.20, 0.72);
+        }
+        if (time < 0.26) {
+            SkillVfxShapes.castSigil(g, impactX, impactY + 6,
+                    22 + smooth(time / 0.26) * 12, LIGHT_GOLD,
+                    -time * 0.65, (1 - smooth(time / 0.26)) * 0.30);
+        }
         if (time < 0.24) glow(g, impactX, impactY + 6, 38, LIGHT_GOLD,
                 (1 - smooth(time / 0.24)) * 0.48);
         // Pressure fronts are broad broken ribbons with irregular crests and open gaps.

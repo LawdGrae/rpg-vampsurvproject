@@ -373,6 +373,7 @@ public class CombatSkillSmokeTest {
             logic.setSoundEnabled(false);
             logic.selectCharacter(hero);
             logic.startGame();
+            logic.update(RunEntranceAnimation.DURATION);
             player = (Player) value(logic, "player");
             // This fixture tests skill timing in an empty arena. Terrain movement
             // and blocked dashes are covered by WorldCollisionSmokeTest.

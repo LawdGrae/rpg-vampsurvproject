@@ -455,6 +455,10 @@ final class GameMenus {
         text(g, timerText(), GameUiTheme.numeric(27), INK, 462, 426);
         text(g, "HERO LEVEL", GameUiTheme.label(10), MUTED, 678, 392);
         text(g, Integer.toString(logic.getLevel()), GameUiTheme.numeric(27), GOLD, 678, 426);
+        SurvivalDirector run = logic.getSurvivalDirector();
+        centered(g, run.getScore() + " points    /    " + run.getKills()
+                + " kills    /    best streak " + run.getBestStreak(),
+                GameUiTheme.body(12), MUTED, r.x, 451, r.width);
         button(g, gameOverButton(0), "Try again", true);
         button(g, gameOverButton(1), "Main menu", false);
     }
