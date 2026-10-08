@@ -1,3 +1,4 @@
+import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -102,7 +103,9 @@ public final class AbilitySoundPlayer {
     private static Clip loadClip(String filename)
             throws IOException, UnsupportedAudioFileException, LineUnavailableException {
         try (InputStream rawStream = openSound(filename);
-                AudioInputStream audioStream = AudioSystem.getAudioInputStream(rawStream)) {
+                BufferedInputStream bufferedStream = new BufferedInputStream(rawStream);
+                AudioInputStream audioStream =
+                        AudioSystem.getAudioInputStream(bufferedStream)) {
             AudioFormat sourceFormat = audioStream.getFormat();
             AudioFormat playbackFormat = new AudioFormat(AudioFormat.Encoding.PCM_SIGNED,
                     sourceFormat.getSampleRate(), 16, sourceFormat.getChannels(),
