@@ -1043,6 +1043,9 @@ public class GameLogic {
         if (exp >= expToNextLevel) {
             exp = 0;
             level++;
+            if (soundEnabled) {
+                AbilitySoundPlayer.playLevelUp();
+            }
             expToNextLevel += LEVEL_UP_EXP_BONUS + level * 2;
             refreshUpgradeChoices();
             upgradeMenuOpen = true;
@@ -1598,9 +1601,9 @@ public class GameLogic {
             return 1.2;
         }
         if (gameTimer < 150.0) {
-            return 0.8;
+            return 0.9;
         }
-        return 0.5;
+        return 0.6;
     }
 
     private Enemy createEnemy(double worldX, double worldY) {
