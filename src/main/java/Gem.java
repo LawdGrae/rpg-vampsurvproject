@@ -7,6 +7,9 @@ public class Gem {
     private static final double GEM_SIZE = 16.0;
     private static final double PULL_RADIUS = 50.0;
     private static final double COLLECTION_RADIUS = 14.0;
+    private static final double INITIAL_OUTWARD_SPEED = 165.0;
+    private static final double PLAYER_ACCELERATION = 340.0;
+    private static final double MAX_SPEED = 6400.0;
     private static final BufferedImage GEM_SPRITE = loadSprite();
     private static final int VALUE = 1;
 
@@ -16,6 +19,7 @@ public class Gem {
     private double velocityY;
     private double bobTime;
     private boolean collected;
+    private boolean attractionStarted;
 
     public Gem(double worldX, double worldY) {
         this.worldX = worldX;
@@ -31,30 +35,35 @@ public class Gem {
         double differenceX = playerX - worldX;
         double differenceY = playerY - worldY;
         double distanceSquared = differenceX * differenceX + differenceY * differenceY;
+        boolean outwardImpulseApplied = false;
 
         if (distanceSquared > 0.0001) {
             double distance = Math.sqrt(distanceSquared);
-            if (distance <= pickupRadius) {
+            if (!attractionStarted && distance <= pickupRadius) {
                 double directionX = differenceX / distance;
                 double directionY = differenceY / distance;
-                double speed = Math.sqrt(velocityX * velocityX + velocityY * velocityY);
-                double newSpeed = speed + 12.0;
-                velocityX = directionX * newSpeed;
-                velocityY = directionY * newSpeed;
-
-                double speedLimit = 1600.0;
-                double maxSpeed = Math.sqrt(velocityX * velocityX + velocityY * velocityY);
-                if (maxSpeed > speedLimit) {
-                    velocityX = (velocityX / maxSpeed) * speedLimit;
-                    velocityY = (velocityY / maxSpeed) * speedLimit;
-                }
+                velocityX -= directionX * INITIAL_OUTWARD_SPEED;
+                velocityY -= directionY * INITIAL_OUTWARD_SPEED;
+                attractionStarted = true;
+                outwardImpulseApplied = true;
             }
+        }
+
+        if (attractionStarted && !outwardImpulseApplied && distanceSquared > 0.0001) {
+            double distance = Math.sqrt(distanceSquared);
+            double speed = Math.sqrt(velocityX * velocityX + velocityY * velocityY);
+            double newSpeed = Math.min(MAX_SPEED, speed + PLAYER_ACCELERATION * deltaTime);
+            velocityX = differenceX / distance * newSpeed;
+            velocityY = differenceY / distance * newSpeed;
         }
 
         worldX += velocityX * deltaTime;
         worldY += velocityY * deltaTime;
 
-        if (differenceX * differenceX + differenceY * differenceY <= COLLECTION_RADIUS * COLLECTION_RADIUS) {
+        double collectionX = playerX - worldX;
+        double collectionY = playerY - worldY;
+        if (collectionX * collectionX + collectionY * collectionY
+                <= COLLECTION_RADIUS * COLLECTION_RADIUS) {
             collected = true;
         }
     }

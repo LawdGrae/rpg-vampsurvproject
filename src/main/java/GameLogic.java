@@ -1595,12 +1595,12 @@ public class GameLogic {
 
     private double getSpawnInterval() {
         if (gameTimer < 90.0) {
-            return 1.8;
+            return 1.2;
         }
         if (gameTimer < 150.0) {
-            return 1.5;
+            return 0.8;
         }
-        return 1.2;
+        return 0.5;
     }
 
     private Enemy createEnemy(double worldX, double worldY) {
